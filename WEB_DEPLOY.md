@@ -130,6 +130,7 @@ cp ../../vercel-web.json ./vercel.json
 vercel deploy --prod
 ```
 
+
 ## Sık sorulanlar
 
 **“project_tcr içinde rivlus-site klasörü var; push atarsam rivlus-site da gidecek, sorun olmaz mı?”**  

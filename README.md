@@ -25,7 +25,7 @@ Koşu kulübü mobil uygulaması - Flutter & Supabase
 - GPX dosya desteği
 - 2D/3D harita görünümü
 - Yükseklik profili
-- Mapbox entegrasyonu
+- flutter_map (OpenStreetMap) ile harita ve rota
 
 ### 💬 İletişim
 - Genel sohbet (Lobby)
@@ -59,7 +59,6 @@ Koşu kulübü mobil uygulaması - Flutter & Supabase
 - Flutter 3.9+
 - Dart 3.0+
 - Supabase hesabı
-- Mapbox hesabı
 
 ### 1. Bağımlılıkları Yükle
 ```bash
@@ -84,7 +83,6 @@ Uygulamayı çalıştırırken aşağıdaki değişkenleri tanımlayın:
 flutter run \
   --dart-define=SUPABASE_URL=your-url \
   --dart-define=SUPABASE_ANON_KEY=your-key \
-  --dart-define=MAPBOX_ACCESS_TOKEN=your-token \
   --dart-define=OPENWEATHERMAP_API_KEY=your-key
 ```
 
@@ -145,7 +143,7 @@ Migration dosyaları `supabase/migrations/` klasöründe:
 - **Riverpod** - State management
 - **Go Router** - Navigation
 - **Supabase** - Backend (Auth, Database, Storage, Realtime)
-- **Mapbox GL** - Haritalar
+- **flutter_map** - Haritalar (OpenStreetMap)
 - **Freezed** - Immutable models
 
 ## Lisans

@@ -57,7 +57,7 @@ Koşu Kulübü Tek Uygulamada
 **ROTALAR VE HARİTA**
 • GPX rotalarını görüntüleyin; 2D/3D harita ve yükseklik profili  
 • Yeni rota oluşturup kulüple paylaşın  
-• Mapbox haritalarıyla net ve detaylı görünüm  
+• Haritalarla net ve detaylı görünüm  
 
 **ANTRENMAN GRUPLARI**
 • Gruplara katılın, programları takip edin  

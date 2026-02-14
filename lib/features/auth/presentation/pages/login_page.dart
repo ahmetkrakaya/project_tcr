@@ -505,63 +505,84 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   void _showForgotPasswordDialog(BuildContext context, WidgetRef ref) {
     final emailController = TextEditingController();
-    
+    var isSending = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Şifremi Unuttum'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Email adresinizi girin, size şifre sıfırlama bağlantısı göndereceğiz.',
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: emailController,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                hintText: 'ornek@email.com',
-              ),
-              keyboardType: TextInputType.emailAddress,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                  RegExp(r'[a-zA-Z0-9@._\-+]+'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Şifremi Unuttum'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Email adresinizi girin, size şifre sıfırlama bağlantısı göndereceğiz.',
                 ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: emailController,
+                  enabled: !isSending,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    hintText: 'ornek@email.com',
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'[a-zA-Z0-9@._\-+]+'),
+                    ),
+                  ],
+                ),
+                if (isSending) ...[
+                  const SizedBox(height: 20),
+                  const Center(
+                    child: SizedBox(
+                      height: 32,
+                      width: 32,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                ],
               ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (emailController.text.isNotEmpty) {
-                final success = await ref
-                    .read(authNotifierProvider.notifier)
-                    .resetPassword(emailController.text.trim());
-                
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        success
-                            ? 'Şifre sıfırlama bağlantısı gönderildi'
-                            : 'Bir hata oluştu',
-                      ),
-                      backgroundColor: success ? AppColors.success : AppColors.error,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Gönder'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: isSending ? null : () => Navigator.pop(dialogContext),
+                child: const Text('İptal'),
+              ),
+              ElevatedButton(
+                onPressed: isSending
+                    ? null
+                    : () async {
+                        if (emailController.text.isEmpty) return;
+                        isSending = true;
+                        setDialogState(() {});
+                        final success = await ref
+                            .read(authNotifierProvider.notifier)
+                            .resetPassword(emailController.text.trim());
+                        if (dialogContext.mounted) {
+                          isSending = false;
+                          setDialogState(() {});
+                          Navigator.pop(dialogContext);
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                success
+                                    ? 'Şifre sıfırlama bağlantısı gönderildi'
+                                    : 'Bir hata oluştu',
+                              ),
+                              backgroundColor:
+                                  success ? AppColors.success : AppColors.error,
+                            ),
+                          );
+                        }
+                      },
+                child: const Text('Gönder'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

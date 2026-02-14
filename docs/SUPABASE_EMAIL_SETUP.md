@@ -188,13 +188,28 @@ await supabase
 
 Uygulama "Şifremi Unuttum" ile şifre sıfırlama e-postası gönderir. Link tıklandığında uygulama açılır ve kullanıcı yeni şifresini belirler.
 
-### URL Configuration (Zorunlu)
+### Mobil + Web (app.rivlus.com) – Link her zaman uygulamayı açsın
+
+Proje hem mobil hem web (app.rivlus.com) üzerinde çalışıyorsa ve **şifre sıfırlama linkinin her zaman mobil uygulamayı açmasını** istiyorsanız (web sayfasına gitmesin):
 
 1. Supabase Dashboard → **Authentication** → **URL Configuration**
-2. **Redirect URLs** listesine şu adresi ekleyin:
+2. **Site URL** alanına **custom scheme** girin (web adresi değil):
    ```
    tcr://reset-password
    ```
+   Böylece e-postadaki linkin varsayılan hedefi uygulama olur; tıklanınca cihazda TCR uygulaması açılır.
+3. **Redirect URLs** listesinde şunlar olsun (hepsi gerekli):
+   - `tcr://reset-password` (mobil – e-postadaki link uygulamayı açar)
+   - `https://app.rivlus.com/auth/callback` (web – OAuth vb.)
+   - `https://app.rivlus.com/reset-password` (web’den şifre sıfırlama kullanılırsa)
+4. **Save changes** ile kaydedin.
+
+**Not:** Site URL’i `https://app.rivlus.com` yaparsanız, e-postadaki şifre sıfırlama linki tarayıcıda app.rivlus.com’u açar. Sadece test için web kullanıyorsanız ve asıl hedef mobil uygulama ise Site URL’i `tcr://reset-password` tutun.
+
+### URL Configuration (genel – zorunlu)
+
+1. Supabase Dashboard → **Authentication** → **URL Configuration**
+2. **Redirect URLs** listesinde `tcr://reset-password` mutlaka olsun (yukarıdaki “Mobil + Web” adımlarında olduğu gibi).
 3. Kaydedin. Bu URL olmadan e-postadaki link uygulamayı açamaz.
 
 ### E-posta nasıl gider?

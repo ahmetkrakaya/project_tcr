@@ -160,6 +160,37 @@ class StravaNotifier extends StateNotifier<StravaState> {
     }
   }
 
+  /// Yetkilendirme kodu ile bağlan (Android WebView akışından gelen code için).
+  Future<bool> connectStravaWithCode(String code) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+
+    try {
+      final exchangeResult = await _repository.exchangeCodeForToken(code);
+
+      if (exchangeResult.failure != null) {
+        state = state.copyWith(
+          isLoading: false,
+          error: exchangeResult.failure!.message,
+        );
+        return false;
+      }
+
+      state = state.copyWith(
+        isLoading: false,
+        integration: exchangeResult.integration,
+      );
+
+      await syncActivities();
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Bağlantı hatası: $e',
+      );
+      return false;
+    }
+  }
+
   /// Strava bağlantısını kaldır
   Future<bool> disconnectStrava() async {
     state = state.copyWith(isLoading: true, clearError: true);
@@ -254,6 +285,11 @@ class StravaNotifier extends StateNotifier<StravaState> {
   /// Hatayı temizle
   void clearError() {
     state = state.copyWith(clearError: true);
+  }
+
+  /// OAuth akışından dönen hata mesajını set eder (örn. Android WebView iptal/hata).
+  void setAuthError(String message) {
+    state = state.copyWith(isLoading: false, error: message);
   }
 
   /// Detaylı aktivite bilgisi çek (splits, best efforts vb.)
