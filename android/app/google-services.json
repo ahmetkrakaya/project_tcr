@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "454457021902",
+    "project_id": "tcr-app-c73ee",
+    "storage_bucket": "tcr-app-c73ee.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:454457021902:android:efefe2101d693028e0479f",
+        "android_client_info": {
+          "package_name": "com.rivlus.project_tcr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEW-LZyGzeq5J2T-bu5WT1ycaEptG0yhA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
