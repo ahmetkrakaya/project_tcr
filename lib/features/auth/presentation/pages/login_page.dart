@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/deep_link/deep_link_handler.dart';
 import '../../../profile/presentation/pages/webview_page.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -70,6 +71,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (existing != null && existing.isNotEmpty) {
       _showPasswordResetLinkErrorDialog(existing);
     }
+    // Cold start deep link: bazen oturum splash'ten sonra yüklenir, login'e atılmış oluruz.
+    // Zaten giriş yapılmışsa ve pending path varsa doğrudan oraya git.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _redirectIfAlreadyAuthenticatedWithPendingLink());
+  }
+
+  void _redirectIfAlreadyAuthenticatedWithPendingLink() {
+    if (!mounted) return;
+    final authState = ref.read(authNotifierProvider);
+    if (authState is! AuthAuthenticated) return;
+    final path = takePendingDeepLinkPath();
+    if (path != null) context.go(path);
   }
 
   @override
@@ -85,6 +97,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     // NOT: ref.watch KULLANMIYORUZ - bu router'ı tetikler ve splash'a gider
     // Loading durumu local _isLoading ile yönetiliyor
+
+    // Cold start deep link: oturum login açıldıktan sonra yüklenirse (geç restore) burada yakala
+    ref.listen<AuthState>(authNotifierProvider, (prev, next) {
+      if (next is AuthAuthenticated) {
+        final path = takePendingDeepLinkPath();
+        if (path != null && mounted) context.go(path);
+      }
+    });
 
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
@@ -465,7 +485,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           _errorMessage = result.error;
         });
       } else if (result.isSuccess) {
-        // Başarılı giriş - profil ve grup kontrolü yap
+        // Başarılı giriş - deep link ile gelindiyse önce oraya git
+        final deepLinkPath = takePendingDeepLinkPath();
+        if (deepLinkPath != null) {
+          context.go(deepLinkPath);
+          return;
+        }
+
+        // Profil ve grup kontrolü yap
         final user = result.user!;
         
         // Profil tamamlanmamışsa veya gruba üye değilse onboarding'e git

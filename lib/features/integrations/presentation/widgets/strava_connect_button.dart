@@ -5,8 +5,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../core/utils/platform_utils.dart';
-import '../pages/strava_oauth_webview_page.dart';
 import '../providers/strava_provider.dart';
 
 /// Strava Connect Button Widget
@@ -43,14 +41,9 @@ class StravaConnectButton extends ConsumerWidget {
                     }
                   }
                 } else {
-                  bool success = false;
-                  if (isAndroid) {
-                    success = await StravaConnectButton._connectStravaViaWebView(context, ref);
-                  } else {
-                    success = await ref
-                        .read(stravaNotifierProvider.notifier)
-                        .connectStrava();
-                  }
+                  final success = await ref
+                      .read(stravaNotifierProvider.notifier)
+                      .connectStrava();
                   if (success) {
                     onConnected?.call();
                   }
@@ -104,37 +97,6 @@ class StravaConnectButton extends ConsumerWidget {
         size: 24,
       ),
     );
-  }
-
-  /// Android'de Strava OAuth'u in-app WebView ile açar.
-  static Future<bool> _connectStravaViaWebView(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    final authUrl = ref.read(stravaRepositoryProvider).getAuthorizationUrl();
-    final redirectUrl = await Navigator.of(context).push<String?>(
-      MaterialPageRoute(
-        builder: (_) => StravaOAuthWebViewPage(
-          initialUrl: authUrl,
-          callbackScheme: 'tcr',
-        ),
-      ),
-    );
-    if (!context.mounted) return false;
-    if (redirectUrl == null) return false;
-    final uri = Uri.parse(redirectUrl);
-    final code = uri.queryParameters['code'];
-    final error = uri.queryParameters['error'];
-    final notifier = ref.read(stravaNotifierProvider.notifier);
-    if (error != null) {
-      notifier.setAuthError('Strava yetkilendirme hatası: $error');
-      return false;
-    }
-    if (code == null || code.isEmpty) {
-      notifier.setAuthError('Yetkilendirme kodu alınamadı');
-      return false;
-    }
-    return notifier.connectStravaWithCode(code);
   }
 
   Future<bool?> _showDisconnectDialog(BuildContext context) {

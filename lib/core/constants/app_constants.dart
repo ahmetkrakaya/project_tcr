@@ -51,9 +51,11 @@ class AppConstants {
       'tcr:///events/$eventId';
 
   /// Etkinlik paylaşım landing sayfası base URL (zengin önizleme için).
+  /// NOT: www.rivlus.com kullanılmalı; rivlus.com → www redirect yapıyor,
+  /// Android App Links redirect'i kabul etmez.
   static const String eventShareBaseUrl = String.fromEnvironment(
     'EVENT_SHARE_BASE_URL',
-    defaultValue: 'https://rivlus.com',
+    defaultValue: 'https://www.rivlus.com',
   );
 
   /// Kısa paylaşım URL’i: /e/:id – Landing sayfası Supabase’den başlık/açıklama/görsel alır.
@@ -80,9 +82,11 @@ class AppConstants {
   }
 
   /// Marketplace paylaşım landing sayfası base URL (zengin önizleme için).
+  /// NOT: www.rivlus.com kullanılmalı; rivlus.com → www redirect yapıyor,
+  /// Android App Links redirect'i kabul etmez.
   static const String marketplaceShareBaseUrl = String.fromEnvironment(
     'MARKETPLACE_SHARE_BASE_URL',
-    defaultValue: 'https://rivlus.com',
+    defaultValue: 'https://www.rivlus.com',
   );
 
   /// Marketplace detay deep link (uygulamada aç)
@@ -206,6 +210,7 @@ class RouteNames {
   static const String groupDetail = 'group-detail';
   static const String createGroup = 'create-group';
   static const String editGroup = 'edit-group';
+  static const String upcomingBirthdays = 'upcoming-birthdays';
 
   // Chat
   static const String chatRoom = 'chat-room';

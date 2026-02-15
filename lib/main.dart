@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/constants/app_constants.dart';
+import 'core/deep_link/deep_link_handler.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/notifications/fcm_service.dart';
@@ -72,6 +74,18 @@ Future<void> main() async {
           systemNavigationBarIconBrightness: Brightness.dark,
         ),
       );
+    }
+
+    // Deep link ile açıldıysa hemen yakala (2 sn bekleyince intent kaybolabiliyor)
+    if (!kIsWeb) {
+      final initialUri = await getInitialUri();
+      final path = parseUriToAppPath(initialUri);
+      if (path != null) {
+        setPendingDeepLinkPath(path);
+        if (kDebugMode) debugPrint('TCR_DEEPLINK main: pending path set -> $path');
+      } else if (kDebugMode) {
+        debugPrint('TCR_DEEPLINK main: no initial uri or parse failed');
+      }
     }
 
     runApp(
@@ -136,6 +150,41 @@ class _AuthLinkErrorListenerState extends State<_AuthLinkErrorListener> {
   }
 }
 
+/// Uygulama açıkken veya arka plandan link ile açılınca ilgili sayfaya yönlendirir.
+class _DeepLinkListener extends StatefulWidget {
+  const _DeepLinkListener({required this.router, required this.child});
+
+  final GoRouter router;
+  final Widget child;
+
+  @override
+  State<_DeepLinkListener> createState() => _DeepLinkListenerState();
+}
+
+class _DeepLinkListenerState extends State<_DeepLinkListener> {
+  StreamSubscription? _linkSub;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!kIsWeb) {
+      _linkSub = uriLinkStream.listen((Uri uri) {
+        final path = parseUriToAppPath(uri);
+        if (path != null) widget.router.go(path);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 /// TCR App Widget
 class TCRApp extends ConsumerWidget {
   const TCRApp({super.key});
@@ -155,7 +204,9 @@ class TCRApp extends ConsumerWidget {
       });
     }
 
-    return MaterialApp.router(
+    return _DeepLinkListener(
+      router: router,
+      child: MaterialApp.router(
       title: AppConstants.appFullName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
@@ -189,6 +240,7 @@ class TCRApp extends ConsumerWidget {
           ),
         );
       },
+      ),
     );
   }
 }

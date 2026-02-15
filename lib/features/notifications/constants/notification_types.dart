@@ -15,6 +15,7 @@ class NotificationTypes {
   static const String orderCreated = 'order_created';
   static const String orderStatusChanged = 'order_status_changed';
   static const String newMemberPending = 'new_member_pending';
+  static const String birthdayReminder = 'birthday_reminder';
 
   static const List<String> all = [
     eventCreated,
@@ -28,6 +29,7 @@ class NotificationTypes {
     orderCreated,
     orderStatusChanged,
     newMemberPending,
+    birthdayReminder,
   ];
 
   static String label(String type) {
@@ -54,6 +56,8 @@ class NotificationTypes {
         return 'Sipariş durumu';
       case newMemberPending:
         return 'Yeni üye başvurusu';
+      case birthdayReminder:
+        return 'Doğum günü hatırlatma';
       default:
         return type;
     }
@@ -70,8 +74,9 @@ class NotificationCategories {
   static const String chat = 'chat';
   static const String post = 'post';
   static const String market = 'market';
+  static const String birthday = 'birthday';
 
-  static const List<String> all = [event, carpool, chat, post, market];
+  static const List<String> all = [event, carpool, chat, post, market, birthday];
 
   static List<String> typesForCategory(String categoryId) {
     switch (categoryId) {
@@ -92,6 +97,8 @@ class NotificationCategories {
           NotificationTypes.orderCreated,
           NotificationTypes.orderStatusChanged,
         ];
+      case birthday:
+        return [NotificationTypes.birthdayReminder];
       default:
         return [];
     }
@@ -109,6 +116,8 @@ class NotificationCategories {
         return 'Duyuru (Post)';
       case market:
         return 'Market';
+      case birthday:
+        return 'Doğum Günü';
       default:
         return categoryId;
     }
@@ -126,6 +135,8 @@ class NotificationCategories {
         return Icons.article_outlined;
       case market:
         return Icons.shopping_bag_outlined;
+      case birthday:
+        return Icons.cake_outlined;
       default:
         return Icons.notifications_none;
     }

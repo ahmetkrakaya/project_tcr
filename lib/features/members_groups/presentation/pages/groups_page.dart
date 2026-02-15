@@ -80,6 +80,12 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
               tooltip: 'Yeni Grup',
               onPressed: () => context.pushNamed(RouteNames.createGroup),
             ),
+          if (_tabController.index == 1)
+            IconButton(
+              icon: const Icon(Icons.cake_outlined),
+              tooltip: 'Yaklaşan Doğum Günleri',
+              onPressed: () => context.pushNamed(RouteNames.upcomingBirthdays),
+            ),
           if (isAdminOrCoach && _tabController.index == 1)
             IconButton(
               icon: const Icon(Icons.assessment),

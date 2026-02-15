@@ -37,41 +37,61 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Deep link for OAuth callbacks (Strava, etc.) -->
+            <!-- Deep link: şifre sıfırlama (tcr://reset-password → Supabase auth) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="tcr"/>
+                <data android:scheme="tcr" android:host="reset-password"/>
             </intent-filter>
             <!-- Deep link: etkinlik detay (tcr:///events/eventId → /events/eventId) -->
+            <!-- NOT: android:host="" zorunlu; host olmadan pathPrefix Android tarafından -->
+            <!-- yok sayılır ve tüm tcr:// URI'leri eşleşir (OAuth callback çakışması). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="tcr" android:pathPrefix="/events"/>
+                <data android:scheme="tcr" android:host="" android:pathPrefix="/events"/>
             </intent-filter>
             <!-- Deep link: marketplace detay (tcr:///marketplace/listingId → /marketplace/listingId) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="tcr" android:pathPrefix="/marketplace"/>
+                <data android:scheme="tcr" android:host="" android:pathPrefix="/marketplace"/>
             </intent-filter>
-            <!-- Android App Links: rivlus.com/e/* ve /m/* → doğrudan uygulamada aç -->
+            <!-- Android App Links: rivlus.com & www.rivlus.com /e/* ve /m/* → doğrudan uygulamada aç -->
+            <!-- NOT: rivlus.com → www.rivlus.com redirect yapıyor (Cloudflare); -->
+            <!-- Android App Links redirect'i kabul etmez, bu yüzden www da gerekli. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https" android:host="rivlus.com" android:pathPrefix="/e/"/>
+                <data android:scheme="https" android:host="www.rivlus.com" android:pathPrefix="/e/"/>
             </intent-filter>
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https" android:host="rivlus.com" android:pathPrefix="/m/"/>
+                <data android:scheme="https" android:host="www.rivlus.com" android:pathPrefix="/m/"/>
             </intent-filter>
-            <meta-data android:name="flutter_deeplinking_enabled" android:value="true" />
+            <!-- Deep link'leri app_links paketi ile kendimiz yönetiyoruz (splash → auth → navigate) -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
+        </activity>
+        <!-- OAuth callback: Chrome Custom Tab'dan gelen tcr://redirect callback'ini yakalar,
+             sonucu flutter_web_auth_2 plugin'ine iletir ve ana ekranı öne getirir.
+             Paketin kendi CallbackActivity'si Custom Tab'ı kapatamıyordu. -->
+        <activity
+            android:name=".OAuthCallbackActivity"
+            android:exported="true">
+            <intent-filter android:label="flutter_web_auth_2">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="tcr" android:host="redirect"/>
+            </intent-filter>
         </activity>
         <!-- Mapbox token build zamanında verilir (CI/env); repo'da secret tutulmaz -->
         <!-- Don't delete the meta-data below.

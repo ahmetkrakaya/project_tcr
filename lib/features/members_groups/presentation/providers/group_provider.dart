@@ -481,6 +481,129 @@ final pendingUsersProvider = FutureProvider<List<UserEntity>>((ref) async {
   return users;
 });
 
+// ==================== Upcoming Birthdays ====================
+
+/// Yaklaşan doğum günleri provider
+/// Doğum günü 2 gün içinde olan veya dün olan kullanıcıları listeler
+final upcomingBirthdaysProvider = Provider<AsyncValue<List<UserEntity>>>((ref) {
+  final usersAsync = ref.watch(activeUsersProvider);
+  return usersAsync.whenData((users) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final result = <MapEntry<UserEntity, int>>[];
+
+    for (final user in users) {
+      if (user.birthDate == null) continue;
+
+      final bMonth = user.birthDate!.month;
+      final bDay = user.birthDate!.day;
+
+      // Bu yılki doğum günü (29 Şubat özel durumu)
+      DateTime birthdayThisYear;
+      try {
+        birthdayThisYear = DateTime(now.year, bMonth, bDay);
+      } catch (_) {
+        // 29 Şubat artık yıl değilse 28 Şubat'a düş
+        birthdayThisYear = DateTime(now.year, 2, 28);
+      }
+
+      // Gelecek yılki doğum günü (yıl geçişi durumu)
+      DateTime birthdayNextYear;
+      try {
+        birthdayNextYear = DateTime(now.year + 1, bMonth, bDay);
+      } catch (_) {
+        birthdayNextYear = DateTime(now.year + 1, 2, 28);
+      }
+
+      // Geçen yılki doğum günü (yıl geçişi durumu)
+      DateTime birthdayLastYear;
+      try {
+        birthdayLastYear = DateTime(now.year - 1, bMonth, bDay);
+      } catch (_) {
+        birthdayLastYear = DateTime(now.year - 1, 2, 28);
+      }
+
+      // En yakın doğum gününü bul
+      int diff = birthdayThisYear.difference(today).inDays;
+
+      // Yıl geçişi: Eğer bu yılki çok uzaksa, gelecek veya geçen yılı dene
+      final diffNext = birthdayNextYear.difference(today).inDays;
+      final diffLast = birthdayLastYear.difference(today).inDays;
+
+      if (diffNext.abs() < diff.abs()) diff = diffNext;
+      if (diffLast.abs() < diff.abs()) diff = diffLast;
+
+      // -1 (dün) ile +2 (2 gün sonra) arasında olanlar
+      if (diff >= -1 && diff <= 2) {
+        result.add(MapEntry(user, diff));
+      }
+    }
+
+    // Doğum gününe yakınlığa göre sırala (bugün > yarın > ...)
+    result.sort((a, b) => a.value.compareTo(b.value));
+
+    return result.map((e) => e.key).toList();
+  });
+});
+
+/// Kullanıcının doğum gününe kaç gün kaldığını hesapla
+int birthdayDaysRemaining(UserEntity user) {
+  if (user.birthDate == null) return 999;
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+
+  final bMonth = user.birthDate!.month;
+  final bDay = user.birthDate!.day;
+
+  DateTime birthdayThisYear;
+  try {
+    birthdayThisYear = DateTime(now.year, bMonth, bDay);
+  } catch (_) {
+    birthdayThisYear = DateTime(now.year, 2, 28);
+  }
+
+  DateTime birthdayNextYear;
+  try {
+    birthdayNextYear = DateTime(now.year + 1, bMonth, bDay);
+  } catch (_) {
+    birthdayNextYear = DateTime(now.year + 1, 2, 28);
+  }
+
+  DateTime birthdayLastYear;
+  try {
+    birthdayLastYear = DateTime(now.year - 1, bMonth, bDay);
+  } catch (_) {
+    birthdayLastYear = DateTime(now.year - 1, 2, 28);
+  }
+
+  int diff = birthdayThisYear.difference(today).inDays;
+  final diffNext = birthdayNextYear.difference(today).inDays;
+  final diffLast = birthdayLastYear.difference(today).inDays;
+
+  if (diffNext.abs() < diff.abs()) diff = diffNext;
+  if (diffLast.abs() < diff.abs()) diff = diffLast;
+
+  return diff;
+}
+
+/// Kullanıcının kaç yaşına gireceğini/girdiğini hesapla
+int birthdayAge(UserEntity user) {
+  if (user.birthDate == null) return 0;
+  final now = DateTime.now();
+  int age = now.year - user.birthDate!.year;
+
+  // Bu yılki doğum günü henüz gelmediyse yaşı bir azalt
+  final birthdayThisYear = DateTime(now.year, user.birthDate!.month, user.birthDate!.day);
+  if (birthdayThisYear.isAfter(DateTime(now.year, now.month, now.day))) {
+    // Doğum günü henüz gelmedi - gireceği yaş
+    return age;
+  }
+  return age;
+}
+
+// ==================== User Approval ====================
+
 /// Kullanıcı onaylama notifier
 class UserApprovalNotifier extends StateNotifier<AsyncValue<void>> {
   final GroupRemoteDataSource _dataSource;

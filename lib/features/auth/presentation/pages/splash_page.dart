@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/deep_link/deep_link_handler.dart';
 import '../../../../core/notifications/notification_handler.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/services/update_check_service.dart';
@@ -60,6 +62,8 @@ class _SplashPageState extends ConsumerState<SplashPage>
     
     if (!mounted) return;
 
+    // Deep link path main()'de erkenden set edildi (intent kaybı olmasın diye)
+
     // Önce güncelleme kontrolü yap
     final updateResult = await UpdateCheckService.checkForUpdate();
     
@@ -86,10 +90,9 @@ class _SplashPageState extends ConsumerState<SplashPage>
   Future<void> _checkAuth() async {
     if (!mounted) return;
 
-    // Auth durumunu kontrol et, loading ise biraz daha bekle
+    // Auth durumunu kontrol et; loading/initial ise bekle
     var authState = ref.read(authNotifierProvider);
-    
-    // Auth henüz hazır değilse (loading veya initial) bekle
+
     int retryCount = 0;
     while ((authState is AuthLoading || authState is AuthInitial) && retryCount < 10) {
       await Future.delayed(const Duration(milliseconds: 300));
@@ -97,7 +100,30 @@ class _SplashPageState extends ConsumerState<SplashPage>
       authState = ref.read(authNotifierProvider);
       retryCount++;
     }
-    
+
+    if (!mounted) return;
+
+    // Hâlâ loading/initial ise ve pending deep link varsa → splash'te kal, listener ile bekle
+    if ((authState is AuthLoading || authState is AuthInitial) && pendingDeepLinkPath != null) {
+      if (kDebugMode) debugPrint('TCR_DEEPLINK splash: auth not ready, waiting with listener...');
+      _waitForAuthWithListener();
+      return;
+    }
+
+    _navigateBasedOnAuth(authState);
+  }
+
+  /// Auth henüz hazır değilken splash'te kalır, auth state değişince yönlendirir.
+  void _waitForAuthWithListener() {
+    ref.listenManual<AuthState>(authNotifierProvider, (prev, next) {
+      if (!mounted) return;
+      if (next is AuthLoading || next is AuthInitial) return; // hâlâ bekliyor
+      _navigateBasedOnAuth(next);
+    });
+  }
+
+  /// Auth durumuna göre doğru sayfaya yönlendirir.
+  Future<void> _navigateBasedOnAuth(AuthState authState) async {
     if (!mounted) return;
     
     if (authState is AuthNeedsPasswordReset) {
@@ -106,8 +132,18 @@ class _SplashPageState extends ConsumerState<SplashPage>
     }
 
     if (authState is AuthAuthenticated) {
-      final user = authState.user;
       final router = ref.read(appRouterProvider);
+
+      // Deep link ile açıldıysa doğrudan ilgili sayfaya git (etkinlik / market)
+      final deepLinkPath = takePendingDeepLinkPath();
+      if (deepLinkPath != null) {
+        if (kDebugMode) debugPrint('TCR_DEEPLINK splash: navigating to $deepLinkPath');
+        context.go(deepLinkPath);
+        _navigateFromPendingNotificationAfterFrame(router);
+        return;
+      }
+
+      final user = authState.user;
 
       // Profil tamamlanmamışsa onboarding'e git
       if (user.firstName == null || user.firstName!.isEmpty) {
@@ -135,6 +171,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
         _navigateFromPendingNotificationAfterFrame(router);
       }
     } else {
+      // Giriş yok → pending deep link varsa login'de sonra kullanılacak; yoksa normal login
       context.go('/login');
     }
   }

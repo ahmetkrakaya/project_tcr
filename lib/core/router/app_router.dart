@@ -34,6 +34,7 @@ import '../../features/routes/presentation/pages/create_route_page.dart';
 import '../../features/members_groups/presentation/pages/groups_page.dart';
 import '../../features/members_groups/presentation/pages/group_detail_page.dart';
 import '../../features/members_groups/presentation/pages/create_group_page.dart';
+import '../../features/members_groups/presentation/pages/upcoming_birthdays_page.dart';
 import '../../features/gallery/presentation/pages/event_gallery_page.dart';
 import '../../features/marketplace/presentation/pages/marketplace_page.dart';
 import '../../features/marketplace/presentation/pages/listing_detail_page.dart';
@@ -357,6 +358,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: 'create',
                 name: RouteNames.createGroup,
                 builder: (context, state) => const CreateGroupPage(),
+              ),
+              GoRoute(
+                path: 'birthdays',
+                name: RouteNames.upcomingBirthdays,
+                builder: (context, state) => const UpcomingBirthdaysPage(),
               ),
               GoRoute(
                 path: ':groupId',

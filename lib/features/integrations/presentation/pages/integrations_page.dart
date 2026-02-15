@@ -7,10 +7,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../core/utils/platform_utils.dart';
 import '../../apple_watch/apple_watch_provider.dart';
 import '../../apple_watch/apple_watch_workout_sync_service.dart';
-import '../pages/strava_oauth_webview_page.dart';
 import '../providers/strava_provider.dart';
 
 /// Integrations Page - Harici servis bağlantıları
@@ -170,15 +168,7 @@ class IntegrationsPage extends ConsumerWidget {
                               if (isConnected) {
                                 await _showDisconnectDialog(context, ref);
                               } else {
-                                bool success = false;
-                                if (isAndroid) {
-                                  success = await _connectStravaViaWebView(
-                                    context,
-                                    ref,
-                                  );
-                                } else {
-                                  success = await notifier.connectStrava();
-                                }
+                                final success = await notifier.connectStrava();
                                 if (success && context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
@@ -256,34 +246,6 @@ class IntegrationsPage extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  /// Android'de Strava OAuth'u in-app WebView ile açar (Chrome Custom Tabs restart sorununu önler).
-  Future<bool> _connectStravaViaWebView(BuildContext context, WidgetRef ref) async {
-    final authUrl = ref.read(stravaRepositoryProvider).getAuthorizationUrl();
-    final redirectUrl = await Navigator.of(context).push<String?>(
-      MaterialPageRoute(
-        builder: (_) => StravaOAuthWebViewPage(
-          initialUrl: authUrl,
-          callbackScheme: 'tcr',
-        ),
-      ),
-    );
-    if (!context.mounted) return false;
-    if (redirectUrl == null) return false;
-    final uri = Uri.parse(redirectUrl);
-    final code = uri.queryParameters['code'];
-    final error = uri.queryParameters['error'];
-    final notifier = ref.read(stravaNotifierProvider.notifier);
-    if (error != null) {
-      notifier.setAuthError('Strava yetkilendirme hatası: $error');
-      return false;
-    }
-    if (code == null || code.isEmpty) {
-      notifier.setAuthError('Yetkilendirme kodu alınamadı');
-      return false;
-    }
-    return notifier.connectStravaWithCode(code);
   }
 
   Widget _buildInfoRow(String label, String value, IconData icon) {
