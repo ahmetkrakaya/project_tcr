@@ -11,8 +11,6 @@ import '../../../activity/presentation/providers/activity_provider.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../../events/presentation/providers/event_provider.dart';
-import '../../../integrations/presentation/providers/strava_provider.dart';
-import '../../../integrations/apple_watch/apple_watch_provider.dart';
 import '../../../../shared/providers/auth_provider.dart';
 
 /// Profile Page
@@ -577,24 +575,9 @@ class ProfilePage extends ConsumerWidget {
   }
 
   Widget _buildIntegrationsMenuItem(BuildContext context, WidgetRef ref) {
-    final isStravaConnected = ref.watch(isStravaConnectedProvider);
-    final appleWatchState = ref.watch(appleWatchIntegrationProvider);
-    final isAppleWatchConnected =
-        appleWatchState.isSupported && appleWatchState.authorizationStatus == 'authorized';
+    // Bağlantı durumunu göstermiyoruz; sabit bir açıklama metni kullanıyoruz.
+    const subtitle = 'Koşu ve antrenman uygulamalarınızı buradan bağlayın.';
 
-    final connectedNames = <String>[];
-    if (isStravaConnected) connectedNames.add('Strava');
-    if (isAppleWatchConnected) connectedNames.add('Apple Watch');
-
-    String subtitle;
-    if (connectedNames.isEmpty) {
-      subtitle = 'Henüz bağlantı yok';
-    } else if (connectedNames.length == 1) {
-      subtitle = '${connectedNames.first} bağlı';
-    } else {
-      subtitle = '${connectedNames.join(', ')} bağlı';
-    }
-    
     return ListTile(
       leading: Container(
         width: 44,
@@ -613,16 +596,6 @@ class ProfilePage extends ConsumerWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (connectedNames.isNotEmpty)
-            Container(
-              width: 8,
-              height: 8,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: const BoxDecoration(
-                color: AppColors.success,
-                shape: BoxShape.circle,
-              ),
-            ),
           const Icon(Icons.chevron_right, color: AppColors.neutral400),
         ],
       ),

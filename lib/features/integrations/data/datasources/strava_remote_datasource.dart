@@ -12,10 +12,10 @@ abstract class StravaRemoteDataSource {
   /// Strava OAuth başlat ve authorization code al
   Future<String> authenticate();
 
-  /// Authorization code ile token al
-  Future<StravaTokenResponse> exchangeCodeForToken(String code);
+  /// Authorization code ile token al (Edge Function üzerinden; client_secret uygulamada tutulmaz)
+  Future<IntegrationModel?> exchangeCodeForToken(String code, String userId);
 
-  /// Access token'ı yenile
+  /// Access token'ı yenile (Edge Function üzerinden)
   Future<StravaRefreshTokenResponse> refreshAccessToken(String refreshToken);
 
   /// Strava'dan aktiviteleri çek
@@ -76,8 +76,17 @@ class StravaRemoteDataSourceImpl implements StravaRemoteDataSource {
   @override
   Future<String> authenticate() async {
     try {
+      final cfgResponse = await _supabaseClient.functions.invoke(
+        'strava-public-config',
+      );
+      final cfg = cfgResponse.data as Map<String, dynamic>?;
+      final clientId = cfg?['client_id']?.toString();
+      if (clientId == null || clientId.isEmpty) {
+        throw const ServerException(message: 'Strava client_id alınamadı');
+      }
+
       final authUrl = Uri.https('www.strava.com', '/oauth/authorize', {
-        'client_id': AppConstants.stravaClientId,
+        'client_id': clientId,
         'redirect_uri': AppConstants.stravaRedirectUri,
         'response_type': 'code',
         'scope': AppConstants.stravaScopes,
@@ -109,58 +118,60 @@ class StravaRemoteDataSourceImpl implements StravaRemoteDataSource {
   }
 
   @override
-  Future<StravaTokenResponse> exchangeCodeForToken(String code) async {
+  Future<IntegrationModel?> exchangeCodeForToken(String code, String userId) async {
     try {
-      final response = await _dio.post(
-        AppConstants.stravaTokenUrl,
-        data: {
-          'client_id': AppConstants.stravaClientId,
-          'client_secret': AppConstants.stravaClientSecret,
+      final response = await _supabaseClient.functions.invoke(
+        'strava-auth',
+        body: {
+          'action': 'exchange',
           'code': code,
-          'grant_type': 'authorization_code',
+          'redirect_uri': AppConstants.stravaRedirectUri,
         },
       );
-
-      if (response.statusCode == 200) {
-        return StravaTokenResponse.fromJson(response.data as Map<String, dynamic>);
-      } else {
-        throw ServerException(
-          message: 'Token alınamadı: ${response.statusMessage}',
-        );
+      if (response.status != 200) {
+        final msg = response.data is Map ? (response.data['error'] ?? response.data['details'] ?? 'Token alınamadı') : 'Token alınamadı';
+        throw ServerException(message: msg is String ? msg : 'Token alınamadı');
       }
-    } on DioException catch (e) {
-      throw ServerException(
-        message: 'Token exchange hatası: ${e.response?.data?['message'] ?? e.message}',
-      );
+      final data = response.data as Map<String, dynamic>?;
+      if (data == null || (data['success'] != true)) {
+        return null;
+      }
+      return await getIntegration(userId);
+    } on ServerException {
+      rethrow;
+    } catch (e) {
+      throw ServerException(message: 'Token exchange hatası: $e');
     }
   }
 
   @override
   Future<StravaRefreshTokenResponse> refreshAccessToken(String refreshToken) async {
     try {
-      final response = await _dio.post(
-        AppConstants.stravaTokenUrl,
-        data: {
-          'client_id': AppConstants.stravaClientId,
-          'client_secret': AppConstants.stravaClientSecret,
+      final response = await _supabaseClient.functions.invoke(
+        'strava-auth',
+        body: {
+          'action': 'refresh',
           'refresh_token': refreshToken,
-          'grant_type': 'refresh_token',
         },
       );
-
-      if (response.statusCode == 200) {
-        return StravaRefreshTokenResponse.fromJson(
-          response.data as Map<String, dynamic>,
-        );
-      } else {
-        throw ServerException(
-          message: 'Token yenilenemedi: ${response.statusMessage}',
-        );
+      if (response.status != 200) {
+        final msg = response.data is Map ? (response.data['error'] ?? 'Token yenilenemedi') : 'Token yenilenemedi';
+        throw ServerException(message: msg is String ? msg : 'Token yenilenemedi');
       }
-    } on DioException catch (e) {
-      throw ServerException(
-        message: 'Token refresh hatası: ${e.response?.data?['message'] ?? e.message}',
+      final data = response.data as Map<String, dynamic>;
+      final expiresAt = data['expires_at'] as String?;
+      final expiresAtDateTime = expiresAt != null ? DateTime.parse(expiresAt) : DateTime.now().add(const Duration(hours: 24));
+      return StravaRefreshTokenResponse(
+        tokenType: 'Bearer',
+        expiresAt: expiresAtDateTime.millisecondsSinceEpoch ~/ 1000,
+        expiresIn: expiresAtDateTime.difference(DateTime.now()).inSeconds,
+        refreshToken: data['refresh_token'] as String? ?? refreshToken,
+        accessToken: data['access_token'] as String,
       );
+    } on ServerException {
+      rethrow;
+    } catch (e) {
+      throw ServerException(message: 'Token refresh hatası: $e');
     }
   }
 

@@ -3,8 +3,8 @@ import '../entities/integration_entity.dart';
 
 /// Strava Repository Interface
 abstract class StravaRepository {
-  /// Strava OAuth URL'i oluştur
-  String getAuthorizationUrl();
+  /// Strava OAuth akışını başlat ve authorization code al
+  Future<String> authenticate();
 
   /// Authorization code ile token al
   Future<({IntegrationEntity? integration, Failure? failure})> exchangeCodeForToken(

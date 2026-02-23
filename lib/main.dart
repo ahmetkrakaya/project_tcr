@@ -11,6 +11,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:quick_actions/quick_actions.dart';
+
+import 'core/app_shortcuts/app_shortcuts_handler.dart';
 import 'core/constants/app_constants.dart';
 import 'core/deep_link/deep_link_handler.dart';
 import 'core/theme/app_theme.dart';
@@ -18,6 +21,7 @@ import 'core/router/app_router.dart';
 import 'core/notifications/fcm_service.dart';
 import 'core/notifications/notification_handler.dart';
 import 'core/permissions/app_permissions.dart';
+import 'features/auth/presentation/providers/auth_notifier.dart' as auth_providers;
 import 'shared/providers/auth_provider.dart';
 
 import 'firebase_options.dart';
@@ -86,6 +90,10 @@ Future<void> main() async {
       } else if (kDebugMode) {
         debugPrint('TCR_DEEPLINK main: no initial uri or parse failed');
       }
+
+      // Uygulama ikonu kısayol menüsü (Quick Actions / App Shortcuts)
+      const quickActions = QuickActions();
+      initAppShortcuts(quickActions);
     }
 
     runApp(
@@ -185,6 +193,45 @@ class _DeepLinkListenerState extends State<_DeepLinkListener> {
   Widget build(BuildContext context) => widget.child;
 }
 
+/// Auth ve admin durumuna göre ikon kısayollarını günceller (sadece mobil).
+void _updateAppShortcuts(WidgetRef ref) {
+  if (kIsWeb) return;
+  final authState = ref.read(auth_providers.authNotifierProvider);
+  final isAuthenticated = authState is auth_providers.AuthAuthenticated;
+  final isAdmin = isAuthenticated && ref.read(auth_providers.isAdminProvider);
+
+  final items = <ShortcutItem>[
+    const ShortcutItem(
+      type: AppShortcutTypes.events,
+      localizedTitle: 'Etkinlikler',
+      icon: 'shortcut_events',
+    ),
+    const ShortcutItem(
+      type: AppShortcutTypes.marketplace,
+      localizedTitle: 'Market',
+      icon: 'shortcut_marketplace',
+    ),
+  ];
+  if (isAdmin) {
+    items.insertAll(
+      0,
+      [
+        const ShortcutItem(
+          type: AppShortcutTypes.createEvent,
+          localizedTitle: 'Etkinlik Oluştur',
+          icon: 'shortcut_create_event',
+        ),
+        const ShortcutItem(
+          type: AppShortcutTypes.createPost,
+          localizedTitle: 'Post Oluştur',
+          icon: 'shortcut_create_post',
+        ),
+      ],
+    );
+  }
+  setAppShortcutItems(items);
+}
+
 /// TCR App Widget
 class TCRApp extends ConsumerWidget {
   const TCRApp({super.key});
@@ -201,6 +248,17 @@ class TCRApp extends ConsumerWidget {
       // Uygulama kapalıyken bildirimle açıldıysa ilk mesajı işle
       WidgetsBinding.instance.addPostFrameCallback((_) {
         handleInitialMessage();
+      });
+      // İkon kısayolları: auth/admin değişince güncelle
+      ref.listen<auth_providers.AuthState>(auth_providers.authNotifierProvider, (_, __) {
+        _updateAppShortcuts(ref);
+      });
+      ref.listen<bool>(auth_providers.isAdminProvider, (_, __) {
+        _updateAppShortcuts(ref);
+      });
+      // İlk mount'ta bir kez set et
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateAppShortcuts(ref);
       });
     }
 

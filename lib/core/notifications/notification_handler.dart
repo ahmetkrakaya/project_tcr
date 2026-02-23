@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/notifications/constants/notification_types.dart';
 import '../constants/app_constants.dart';
 
 /// Bildirim açılışında yönlendirme için kullanılacak callback.
@@ -131,16 +132,29 @@ Future<void> showForegroundNotification(RemoteMessage message) async {
   if (!_initialized) return;
   final notification = message.notification;
   final title = notification?.title ?? message.data['title'] ?? 'Bildirim';
-  final body =
-      notification?.body ?? message.data['body'] ?? '';
-  const androidDetails = AndroidNotificationDetails(
+  final body = notification?.body ?? message.data['body'] ?? '';
+
+  // Sohbet bildirimlerini (event_chat_message) aynı etkinlik için tek bildirim
+  // olacak şekilde gruplayabilmek için notificationId'yi sabitliyoruz.
+  final data = message.data;
+  final type = data['type'] as String?;
+  int notificationId = message.hashCode;
+
+  if (type == NotificationTypes.eventChatMessage) {
+    final eventId = data['event_id'] as String?;
+    if (eventId != null) {
+      notificationId = eventId.hashCode;
+    }
+  }
+
+  final androidDetails = AndroidNotificationDetails(
     _channelId,
     _channelName,
     channelDescription: _channelDescription,
     importance: Importance.high,
     priority: Priority.high,
   );
-  const iosDetails = DarwinNotificationDetails(
+  final iosDetails = const DarwinNotificationDetails(
     presentAlert: true,
     presentBadge: true,
     presentSound: true,
@@ -151,10 +165,10 @@ Future<void> showForegroundNotification(RemoteMessage message) async {
           '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
       .join('&');
   await _localNotifications.show(
-    message.hashCode,
+    notificationId,
     title,
     body,
-    const NotificationDetails(
+    NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     ),

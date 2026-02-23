@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/app_shortcuts/app_shortcuts_handler.dart';
 import '../../../../core/deep_link/deep_link_handler.dart';
 import '../../../profile/presentation/pages/webview_page.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -489,6 +490,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         final deepLinkPath = takePendingDeepLinkPath();
         if (deepLinkPath != null) {
           context.go(deepLinkPath);
+          return;
+        }
+
+        // İkon kısayolundan açıldıysa ilgili sayfaya git
+        final shortcutType = takePendingShortcutType();
+        final shortcutPath = shortcutTypeToPath(shortcutType);
+        if (shortcutPath != null) {
+          context.go(shortcutPath);
           return;
         }
 

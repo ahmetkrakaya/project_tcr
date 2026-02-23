@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/app_shortcuts/app_shortcuts_handler.dart';
 import '../../../../core/deep_link/deep_link_handler.dart';
 import '../../../../core/notifications/notification_handler.dart';
 import '../../../../core/router/app_router.dart';
@@ -139,6 +140,16 @@ class _SplashPageState extends ConsumerState<SplashPage>
       if (deepLinkPath != null) {
         if (kDebugMode) debugPrint('TCR_DEEPLINK splash: navigating to $deepLinkPath');
         context.go(deepLinkPath);
+        _navigateFromPendingNotificationAfterFrame(router);
+        return;
+      }
+
+      // İkon kısayolundan açıldıysa ilgili sayfaya git
+      final shortcutType = takePendingShortcutType();
+      final shortcutPath = shortcutTypeToPath(shortcutType);
+      if (shortcutPath != null) {
+        if (kDebugMode) debugPrint('TCR_SHORTCUT splash: navigating to $shortcutPath');
+        context.go(shortcutPath);
         _navigateFromPendingNotificationAfterFrame(router);
         return;
       }

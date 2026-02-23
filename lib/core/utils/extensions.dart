@@ -104,12 +104,12 @@ extension DateTimeExtensions on DateTime {
     return isSameDay(tomorrow);
   }
 
-  /// Check if this week
+  /// Check if this week (Pazartesi - Pazar)
   bool get isThisWeek {
     final now = DateTime.now();
-    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-    final endOfWeek = startOfWeek.add(const Duration(days: 6));
-    return isAfter(startOfWeek) && isBefore(endOfWeek.add(const Duration(days: 1)));
+    final startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+    final endOfWeek = startOfWeek.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+    return !isBefore(startOfWeek) && !isAfter(endOfWeek);
   }
 }
 

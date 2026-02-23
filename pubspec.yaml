@@ -1,7 +1,7 @@
 name: project_tcr
 description: "TCR (Twenty City Runners) - Koşu Kulübü Mobil Uygulaması"
 publish_to: 'none'
-version: 1.2026.1+10
+version: 1.2026.1+11
 
 environment:
   sdk: ^3.9.0
@@ -88,6 +88,7 @@ dependencies:
   
   # OAuth & Integrations
   flutter_web_auth_2: ^4.0.0
+  crypto: ^3.0.3
 
   # Firebase - Push notifications
   firebase_core: ^4.4.0
@@ -95,6 +96,9 @@ dependencies:
 
   # Deep linking (App Links / Universal Links)
   app_links: ^6.4.1
+
+  # Home screen quick actions (iOS / Android)
+  quick_actions: ^1.1.0
 
 dev_dependencies:
   flutter_test:

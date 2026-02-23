@@ -79,10 +79,10 @@ END;
 $$;
 
 -- ============================================================
--- Cron job: Her gün 05:00 UTC'de çalıştır (Türkiye saati 08:00)
+-- Cron job: Her gün 16:00 UTC'de çalıştır (Türkiye saati 19:00)
 -- ============================================================
 SELECT cron.schedule(
   'check-upcoming-birthdays',
-  '0 5 * * *',
+  '0 16 * * *',
   'SELECT public.check_upcoming_birthdays()'
 );

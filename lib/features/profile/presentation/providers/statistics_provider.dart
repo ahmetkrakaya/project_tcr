@@ -44,10 +44,10 @@ final weeklyStatisticsProvider = FutureProvider.family<PeriodStatisticsEntity, S
     offset += limit;
   }
 
-  // Bu hafta içindeki aktiviteleri filtrele
+  // Bu hafta içindeki aktiviteleri filtrele (Pazartesi 00:00:00 - Pazar 23:59:59)
   final weekActivities = activities.where((activity) {
-    return activity.startTime.isAfter(weekStartDate.subtract(const Duration(days: 1))) &&
-           activity.startTime.isBefore(weekEndDate.add(const Duration(days: 1)));
+    return !activity.startTime.isBefore(weekStartDate) &&
+           !activity.startTime.isAfter(weekEndDate);
   }).toList();
 
   return _calculatePeriodStatistics(
@@ -85,10 +85,10 @@ final monthlyStatisticsProvider = FutureProvider.family<PeriodStatisticsEntity, 
     offset += limit;
   }
 
-  // Bu ay içindeki aktiviteleri filtrele
+  // Bu ay içindeki aktiviteleri filtrele (Ayın 1'i 00:00:00 - Ayın son günü 23:59:59)
   final monthActivities = activities.where((activity) {
-    return activity.startTime.isAfter(monthStartDate.subtract(const Duration(days: 1))) &&
-           activity.startTime.isBefore(monthEndDate.add(const Duration(days: 1)));
+    return !activity.startTime.isBefore(monthStartDate) &&
+           !activity.startTime.isAfter(monthEndDate);
   }).toList();
 
   return _calculatePeriodStatistics(

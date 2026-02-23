@@ -1,7 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../shared/providers/auth_provider.dart';
 import '../../data/datasources/strava_remote_datasource.dart';
@@ -97,39 +95,7 @@ class StravaNotifier extends StateNotifier<StravaState> {
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
-      // OAuth akışını başlat
-      final authUrl = Uri.https('www.strava.com', '/oauth/authorize', {
-        'client_id': AppConstants.stravaClientId,
-        'redirect_uri': AppConstants.stravaRedirectUri,
-        'response_type': 'code',
-        'scope': AppConstants.stravaScopes,
-        'approval_prompt': 'auto',
-      });
-
-      final result = await FlutterWebAuth2.authenticate(
-        url: authUrl.toString(),
-        callbackUrlScheme: 'tcr',
-      );
-
-      final uri = Uri.parse(result);
-      final code = uri.queryParameters['code'];
-      final error = uri.queryParameters['error'];
-
-      if (error != null) {
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Strava yetkilendirme hatası: $error',
-        );
-        return false;
-      }
-
-      if (code == null || code.isEmpty) {
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Yetkilendirme kodu alınamadı',
-        );
-        return false;
-      }
+      final code = await _repository.authenticate();
 
       // Token exchange
       final exchangeResult = await _repository.exchangeCodeForToken(code);

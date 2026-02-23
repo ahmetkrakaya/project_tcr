@@ -28,15 +28,7 @@ class AppConstants {
     defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxub2RqZml2eWNweW95dG13cGNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMjM3NDMsImV4cCI6MjA4NDU5OTc0M30.Huaq1EC6wM2zzVTKbflG1XIeINvVtYU6mRIAUTvzm5s',
   );
 
-  // Strava
-  static const String stravaClientId = String.fromEnvironment(
-    'STRAVA_CLIENT_ID',
-    defaultValue: '198092',
-  );
-  static const String stravaClientSecret = String.fromEnvironment(
-    'STRAVA_CLIENT_SECRET',
-    defaultValue: '0822fb63353132c51caaaf9051301427a01f98d3',
-  );
+  // Strava: client_id runtime'da Edge Function'dan alınır (strava-public-config).
   /// Strava OAuth redirect URI - web'de https, mobilde custom scheme
   static String get stravaRedirectUri =>
       kIsWeb ? 'https://app.rivlus.com/auth/callback' : 'tcr://redirect';
@@ -124,6 +116,14 @@ class AppConstants {
   static const String stravaTokenUrl = 'https://www.strava.com/oauth/token';
   static const String stravaApiUrl = 'https://www.strava.com/api/v3';
   static const String stravaScopes = 'activity:read,activity:read_all,profile:read_all';
+
+  // Garmin Connect (Client Secret yalnızca Edge Function'da saklanır)
+  static const String garminClientId = String.fromEnvironment(
+    'GARMIN_CLIENT_ID',
+    defaultValue: '1f253433-7395-4e25-bfe8-8e22c02e23a2',
+  );
+  static const String garminRedirectUri = 'https://www.rivlus.com/auth/garmin-callback';
+  static const String garminOAuthUrl = 'https://connect.garmin.com/oauth2Confirm';
 
   // Pagination
   static const int defaultPageSize = 20;
@@ -280,5 +280,6 @@ class AssetPaths {
   static const String appleIcon = '$iconsPath/apple.svg';
   static const String stravaIcon = '$iconsPath/strava.svg';
   static const String connectWithStravaIcon = '$iconsPath/connect_with_strava.svg';
-  static const String garminIcon = '$iconsPath/garmin.svg';
+  static const String garminConnectIcon = '$iconsPath/garmin_connect.png';
+  static const String garminConnectBadge = '$imagesPath/garmin_connect_badge.png';
 }

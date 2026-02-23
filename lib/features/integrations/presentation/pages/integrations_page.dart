@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../apple_watch/apple_watch_provider.dart';
 import '../../apple_watch/apple_watch_workout_sync_service.dart';
+import '../../garmin/garmin_provider.dart';
 import '../providers/strava_provider.dart';
 
 /// Integrations Page - Harici servis bağlantıları
@@ -50,6 +51,8 @@ class IntegrationsPage extends ConsumerWidget {
                 const SizedBox(height: 16),
                 _buildAppleWatchSection(context, ref),
               ],
+              const SizedBox(height: 16),
+              _buildGarminSection(context, ref),
             ],
           ),
         ),
@@ -484,6 +487,238 @@ class IntegrationsPage extends ConsumerWidget {
   }
 
 
+
+  Widget _buildGarminSection(BuildContext context, WidgetRef ref) {
+    final garminState = ref.watch(garminNotifierProvider);
+    final notifier = ref.read(garminNotifierProvider.notifier);
+    final isConnected = garminState.isConnected;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isConnected
+              ? AppColors.success.withValues(alpha: 0.3)
+              : AppColors.neutral200,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      AssetPaths.garminConnectIcon,
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.watch,
+                        size: 36,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Garmin Connect',
+                            style: AppTypography.titleMedium.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            isConnected ? 'Bağlı' : 'Bağlı Değil',
+                            style: AppTypography.labelSmall.copyWith(
+                              color: isConnected
+                                  ? AppColors.success
+                                  : AppColors.neutral500,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Antrenmanları Garmin saatine otomatik gönder',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.neutral500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: garminState.isLoading || garminState.isConnecting
+                      ? null
+                      : () async {
+                          if (isConnected) {
+                            await _showGarminDisconnectDialog(context, ref);
+                          } else {
+                            final success = await notifier.connectGarmin();
+                            if (success && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Garmin Connect başarıyla bağlandı!'),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  icon: garminState.isConnecting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          isConnected ? Icons.link_off : Icons.link,
+                          color: isConnected ? AppColors.error : null,
+                        ),
+                  tooltip: isConnected ? 'Bağlantıyı Kaldır' : 'Bağlan',
+                ),
+              ],
+            ),
+            if (isConnected) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              _buildInfoRow(
+                'Son Senkronizasyon',
+                garminState.lastSyncAt != null
+                    ? '${garminState.lastSyncAt!.day}.${garminState.lastSyncAt!.month}.${garminState.lastSyncAt!.year}'
+                    : 'Henüz senkronize edilmedi',
+                Icons.schedule,
+              ),
+              if (garminState.sentWorkoutsCount != null &&
+                  garminState.sentWorkoutsCount! > 0)
+                _buildInfoRow(
+                  'Gönderilen Antrenman',
+                  '${garminState.sentWorkoutsCount}',
+                  Icons.fitness_center,
+                ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.auto_mode,
+                      size: 18,
+                      color: AppColors.success.withValues(alpha: 0.8),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Antrenmanlar her gün otomatik olarak Garmin\'e gönderilir',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.neutral600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (garminState.error != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: AppColors.error,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        garminState.error!,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: notifier.clearError,
+                      icon: const Icon(Icons.close, size: 18),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showGarminDisconnectDialog(
+      BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Garmin Connect Bağlantısını Kaldır'),
+        content: const Text(
+          'Garmin Connect bağlantısını kaldırmak istediğinizden emin misiniz?\n\n'
+          'Bağlantı kaldırıldığında antrenmanlar artık Garmin saatinize otomatik gönderilmeyecek.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Bağlantıyı Kaldır'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final success =
+          await ref.read(garminNotifierProvider.notifier).disconnectGarmin();
+      if (success && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Garmin Connect bağlantısı kaldırıldı'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
 
   Future<void> _showAppleWatchDisconnectInfoDialog(BuildContext context) async {
     await showDialog<void>(

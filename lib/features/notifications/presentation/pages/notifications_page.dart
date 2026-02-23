@@ -26,7 +26,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   void initState() {
     super.initState();
     timeago.setLocaleMessages('tr', timeago.TrMessages());
-    Future.microtask(() => ref.read(notificationsProvider.notifier).load());
+    Future.microtask(() async {
+      final notifier = ref.read(notificationsProvider.notifier);
+      await notifier.load();
+      await notifier.markAllAsRead();
+    });
     _scrollController.addListener(_onScroll);
   }
 

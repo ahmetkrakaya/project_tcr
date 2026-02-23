@@ -1,6 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
 import '../../domain/entities/integration_entity.dart';
@@ -21,15 +20,8 @@ class StravaRepositoryImpl implements StravaRepository {
   String? get _currentUserId => _supabaseClient.auth.currentUser?.id;
 
   @override
-  String getAuthorizationUrl() {
-    final authUrl = Uri.https('www.strava.com', '/oauth/authorize', {
-      'client_id': AppConstants.stravaClientId,
-      'redirect_uri': AppConstants.stravaRedirectUri,
-      'response_type': 'code',
-      'scope': AppConstants.stravaScopes,
-      'approval_prompt': 'auto',
-    });
-    return authUrl.toString();
+  Future<String> authenticate() async {
+    return _remoteDataSource.authenticate();
   }
 
   @override
@@ -44,15 +36,14 @@ class StravaRepositoryImpl implements StravaRepository {
         );
       }
 
-      // Token al
-      final tokenResponse = await _remoteDataSource.exchangeCodeForToken(code);
-
-      // Veritabanına kaydet
-      final integration = await _remoteDataSource.saveIntegration(
-        userId: userId,
-        tokenResponse: tokenResponse,
-      );
-
+      // Token al (Edge Function; client_secret veritabanında)
+      final integration = await _remoteDataSource.exchangeCodeForToken(code, userId);
+      if (integration == null) {
+        return (
+          integration: null,
+          failure: const ServerFailure(message: 'Strava bağlantısı kaydedilemedi'),
+        );
+      }
       return (integration: integration.toEntity(), failure: null);
     } on ServerException catch (e) {
       return (integration: null, failure: ServerFailure(message: e.message));
@@ -381,8 +372,19 @@ class StravaRepositoryImpl implements StravaRepository {
       }
     }
 
-    // end_time hesapla (start_time + elapsed_time)
-    final endTime = activity.startDate.add(Duration(seconds: activity.elapsedTime));
+    // Strava start_date_local yerel saattir (örn. 03:37). DB'ye bu saatin aynen
+    // görünmesi için yerel saat bileşenlerini UTC olarak yazıyoruz (ekranda 03:37).
+    final local = activity.startDate;
+    final startTimeUtc = DateTime.utc(
+      local.year,
+      local.month,
+      local.day,
+      local.hour,
+      local.minute,
+      local.second,
+      local.millisecond,
+    );
+    final endTimeUtc = startTimeUtc.add(Duration(seconds: activity.elapsedTime));
 
     // Ekstra metadata (start/end koordinatları, sosyal metrikler vb.)
     final metadata = <String, dynamic>{};
@@ -402,8 +404,8 @@ class StravaRepositoryImpl implements StravaRepository {
       'source': 'strava',
       'external_id': activity.id.toString(),
       'title': activity.name,
-      'start_time': activity.startDate.toIso8601String(),
-      'end_time': endTime.toIso8601String(), // Bitiş zamanı eklendi
+      'start_time': startTimeUtc.toIso8601String(),
+      'end_time': endTimeUtc.toIso8601String(),
       'duration_seconds': activity.movingTime, // Moving time (aktif süre)
       'distance_meters': activity.distance,
       'elevation_gain': activity.totalElevationGain,
