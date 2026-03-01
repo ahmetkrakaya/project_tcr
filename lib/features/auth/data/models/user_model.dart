@@ -18,6 +18,9 @@ class UserModel {
   final double? vdot;
   final String? vdotUpdatedAt;
   final bool isActive;
+  final bool isDeleted;
+  final String? deletionRequestedAt;
+  final String? deletionEffectiveAt;
   final String? createdAt;
   final String? updatedAt;
 
@@ -38,6 +41,9 @@ class UserModel {
     this.vdot,
     this.vdotUpdatedAt,
     this.isActive = true,
+    this.isDeleted = false,
+    this.deletionRequestedAt,
+    this.deletionEffectiveAt,
     this.createdAt,
     this.updatedAt,
   });
@@ -60,6 +66,9 @@ class UserModel {
       vdot: (json['vdot'] as num?)?.toDouble(),
       vdotUpdatedAt: json['vdot_updated_at'] as String?,
       isActive: json['is_active'] as bool? ?? true,
+      isDeleted: json['is_deleted'] as bool? ?? false,
+      deletionRequestedAt: json['deletion_requested_at'] as String?,
+      deletionEffectiveAt: json['deletion_effective_at'] as String?,
       createdAt: json['created_at'] as String?,
       updatedAt: json['updated_at'] as String?,
     );
@@ -83,6 +92,9 @@ class UserModel {
       'vdot': vdot,
       'vdot_updated_at': vdotUpdatedAt,
       'is_active': isActive,
+      'is_deleted': isDeleted,
+      'deletion_requested_at': deletionRequestedAt,
+      'deletion_effective_at': deletionEffectiveAt,
       'created_at': createdAt,
       'updated_at': updatedAt,
     };
@@ -107,6 +119,11 @@ class UserModel {
       vdot: vdot,
       vdotUpdatedAt: vdotUpdatedAt != null ? DateTime.parse(vdotUpdatedAt!) : null,
       isActive: isActive,
+      isDeleted: isDeleted,
+      deletionRequestedAt:
+          deletionRequestedAt != null ? DateTime.tryParse(deletionRequestedAt!) : null,
+      deletionEffectiveAt:
+          deletionEffectiveAt != null ? DateTime.tryParse(deletionEffectiveAt!) : null,
       roles: roles?.map(_parseRole).toList() ?? [UserRole.member],
       createdAt: createdAt != null ? DateTime.parse(createdAt!) : null,
       updatedAt: updatedAt != null ? DateTime.parse(updatedAt!) : null,
@@ -132,6 +149,9 @@ class UserModel {
       vdot: entity.vdot,
       vdotUpdatedAt: entity.vdotUpdatedAt?.toIso8601String(),
       isActive: entity.isActive,
+      isDeleted: entity.isDeleted,
+      deletionRequestedAt: entity.deletionRequestedAt?.toIso8601String(),
+      deletionEffectiveAt: entity.deletionEffectiveAt?.toIso8601String(),
     );
   }
 

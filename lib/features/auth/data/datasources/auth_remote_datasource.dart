@@ -25,7 +25,13 @@ abstract class AuthRemoteDataSource {
   Future<void> resetPassword(String email, {String? redirectTo});
   Future<void> updatePassword(String newPassword);
   Stream<AuthState> get authStateChanges;
-  
+
+  /// Hesap silme talebi oluştur
+  Future<void> requestAccountDeletion();
+
+  /// Hesap silme talebini iptal et
+  Future<void> cancelAccountDeletion();
+
   /// Email'in zaten kayıtlı olup olmadığını kontrol et
   Future<bool> checkEmailExists(String email);
 }
@@ -67,14 +73,37 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       // Kullanıcı profilini al
       final userProfile = await _fetchUserProfile(response.user!.id);
 
+      // Hesap kalıcı olarak silindiyse girişe izin verme
+      if (userProfile.isDeleted) {
+        await _supabase.auth.signOut();
+        throw const AppAuthException(
+          message:
+              'Hesabınız kalıcı olarak silinmiş. Uygulamayı kullanmaya devam etmek için yeni bir hesap oluşturmanız gerekir.',
+          code: 'USER_DELETED',
+        );
+      }
+
       // Kullanıcı aktif değilse oturumu kapat ve hata ver
       if (!userProfile.isActive) {
         // Önce oturumu kapat ki router home'a yönlendirmesin
         await _supabase.auth.signOut();
         throw const AppAuthException(
-          message: 'Hesabınız henüz onaylanmadı. Lütfen yetkili bir kişi tarafından onaylanmanızı bekleyin.',
+          message:
+              'Hesabınız henüz onaylanmadı. Lütfen yetkili bir kişi tarafından onaylanmanızı bekleyin.',
           code: 'USER_NOT_APPROVED',
         );
+      }
+
+      // Hesap için silme talebi varsa ve tarih gelecekteyse (bekleme süresi devam ediyor),
+      // girişle birlikte bu talebi otomatik olarak iptal et
+      if (userProfile.deletionRequestedAt != null &&
+          userProfile.deletionEffectiveAt != null &&
+          !userProfile.isDeleted) {
+        try {
+          await cancelAccountDeletion();
+        } catch (_) {
+          // Sessizce yut, girişe engel olmasın
+        }
       }
 
       return userProfile;
@@ -253,6 +282,44 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     }
   }
 
+  @override
+  Future<void> requestAccountDeletion() async {
+    try {
+      await _supabase.rpc('request_account_deletion');
+    } on AuthException catch (e) {
+      throw AppAuthException(
+        message: _parseAuthError(e.message),
+        code: e.statusCode ?? 'AUTH_ERROR',
+        originalException: e,
+      );
+    } catch (e) {
+      throw AppAuthException(
+        message: 'Hesap silme talebi oluşturulamadı: ${e.toString()}',
+        code: 'REQUEST_ACCOUNT_DELETION_ERROR',
+        originalException: e,
+      );
+    }
+  }
+
+  @override
+  Future<void> cancelAccountDeletion() async {
+    try {
+      await _supabase.rpc('cancel_account_deletion');
+    } on AuthException catch (e) {
+      throw AppAuthException(
+        message: _parseAuthError(e.message),
+        code: e.statusCode ?? 'AUTH_ERROR',
+        originalException: e,
+      );
+    } catch (e) {
+      throw AppAuthException(
+        message: 'Hesap silme talebi iptal edilemedi: ${e.toString()}',
+        code: 'CANCEL_ACCOUNT_DELETION_ERROR',
+        originalException: e,
+      );
+    }
+  }
+
   String _parseAuthError(String message) {
     if (message.contains('Invalid login credentials')) {
       return 'Email veya şifre hatalı';
@@ -297,12 +364,12 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       }
       
       final userProfile = await _fetchUserProfile(user.id);
-      
-      // Kullanıcı aktif değilse null döndür (giriş yapamaz)
-      if (!userProfile.isActive) {
+
+      // Kalıcı olarak silinmiş veya aktif olmayan kullanıcılar için null döndür (giriş yapamaz)
+      if (!userProfile.isActive || userProfile.isDeleted) {
         return null;
       }
-      
+
       return userProfile;
     } catch (e) {
       return null;

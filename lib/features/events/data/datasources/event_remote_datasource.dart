@@ -121,6 +121,14 @@ abstract class EventRemoteDataSource {
     required DateTime startDate,
     required DateTime endDate,
   });
+
+  /// Kullanıcı bazlı toplu rapor: Belirli bir tarih aralığında (ve opsiyonel grup filtresiyle)
+  /// tüm kullanıcıların toplam mesafe / süre / pace / koşu sayısı istatistiklerini getirir.
+  Future<Map<String, dynamic>> getUserReport({
+    required DateTime startDate,
+    required DateTime endDate,
+    String? groupId,
+  });
 }
 
 /// Event Remote Data Source Implementation
@@ -148,11 +156,12 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
 
       final List<dynamic> data = response as List<dynamic>;
       
-      // Grup bazlı filtreleme uygula (antrenman türündeki etkinlikler için)
-      // Önce kullanıcının gruplarını ve tüm event'lerin grup programlarını toplu al
+      // Grup + görünürlük bazlı filtreleme (antrenman + restricted etkinlikler için)
+      // Önce kullanıcının gruplarını, görünür event'lerini ve tüm event'lerin grup programlarını toplu al
       final eventIds = data.map((e) => e['id'] as String).toList();
       final userGroupIds = await _getUserGroupIds();
       final eventGroupsMap = await _getAllEventGroupIds(eventIds);
+      final visibleEventIds = await _getVisibleEventIdsForUser(eventIds);
       
       // Memory'de filtreleme yap
       final filteredEventsData = <dynamic>[];
@@ -161,6 +170,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           json as Map<String, dynamic>,
           userGroupIds,
           eventGroupsMap,
+          visibleEventIds,
         );
         if (canSee) {
           filteredEventsData.add(json);
@@ -239,11 +249,11 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
         }
       }
       
-      // Grup bazlı filtreleme uygula (antrenman türündeki etkinlikler için)
-      // Önce kullanıcının gruplarını ve tüm event'lerin grup programlarını toplu al
+      // Grup + görünürlük bazlı filtreleme
       final eventIds = allEventsData.map((e) => e['id'] as String).toList();
       final userGroupIds = await _getUserGroupIds();
       final eventGroupsMap = await _getAllEventGroupIds(eventIds);
+      final visibleEventIds = await _getVisibleEventIdsForUser(eventIds);
       
       // Memory'de filtreleme yap
       final filteredEventsData = <dynamic>[];
@@ -252,6 +262,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           json as Map<String, dynamic>,
           userGroupIds,
           eventGroupsMap,
+          visibleEventIds,
         );
         if (canSee) {
           filteredEventsData.add(json);
@@ -313,11 +324,11 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
 
       final List<dynamic> data = response as List<dynamic>;
       
-      // Grup bazlı filtreleme uygula (antrenman türündeki etkinlikler için)
-      // Önce kullanıcının gruplarını ve tüm event'lerin grup programlarını toplu al
+      // Grup + görünürlük bazlı filtreleme
       final eventIds = data.map((e) => e['id'] as String).toList();
       final userGroupIds = await _getUserGroupIds();
       final eventGroupsMap = await _getAllEventGroupIds(eventIds);
+      final visibleEventIds = await _getVisibleEventIdsForUser(eventIds);
       
       // Memory'de filtreleme yap
       final filteredEventsData = <dynamic>[];
@@ -326,6 +337,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           json as Map<String, dynamic>,
           userGroupIds,
           eventGroupsMap,
+          visibleEventIds,
         );
         if (canSee) {
           filteredEventsData.add(json);
@@ -383,9 +395,11 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
   @override
   Future<EventModel> createEvent(EventModel event) async {
     try {
+      final json = event.toJson();
+
       final response = await _supabase
           .from('events')
-          .insert(event.toJson())
+          .insert(json)
           .select()
           .single();
 
@@ -747,13 +761,43 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
     }
   }
 
+  /// Belirli event'ler için, kullanıcının görünürlüğe sahip olduğu event_id listesini getir
+  Future<Set<String>> _getVisibleEventIdsForUser(List<String> eventIds) async {
+    if (_currentUserId == null || eventIds.isEmpty) return {};
+
+    try {
+      final response = await _supabase
+          .from('event_visible_users')
+          .select('event_id')
+          .eq('user_id', _currentUserId!)
+          .inFilter('event_id', eventIds);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data
+          .map((e) => e['event_id'] as String)
+          .toSet();
+    } catch (e) {
+      return {};
+    }
+  }
+
   /// Antrenman türündeki bir event'i kullanıcı görebilir mi? (Memory'de filtreleme)
   bool _canUserSeeEvent(
     Map<String, dynamic> eventJson,
     List<String> userGroupIds,
     Map<String, List<String>> eventGroupsMap,
+    Set<String> visibleEventIdsForUser,
   ) {
     final eventType = eventJson['event_type'] as String?;
+    final eventId = eventJson['id'] as String;
+
+    // Özel (restricted) etkinlikler: sadece event_visible_users içinde olanlar
+    final visibility = eventJson['visibility'] as String?;
+    if (visibility == 'restricted') {
+      return visibleEventIdsForUser.contains(eventId) ||
+          (eventJson['created_by'] != null &&
+              eventJson['created_by'] == _currentUserId);
+    }
     
     // Antrenman türü değilse herkes görebilir
     if (eventType != 'training') {
@@ -761,7 +805,6 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
     }
 
     // Antrenman türü ise grup kontrolü yap
-    final eventId = eventJson['id'] as String;
     final eventGroupIds = eventGroupsMap[eventId] ?? [];
     
     // Event'in grup programı yoksa herkes görebilir
@@ -1373,6 +1416,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
         );
         entry.totalDistanceMeters += distance;
         entry.totalDurationSeconds += duration;
+        entry.totalRuns += 1;
       }
 
       // Accumulator'dan model listesine dönüştür
@@ -1471,6 +1515,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
         );
         entry.totalDistanceMeters += distance;
         entry.totalDurationSeconds += duration;
+        entry.totalRuns += 1;
       }
 
       // Toplam istatistikleri hesapla
@@ -1615,6 +1660,148 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       throw ServerException(message: 'Kullanıcı aktivite raporu alınamadı: $e');
     }
   }
+
+  @override
+  Future<Map<String, dynamic>> getUserReport({
+    required DateTime startDate,
+    required DateTime endDate,
+    String? groupId,
+  }) async {
+    try {
+      final activitiesStart =
+          DateTime(startDate.year, startDate.month, startDate.day);
+      final activitiesEnd = DateTime(endDate.year, endDate.month, endDate.day)
+          .add(const Duration(days: 1));
+
+      List<String>? groupUserIds;
+      if (groupId != null) {
+        final groupMembersResponse = await _supabase
+            .from('group_members')
+            .select('user_id')
+            .eq('group_id', groupId);
+
+        final groupMembers = groupMembersResponse as List<dynamic>;
+        if (groupMembers.isEmpty) {
+          return {
+            'total_users': 0,
+            'total_runs': 0,
+            'total_distance_meters': 0.0,
+            'average_pace_seconds_per_km': null,
+            'users': <Map<String, dynamic>>[],
+          };
+        }
+
+        groupUserIds =
+            groupMembers.map((m) => m['user_id'] as String).toList();
+      }
+
+      var query = _supabase
+          .from('activities')
+          .select('''
+            user_id,
+            distance_meters,
+            duration_seconds,
+            average_pace_seconds,
+            users!inner(first_name, last_name, avatar_url)
+          ''')
+          .gte('start_time', activitiesStart.toIso8601String())
+          .lt('start_time', activitiesEnd.toIso8601String())
+          .eq('source', 'strava')
+          .eq('activity_type', 'running');
+
+      if (groupUserIds != null) {
+        query = query.inFilter('user_id', groupUserIds);
+      }
+
+      final activitiesResponse = await query;
+      final activities = activitiesResponse as List<dynamic>;
+
+      if (activities.isEmpty) {
+        return {
+          'total_users': 0,
+          'total_runs': 0,
+          'total_distance_meters': 0.0,
+          'average_pace_seconds_per_km': null,
+          'users': <Map<String, dynamic>>[],
+        };
+      }
+
+      final Map<String, _UserActivityAccumulator> acc = {};
+
+      for (final raw in activities) {
+        final map = raw as Map<String, dynamic>;
+        final userId = map['user_id'] as String;
+        final distance =
+            (map['distance_meters'] as num?)?.toDouble() ?? 0.0;
+        final duration = map['duration_seconds'] as int? ?? 0;
+
+        final userData = map['users'] as Map<String, dynamic>?;
+        final firstName = (userData?['first_name'] as String?) ?? '';
+        final lastName = (userData?['last_name'] as String?) ?? '';
+        final avatarUrl = userData?['avatar_url'] as String?;
+        final fullName = '$firstName $lastName'.trim();
+        final name = fullName.isEmpty ? 'Anonim' : fullName;
+
+        final entry = acc.putIfAbsent(
+          userId,
+          () => _UserActivityAccumulator(
+            userId: userId,
+            userName: name,
+            avatarUrl: avatarUrl,
+          ),
+        );
+        entry.totalDistanceMeters += distance;
+        entry.totalDurationSeconds += duration;
+        entry.totalRuns += 1;
+      }
+
+      double totalDistanceMeters = 0;
+      int totalDurationSeconds = 0;
+      int totalRuns = 0;
+
+      for (final entry in acc.values) {
+        totalDistanceMeters += entry.totalDistanceMeters;
+        totalDurationSeconds += entry.totalDurationSeconds;
+        totalRuns += entry.totalRuns;
+      }
+
+      double? averagePaceSecondsPerKm;
+      if (totalDistanceMeters > 0 && totalDurationSeconds > 0) {
+        final km = totalDistanceMeters / 1000.0;
+        averagePaceSecondsPerKm = totalDurationSeconds / km;
+      }
+
+      final users = acc.values.map((e) {
+        double? pace;
+        if (e.totalDistanceMeters > 0 && e.totalDurationSeconds > 0) {
+          final km = e.totalDistanceMeters / 1000.0;
+          pace = e.totalDurationSeconds / km;
+        }
+
+        return {
+          'user_id': e.userId,
+          'user_name': e.userName,
+          'avatar_url': e.avatarUrl,
+          'total_distance_meters': e.totalDistanceMeters,
+          'total_duration_seconds': e.totalDurationSeconds,
+          'average_pace_seconds_per_km': pace,
+          'total_runs': e.totalRuns,
+        };
+      }).toList();
+
+      return {
+        'total_users': acc.length,
+        'total_runs': totalRuns,
+        'total_distance_meters': totalDistanceMeters,
+        'average_pace_seconds_per_km': averagePaceSecondsPerKm,
+        'users': users,
+      };
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Kullanıcı raporu alınamadı: $e');
+    }
+  }
 }
 
 class _UserActivityAccumulator {
@@ -1623,12 +1810,14 @@ class _UserActivityAccumulator {
   final String? avatarUrl;
   double totalDistanceMeters;
   int totalDurationSeconds;
+  int totalRuns;
 
   _UserActivityAccumulator({
     required this.userId,
     required this.userName,
     required this.avatarUrl,
   })  : totalDistanceMeters = 0,
-        totalDurationSeconds = 0;
+        totalDurationSeconds = 0,
+        totalRuns = 0;
 }
 

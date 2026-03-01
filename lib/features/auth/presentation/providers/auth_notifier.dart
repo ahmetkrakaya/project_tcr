@@ -304,6 +304,32 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> checkEmailExists(String email) async {
     return await _repository.checkEmailExists(email);
   }
+
+  /// Hesap silme talebi oluştur
+  ///
+  /// Hata yoksa null, aksi halde gösterilecek hata mesajını döndürür.
+  Future<String?> requestAccountDeletion() async {
+    final failure = await _repository.requestAccountDeletion();
+    if (failure != null) {
+      return failure.message;
+    }
+    // Silme talebi oluşturulduktan sonra kullanıcıyı oturumdan düşürmek için
+    await _repository.signOut();
+    state = const AuthUnauthenticated();
+    return null;
+  }
+
+  /// Hesap silme talebini iptal et
+  ///
+  /// Hata yoksa null, aksi halde gösterilecek hata mesajını döndürür.
+  Future<String?> cancelAccountDeletion() async {
+    final failure = await _repository.cancelAccountDeletion();
+    if (failure != null) {
+      return failure.message;
+    }
+    await refreshUser();
+    return null;
+  }
 }
 
 /// Auth Notifier Provider

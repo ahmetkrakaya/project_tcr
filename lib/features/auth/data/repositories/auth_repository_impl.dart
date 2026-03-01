@@ -147,6 +147,36 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Failure?> requestAccountDeletion() async {
+    try {
+      await _remoteDataSource.requestAccountDeletion();
+      return null;
+    } on AppAuthException catch (e) {
+      return AuthFailure(message: e.message, code: e.code);
+    } catch (e) {
+      return AuthFailure(
+        message: 'Hesap silme talebi oluşturulamadı',
+        originalError: e,
+      );
+    }
+  }
+
+  @override
+  Future<Failure?> cancelAccountDeletion() async {
+    try {
+      await _remoteDataSource.cancelAccountDeletion();
+      return null;
+    } on AppAuthException catch (e) {
+      return AuthFailure(message: e.message, code: e.code);
+    } catch (e) {
+      return AuthFailure(
+        message: 'Hesap silme talebi iptal edilemedi',
+        originalError: e,
+      );
+    }
+  }
+
+  @override
   Future<Failure?> signOut() async {
     try {
       await _remoteDataSource.signOut();

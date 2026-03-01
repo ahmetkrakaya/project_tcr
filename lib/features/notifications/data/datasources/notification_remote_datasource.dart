@@ -178,6 +178,8 @@ class NotificationRemoteDataSourceImpl implements NotificationRemoteDataSource {
       'listing_created': true,
       'order_created': true,
       'order_status_changed': true,
+      // Doğum günü hatırlatma (yeni kategori)
+      'birthday_reminder': true,
     };
   }
 

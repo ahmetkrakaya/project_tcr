@@ -38,6 +38,9 @@ class UserGroupProgramViewer extends ConsumerWidget {
 
         return eventAsync.when(
           data: (event) {
+            if (event.isPast) {
+              return const SizedBox.shrink();
+            }
             final trackLengthKmNoRoute = event.laneConfig?.trackLengthKm;
             if (event.routeId == null) {
               return Column(

@@ -103,7 +103,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     );
                   },
                 ),
-                
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Account Section
+          _buildSectionHeader('Hesap'),
+          AppCard(
+            child: Column(
+              children: [
+                _buildListTile(
+                  leading: const Icon(
+                    Icons.delete_forever_outlined,
+                    color: AppColors.error,
+                  ),
+                  title: 'Hesabımı Sil',
+                  subtitle:
+                      'Hesabını silmek için talep oluştur. 15 gün içinde tekrar giriş yaparsan iptal edilir.',
+                  onTap: () => _showDeleteAccountDialog(context, ref),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: AppColors.neutral400,
+                  ),
+                ),
               ],
             ),
           ),
@@ -300,6 +323,83 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       contentPadding: EdgeInsets.zero,
       onTap: onTap,
     );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Hesabımı Sil'),
+        content: const Text(
+          'Hesabını silmek için bir talep oluşturacaksın.\n\n'
+          '• Silme talebi hemen işlenmez, 15 günlük bir bekleme süresi başlar.\n'
+          '• Bu süre içinde tekrar giriş yaparsan talep otomatik olarak iptal edilir.\n'
+          '• 15 gün sonunda hesabın geri dönüşsüz şekilde pasif hâle getirilir ve kişisel verilerin mümkün olduğunca silinir veya anonimleştirilir.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(dialogContext).pop();
+              await _handleAccountDeletionRequest(context, ref);
+            },
+            child: const Text(
+              'Silme Talebi Oluştur',
+              style: TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleAccountDeletionRequest(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => const AlertDialog(
+        content: SizedBox(
+          height: 64,
+          child: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      ),
+    );
+
+    final error = await ref
+        .read(authNotifierProvider.notifier)
+        .requestAccountDeletion();
+
+    Navigator.of(context, rootNavigator: true).pop();
+
+    if (error != null && error.isNotEmpty) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Hesap silme talebin alındı. 15 gün içinde tekrar giriş yaparsan talep iptal edilecektir.',
+        ),
+      ),
+    );
+
+    ref.read(authNotifierProvider.notifier).signOut();
+    if (context.mounted) {
+      context.go('/login');
+    }
   }
 
   void _showLogoutDialog(BuildContext context, WidgetRef ref) {

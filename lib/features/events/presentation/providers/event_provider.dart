@@ -5,6 +5,7 @@ import '../../../../shared/providers/auth_provider.dart';
 import '../../data/datasources/event_remote_datasource.dart';
 import '../../data/models/event_info_block_model.dart';
 import '../../data/models/event_report_model.dart';
+import '../../data/models/user_report_model.dart';
 import '../../data/models/event_activity_stat_model.dart';
 import '../../data/models/user_activity_report_model.dart';
 import '../../domain/entities/event_entity.dart';
@@ -509,6 +510,17 @@ final groupReportProvider = FutureProvider.family<Map<String, dynamic>, ({String
     startDate: params.startDate,
     endDate: params.endDate,
   );
+});
+
+/// Kullanıcı Raporu Provider (tarih aralığında kullanıcı bazlı toplu istatistikler)
+final userReportProvider = FutureProvider.family<UserReportSummaryModel, ({DateTime startDate, DateTime endDate, String? groupId})>((ref, params) async {
+  final dataSource = ref.watch(eventDataSourceProvider);
+  final raw = await dataSource.getUserReport(
+    startDate: params.startDate,
+    endDate: params.endDate,
+    groupId: params.groupId,
+  );
+  return UserReportSummaryModel.fromJson(raw);
 });
 
 /// Kullanıcı Aktivite Raporu Provider

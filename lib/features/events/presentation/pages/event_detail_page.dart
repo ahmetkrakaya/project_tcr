@@ -322,6 +322,8 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                                       ),
                                     ),
                                   ),
+                                // TODO: EventEntity visibility alanı eklendiğinde burada
+                                // kilit ikonlu \"Özel Etkinlik\" etiketi gösterilebilir.
                               ],
                             ),
                             const SizedBox(height: 8),

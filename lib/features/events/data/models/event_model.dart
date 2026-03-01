@@ -37,6 +37,7 @@ class EventModel {
   final String? parentEventId;
   final DateTime? recurrenceEndDate;
   final bool isRecurrenceException;
+  final String visibility;
 
   const EventModel({
     required this.id,
@@ -74,6 +75,7 @@ class EventModel {
     this.parentEventId,
     this.recurrenceEndDate,
     this.isRecurrenceException = false,
+    this.visibility = 'public',
   });
 
   factory EventModel.fromJson(Map<String, dynamic> json, {bool? isParticipating}) {
@@ -122,6 +124,7 @@ class EventModel {
           ? DateTime.parse(json['recurrence_end_date'] as String)
           : null,
       isRecurrenceException: json['is_recurrence_exception'] as bool? ?? false,
+      visibility: json['visibility'] as String? ?? 'public',
     );
   }
 
@@ -154,6 +157,7 @@ class EventModel {
       'recurrence_end_date':
           recurrenceEndDate?.toIso8601String().split('T').first,
       'is_recurrence_exception': isRecurrenceException,
+      'visibility': visibility,
     };
   }
 
@@ -194,6 +198,7 @@ class EventModel {
       parentEventId: parentEventId,
       recurrenceEndDate: recurrenceEndDate,
       isRecurrenceException: isRecurrenceException,
+      // EventEntity şu an visibility alanı içermiyor; gerekirse buraya eklenebilir.
     );
   }
 }

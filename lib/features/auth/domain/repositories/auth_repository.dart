@@ -35,6 +35,12 @@ abstract class AuthRepository {
   /// Yeni şifre belirle (şifre sıfırlama linkinden sonra)
   Future<Failure?> updatePassword(String newPassword);
 
+  /// Hesap silme talebi oluştur
+  Future<Failure?> requestAccountDeletion();
+
+  /// Hesap silme talebini iptal et
+  Future<Failure?> cancelAccountDeletion();
+
   /// Sign out
   Future<Failure?> signOut();
 

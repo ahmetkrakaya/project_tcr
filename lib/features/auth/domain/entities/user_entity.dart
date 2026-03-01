@@ -28,6 +28,9 @@ class UserEntity {
   final double? vdot;
   final DateTime? vdotUpdatedAt;
   final bool isActive;
+  final bool isDeleted;
+  final DateTime? deletionRequestedAt;
+  final DateTime? deletionEffectiveAt;
   final List<UserRole> roles;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -49,6 +52,9 @@ class UserEntity {
     this.vdot,
     this.vdotUpdatedAt,
     this.isActive = true,
+    this.isDeleted = false,
+    this.deletionRequestedAt,
+    this.deletionEffectiveAt,
     this.roles = const [UserRole.member],
     this.createdAt,
     this.updatedAt,
@@ -100,6 +106,9 @@ class UserEntity {
     double? vdot,
     DateTime? vdotUpdatedAt,
     bool? isActive,
+    bool? isDeleted,
+    DateTime? deletionRequestedAt,
+    DateTime? deletionEffectiveAt,
     List<UserRole>? roles,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -121,6 +130,9 @@ class UserEntity {
       vdot: vdot ?? this.vdot,
       vdotUpdatedAt: vdotUpdatedAt ?? this.vdotUpdatedAt,
       isActive: isActive ?? this.isActive,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletionRequestedAt: deletionRequestedAt ?? this.deletionRequestedAt,
+      deletionEffectiveAt: deletionEffectiveAt ?? this.deletionEffectiveAt,
       roles: roles ?? this.roles,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

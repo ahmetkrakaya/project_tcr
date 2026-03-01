@@ -28,6 +28,7 @@ enum _StatSortType { distance, duration, pace }
 
 class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
   _StatSortType _sortType = _StatSortType.distance;
+  String _userSearchQuery = '';
   String? _selectedGroupId;
 
   @override
@@ -165,7 +166,7 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                 ),
                 const SizedBox(height: 24),
 
-                // Sıralama menüsü
+                // Sıralama menüsü + arama
                 Row(
                   children: [
                     Expanded(
@@ -176,6 +177,24 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                     ),
                     _buildSortMenu(),
                   ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: 'İsim veya soyisime göre ara',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    isDense: true,
+                  ),
+                  style: AppTypography.bodySmall,
+                  onChanged: (value) {
+                    setState(() {
+                      _userSearchQuery = value.trim().toLowerCase();
+                    });
+                  },
                 ),
                 const SizedBox(height: 12),
 
@@ -291,8 +310,17 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
         break;
     }
 
+    // İsim/soyisim LIKE filtresi
+    List<EventActivityStatModel> filtered = sorted;
+    if (_userSearchQuery.isNotEmpty) {
+      filtered = sorted.where((s) {
+        final name = s.userName.toLowerCase();
+        return name.contains(_userSearchQuery);
+      }).toList();
+    }
+
     return Column(
-      children: sorted.map((s) {
+      children: filtered.map((s) {
         final distanceKm = s.totalDistanceMeters / 1000.0;
         final duration = Duration(seconds: s.totalDurationSeconds);
         final paceSec = s.averagePaceSecondsPerKm;

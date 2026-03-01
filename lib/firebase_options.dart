@@ -46,8 +46,6 @@ class DefaultFirebaseOptions {
     }
   }
 
-  // TODO: Firebase Console > Project Settings > Web App'ten gerçek değerlerle güncelleyin.
-
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyADt9VvZKfuUZR-8JbgXQtikSxs7VnyP-Y',
     appId: '1:454457021902:web:77177f7a9ac8f123e0479f',

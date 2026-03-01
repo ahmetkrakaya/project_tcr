@@ -11,6 +11,8 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/vdot_calculator.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../members_groups/presentation/providers/group_provider.dart';
+import '../../../auth/domain/entities/user_entity.dart';
+import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../../members_groups/presentation/widgets/event_group_programs_editor.dart';
 import '../../../routes/domain/entities/route_entity.dart';
 import '../../../routes/presentation/providers/route_provider.dart';
@@ -67,6 +69,10 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   /// Pist rotada pace bazlı kulvar: lanes + isteğe bağlı pist uzunluğu (km)
   List<LaneEntity> _laneConfigLanes = [];
   double? _trackLengthKmOverride;
+
+  /// Özel etkinlik (sadece seçili kullanıcılar görebilir)
+  bool _isRestrictedEvent = false;
+  final List<String> _selectedVisibleUserIds = [];
 
   /// Tekrarlayan etkinlik
   bool _isRecurring = false;
@@ -516,6 +522,10 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 _buildLaneConfigSection(),
                 const SizedBox(height: 24),
               ],
+
+              // Özel etkinlik görünürlüğü (sadece Admin / Coach kullanıcılar için)
+              const SizedBox(height: 8),
+              _buildVisibilitySection(),
             ],
           ),
         ),
@@ -572,6 +582,322 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       }
       if (type != EventType.training) _participationType = 'team';
     });
+  }
+
+  Widget _buildVisibilitySection() {
+    final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
+    if (!isAdminOrCoach) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Görünürlük',
+          style: AppTypography.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Sadece seçili kullanıcılar bu etkinliği görebilsin',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.neutral600,
+                ),
+              ),
+            ),
+            if (_isRestrictedEvent && _selectedVisibleUserIds.isNotEmpty)
+              IconButton(
+                icon: const Icon(
+                  Icons.edit,
+                  size: 20,
+                  color: AppColors.primary,
+                ),
+                tooltip: 'Kullanıcıları düzenle',
+                onPressed: () {
+                  _openVisibleUsersSelector();
+                },
+              ),
+            Switch.adaptive(
+              value: _isRestrictedEvent,
+              onChanged: (value) async {
+                setState(() {
+                  _isRestrictedEvent = value;
+                  if (!value) {
+                    _selectedVisibleUserIds.clear();
+                  }
+                });
+
+                if (value) {
+                  await _openVisibleUsersSelector();
+                }
+              },
+              activeColor: AppColors.primary,
+            ),
+          ],
+        ),
+        if (_isRestrictedEvent) ...[
+          const SizedBox(height: 8),
+          _buildVisibleUsersSelector(),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _openVisibleUsersSelector() async {
+    try {
+      final users = await ref.read(activeUsersProvider.future);
+      if (!mounted) return;
+      final selectedSet = _selectedVisibleUserIds.toSet();
+      final result = await _showUserMultiSelect(users, selectedSet);
+      if (result != null && mounted) {
+        setState(() {
+          _selectedVisibleUserIds
+            ..clear()
+            ..addAll(result);
+        });
+      }
+    } catch (_) {
+      // Sessizce yut; UI zaten kritik değil
+    }
+  }
+
+  Widget _buildVisibleUsersSelector() {
+    final activeUsersAsync = ref.watch(activeUsersProvider);
+
+    return activeUsersAsync.when(
+      data: (users) {
+        if (users.isEmpty) {
+          return Text(
+            'Aktif kullanıcı bulunamadı.',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.neutral500,
+            ),
+          );
+        }
+
+        // Seçili kullanıcıları map’e çevir (hızlı lookup için)
+        final selectedSet = _selectedVisibleUserIds.toSet();
+
+        final selectedUsers =
+            users.where((u) => selectedSet.contains(u.id)).toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (selectedUsers.isNotEmpty)
+              ...selectedUsers.map(
+                (u) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          u.fullName,
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.neutral800,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          size: 18,
+                          color: AppColors.neutral400,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _selectedVisibleUserIds.remove(u.id);
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+      error: (error, _) => Text(
+        'Kullanıcılar yüklenemedi: $error',
+        style: AppTypography.bodySmall.copyWith(color: AppColors.error),
+      ),
+    );
+  }
+
+  Future<List<String>?> _showUserMultiSelect(
+    List<UserEntity> users,
+    Set<String> initiallySelected,
+  ) async {
+    final selected = initiallySelected.toSet();
+    String searchQuery = '';
+
+    return showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final lowerQuery = searchQuery.toLowerCase();
+            final filteredUsers = lowerQuery.isEmpty
+                ? users
+                : users
+                    .where((u) =>
+                        u.fullName.toLowerCase().contains(lowerQuery))
+                    .toList();
+
+            void selectAdmins() {
+              setModalState(() {
+                final adminIds =
+                    users.where((u) => u.isAdmin).map((u) => u.id).toList();
+                final allSelected =
+                    adminIds.isNotEmpty && adminIds.every(selected.contains);
+
+                if (allSelected) {
+                  // Hepsi seçiliyse, hepsini kaldır (toggle off)
+                  for (final id in adminIds) {
+                    selected.remove(id);
+                  }
+                } else {
+                  // Aksi halde hepsini ekle
+                  for (final id in adminIds) {
+                    selected.add(id);
+                  }
+                }
+              });
+            }
+
+            void selectCoaches() {
+              setModalState(() {
+                final coachIds =
+                    users.where((u) => u.isCoach).map((u) => u.id).toList();
+                final allSelected =
+                    coachIds.isNotEmpty && coachIds.every(selected.contains);
+
+                if (allSelected) {
+                  // Hepsi seçiliyse, hepsini kaldır (toggle off)
+                  for (final id in coachIds) {
+                    selected.remove(id);
+                  }
+                } else {
+                  // Aksi halde hepsini ekle
+                  for (final id in coachIds) {
+                    selected.add(id);
+                  }
+                }
+              });
+            }
+
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.7,
+              builder: (context, controller) {
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Kullanıcı Seç',
+                            style: AppTypography.titleMedium,
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pop(selected.toList());
+                            },
+                            child: const Text('Bitti'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: selectAdmins,
+                              child: const Text('Yöneticileri ekle'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: selectCoaches,
+                              child: const Text('Koçları ekle'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: TextField(
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search, size: 18),
+                          hintText: 'İsim veya soyisime göre ara',
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(10)),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setModalState(() {
+                            searchQuery = value.trim();
+                          });
+                        },
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: controller,
+                        itemCount: filteredUsers.length,
+                        itemBuilder: (context, index) {
+                          final user = filteredUsers[index];
+                          final isSelected = selected.contains(user.id);
+                          return CheckboxListTile(
+                            value: isSelected,
+                            onChanged: (value) {
+                              setModalState(() {
+                                if (value == true) {
+                                  selected.add(user.id);
+                                } else {
+                                  selected.remove(user.id);
+                                }
+                              });
+                            },
+                            title: Text(user.fullName),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _buildEventTypeSelector() {
@@ -942,6 +1268,16 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Özel görünürlük açıkken en az bir kullanıcı seçilmiş olmalı
+    if (_isRestrictedEvent && _selectedVisibleUserIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Özel etkinlik için en az bir görünür kullanıcı seçmelisiniz.'),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -1075,6 +1411,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         parentEventId: null,
         recurrenceEndDate: _recurrenceEndDate,
         isRecurrenceException: widget.editRecurrenceScope == 'only_this' || (existingEvent?.isRecurrenceException ?? false),
+        visibility: _isRestrictedEvent ? 'restricted' : 'public',
       );
 
       String createdEventId;
