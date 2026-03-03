@@ -79,6 +79,7 @@ class AppleWatchScheduledWorkoutPayload {
     return {
       'id': id,
       'title': title,
+      'scheduledAt': scheduledAt.toIso8601String(),
       'scheduledAtMs': scheduledAt.millisecondsSinceEpoch,
       'trainingTypeName': trainingTypeName,
       'definition': _definitionToJson(definition),

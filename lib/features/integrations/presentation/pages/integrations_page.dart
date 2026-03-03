@@ -446,6 +446,11 @@ class IntegrationsPage extends ConsumerWidget {
             ] else ...[
               const Divider(),
               const SizedBox(height: 8),
+              Text(
+                'Bu bağlantı Apple Health / HealthKit API\'lerini kullanır ve oluşturduğunuz antrenman programlarını Apple Fitness / Health uygulamalarına planlı antrenman olarak aktarır.',
+                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+              ),
+              const SizedBox(height: 8),
               _buildInfoRow(
                 'Son Senkronizasyon',
                 _formatAppleWatchLastSync(state.settings.lastSyncAt),

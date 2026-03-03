@@ -1,4 +1,6 @@
 /// Listing Type Enum
+import '../../../../core/enums/gender.dart';
+
 enum ListingType {
   tcrProduct('tcr_product');
 
@@ -94,6 +96,8 @@ class ListingModel {
   final int viewCount;
   final int? stockQuantity; // NULL = sınırsız, 0 = stok yok, >0 = mevcut stok (deprecated - use stockBySize)
   final Map<String, int>? stockBySize; // Beden bazlı stok: {"S": 3, "L": 7}
+  final ListingGenderMode stockGenderMode;
+  final Map<String, Map<ListingGender, int>>? stockBySizeAndGender;
   final DateTime? expiresAt;
   final List<String> imageUrls;
   final String? primaryImageUrl;
@@ -120,6 +124,8 @@ class ListingModel {
     this.viewCount = 0,
     this.stockQuantity,
     this.stockBySize,
+    this.stockGenderMode = ListingGenderMode.unisex,
+    this.stockBySizeAndGender,
     this.expiresAt,
     this.imageUrls = const [],
     this.primaryImageUrl,
@@ -154,6 +160,12 @@ class ListingModel {
               ),
             )
           : null,
+      stockGenderMode: json['stock_gender_mode'] != null
+          ? ListingGenderMode.fromString(json['stock_gender_mode'] as String)
+          : ListingGenderMode.unisex,
+      stockBySizeAndGender: json['stock_by_size_and_gender'] != null
+          ? _parseStockBySizeAndGender(json['stock_by_size_and_gender'] as Map)
+          : null,
       expiresAt: json['expires_at'] != null
           ? DateTime.parse(json['expires_at'] as String)
           : null,
@@ -184,6 +196,7 @@ class ListingModel {
       'external_url': externalUrl,
       'status': status.value,
       'stock_quantity': stockQuantity,
+      'stock_gender_mode': stockGenderMode.value,
       'expires_at': expiresAt?.toIso8601String(),
     };
   }
@@ -213,6 +226,9 @@ class ListingModel {
     ListingStatus? status,
     int? viewCount,
     int? stockQuantity,
+    Map<String, int>? stockBySize,
+    ListingGenderMode? stockGenderMode,
+    Map<String, Map<ListingGender, int>>? stockBySizeAndGender,
     DateTime? expiresAt,
     List<String>? imageUrls,
     String? primaryImageUrl,
@@ -238,6 +254,9 @@ class ListingModel {
       status: status ?? this.status,
       viewCount: viewCount ?? this.viewCount,
       stockQuantity: stockQuantity ?? this.stockQuantity,
+      stockBySize: stockBySize ?? this.stockBySize,
+      stockGenderMode: stockGenderMode ?? this.stockGenderMode,
+      stockBySizeAndGender: stockBySizeAndGender ?? this.stockBySizeAndGender,
       expiresAt: expiresAt ?? this.expiresAt,
       imageUrls: imageUrls ?? this.imageUrls,
       primaryImageUrl: primaryImageUrl ?? this.primaryImageUrl,
@@ -245,5 +264,25 @@ class ListingModel {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
+  }
+
+  static Map<String, Map<ListingGender, int>> _parseStockBySizeAndGender(
+    Map raw,
+  ) {
+    final result = <String, Map<ListingGender, int>>{};
+    raw.forEach((sizeKey, value) {
+      if (value is Map) {
+        final inner = <ListingGender, int>{};
+        value.forEach((genderKey, qty) {
+          if (genderKey is String && qty is int) {
+            inner[ListingGender.fromString(genderKey)] = qty;
+          }
+        });
+        if (inner.isNotEmpty) {
+          result[sizeKey.toString()] = inner;
+        }
+      }
+    });
+    return result;
   }
 }

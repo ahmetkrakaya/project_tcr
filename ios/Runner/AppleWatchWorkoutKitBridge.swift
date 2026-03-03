@@ -135,10 +135,17 @@ private extension AppleWatchWorkoutKitBridge {
 
       if sent.contains(id) { continue }
 
-      let segments = flattenSegments(definition: definition)
-      if segments.isEmpty { continue }
+      let parsed = parseDefinition(definition: definition)
+      if parsed.blocks.isEmpty && parsed.warmup == nil && parsed.cooldown == nil {
+        continue
+      }
 
-      let workoutPlan = try buildWorkoutPlan(title: title, segments: segments)
+      let workoutPlan = try buildWorkoutPlan(
+        title: title,
+        warmup: parsed.warmup,
+        blocks: parsed.blocks,
+        cooldown: parsed.cooldown
+      )
       let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: scheduledAt)
       await WorkoutScheduler.shared.schedule(workoutPlan, at: comps)
       updatedSent.insert(id)
@@ -152,6 +159,90 @@ private extension AppleWatchWorkoutKitBridge {
     let targetType: String
     let durationSeconds: Double?
     let distanceMeters: Double?
+  }
+
+  struct IntervalBlockConfig {
+    let segments: [Segment]
+    let iterations: Int
+  }
+
+  struct ParsedDefinition {
+    let warmup: Segment?
+    let blocks: [IntervalBlockConfig]
+    let cooldown: Segment?
+  }
+
+  func parseSegment(from step: [String: Any]) -> Segment? {
+    let type = (step["type"] as? String) ?? ""
+    guard type == "segment" else { return nil }
+
+    guard let seg = step["segment"] as? [String: Any],
+          let segType = seg["segmentType"] as? String,
+          let targetType = seg["targetType"] as? String else {
+      return nil
+    }
+
+    let dur = (seg["durationSeconds"] as? NSNumber)?.doubleValue
+    let dist = (seg["distanceMeters"] as? NSNumber)?.doubleValue
+    return Segment(segmentType: segType, targetType: targetType, durationSeconds: dur, distanceMeters: dist)
+  }
+
+  func parseDefinition(definition: [String: Any]) -> ParsedDefinition {
+    guard let steps = definition["steps"] as? [[String: Any]] else {
+      return ParsedDefinition(warmup: nil, blocks: [], cooldown: nil)
+    }
+
+    var remainingSteps = steps
+    var warmup: Segment? = nil
+    var cooldown: Segment? = nil
+
+    if let first = remainingSteps.first,
+       let firstSeg = parseSegment(from: first),
+       firstSeg.segmentType == "warmup" {
+      warmup = firstSeg
+      remainingSteps.removeFirst()
+    }
+
+    if let last = remainingSteps.last,
+       let lastSeg = parseSegment(from: last),
+       lastSeg.segmentType == "cooldown" {
+      cooldown = lastSeg
+      remainingSteps.removeLast()
+    }
+
+    var blocks: [IntervalBlockConfig] = []
+
+    for step in remainingSteps {
+      let type = (step["type"] as? String) ?? ""
+
+      if type == "segment" {
+        if let seg = parseSegment(from: step) {
+          blocks.append(IntervalBlockConfig(segments: [seg], iterations: 1))
+        }
+      } else if type == "repeat" {
+        let repeatCount = (step["repeatCount"] as? NSNumber)?.intValue ?? 1
+        let innerSteps = step["steps"] as? [[String: Any]] ?? []
+        var innerSegments: [Segment] = []
+
+        for inner in innerSteps {
+          if let seg = parseSegment(from: inner) {
+            innerSegments.append(seg)
+          } else if (inner["type"] as? String) == "repeat" {
+            // Nested repeat: eski flatten mantigini kullanarak segmentlere ac
+            let nestedDefinition: [String: Any] = ["steps": [inner]]
+            let nestedSegments = flattenSegments(definition: nestedDefinition)
+            innerSegments.append(contentsOf: nestedSegments)
+          }
+        }
+
+        if !innerSegments.isEmpty {
+          let iterations = max(repeatCount, 1)
+          blocks.append(IntervalBlockConfig(segments: innerSegments, iterations: iterations))
+        }
+      }
+    }
+
+    return ParsedDefinition(warmup: warmup, blocks: blocks, cooldown: cooldown)
   }
 
   func flattenSegments(definition: [String: Any]) -> [Segment] {
@@ -189,36 +280,52 @@ private extension AppleWatchWorkoutKitBridge {
     }
   }
 
-  func buildWorkoutPlan(title: String, segments: [Segment]) throws -> WorkoutPlan {
-    // Warmup & cooldown ayır
-    var warmupStep: WorkoutStep? = nil
-    var cooldownStep: WorkoutStep? = nil
-    var core: [Segment] = segments
-
-    if let first = core.first, first.segmentType == "warmup" {
-      warmupStep = WorkoutStep(goal: goalForSegment(first))
-      core.removeFirst()
-    }
-    if let last = core.last, last.segmentType == "cooldown" {
-      cooldownStep = WorkoutStep(goal: goalForSegment(last))
-      core.removeLast()
+  func buildWorkoutPlan(
+    title: String,
+    warmup: Segment?,
+    blocks: [IntervalBlockConfig],
+    cooldown: Segment?
+  ) throws -> WorkoutPlan {
+    let warmupStep: WorkoutStep?
+    if let warmup = warmup {
+      warmupStep = WorkoutStep(goal: goalForSegment(warmup))
+    } else {
+      warmupStep = nil
     }
 
-    // Planned workout'lar interval block beklediği için core boşsa tek bir open interval ekleyelim.
-    if core.isEmpty {
-      core = [Segment(segmentType: "main", targetType: "open", durationSeconds: nil, distanceMeters: nil)]
+    let cooldownStep: WorkoutStep?
+    if let cooldown = cooldown {
+      cooldownStep = WorkoutStep(goal: goalForSegment(cooldown))
+    } else {
+      cooldownStep = nil
     }
 
-    let intervalSteps: [IntervalStep] = core.map { seg in
-      let kind: IntervalStep.Kind = (seg.segmentType == "recovery") ? .recovery : .work
-      return IntervalStep(kind, goal: goalForSegment(seg), alert: nil)
+    var intervalBlocks: [IntervalBlock] = []
+
+    if blocks.isEmpty {
+      // Planned workout'lar interval block beklediği için core boşsa tek bir open interval ekleyelim.
+      let fallbackSegment = Segment(
+        segmentType: "main",
+        targetType: "open",
+        durationSeconds: nil,
+        distanceMeters: nil
+      )
+      let step = IntervalStep(.work, goal: goalForSegment(fallbackSegment), alert: nil)
+      intervalBlocks = [IntervalBlock(steps: [step], iterations: 1)]
+    } else {
+      intervalBlocks = blocks.map { config in
+        let steps: [IntervalStep] = config.segments.map { seg in
+          let kind: IntervalStep.Kind = (seg.segmentType == "recovery") ? .recovery : .work
+          return IntervalStep(kind, goal: goalForSegment(seg), alert: nil)
+        }
+        return IntervalBlock(steps: steps, iterations: max(config.iterations, 1))
+      }
     }
-    let block = IntervalBlock(steps: intervalSteps, iterations: 1)
 
     let workout = CustomWorkout(
       activity: .running,
       warmup: warmupStep,
-      blocks: [block],
+      blocks: intervalBlocks,
       cooldown: cooldownStep,
       displayName: title
     )

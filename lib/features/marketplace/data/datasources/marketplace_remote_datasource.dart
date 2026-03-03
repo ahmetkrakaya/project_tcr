@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/enums/gender.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../models/listing_model.dart';
 import '../models/order_model.dart';
@@ -71,6 +72,21 @@ abstract class MarketplaceRemoteDataSource {
   
   /// Beden bazlı stok miktarlarını güncelle
   Future<void> updateStockBySize(String listingId, Map<String, int> stockBySize);
+
+  /// Cinsiyet + beden bazlı stok miktarlarını getir
+  Future<Map<String, Map<ListingGender, int>>> getStockBySizeAndGender(String listingId);
+
+  /// Cinsiyet + beden bazlı stok miktarlarını güncelle
+  Future<void> updateStockBySizeAndGender(
+    String listingId,
+    Map<String, Map<ListingGender, int>> stockBySizeGender,
+  );
+
+  /// Ürünün stok gender modunu güncelle (unisex / gendered)
+  Future<void> updateListingStockGenderMode(
+    String listingId,
+    ListingGenderMode mode,
+  );
 }
 
 /// Marketplace Remote Data Source Implementation
@@ -155,6 +171,9 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           status: ListingStatus.fromString(listingJson['status'] as String),
           viewCount: listingJson['view_count'] as int? ?? 0,
           stockQuantity: listingJson['stock_quantity'] as int?,
+          stockGenderMode: listingJson['stock_gender_mode'] != null
+              ? ListingGenderMode.fromString(listingJson['stock_gender_mode'] as String)
+              : ListingGenderMode.unisex,
           expiresAt: listingJson['expires_at'] != null
               ? DateTime.parse(listingJson['expires_at'] as String)
               : null,
@@ -222,18 +241,45 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
         }
       }
 
-      // Beden bazlı stokları getir
+      // Beden + cinsiyet bazlı stokları getir
       Map<String, int>? stockBySize;
+      Map<String, Map<ListingGender, int>>? stockBySizeAndGender;
       try {
         final stockResponse = await _supabase
             .from('listing_stock_by_size')
-            .select('size, quantity')
+            .select('size, gender, quantity')
             .eq('listing_id', id);
         
         if (stockResponse.isNotEmpty) {
-          stockBySize = {};
           for (final row in stockResponse) {
-            stockBySize[row['size'] as String] = row['quantity'] as int;
+            final size = row['size'] as String;
+            final genderStr = row['gender'] as String?;
+            final quantity = row['quantity'] as int;
+
+            final gender = genderStr != null
+                ? ListingGender.fromString(genderStr)
+                : ListingGender.unisex;
+
+            stockBySizeAndGender ??= {};
+            final byGender = stockBySizeAndGender.putIfAbsent(
+              size,
+              () => <ListingGender, int>{},
+            );
+            byGender[gender] = quantity;
+          }
+
+          if (stockBySizeAndGender != null && stockBySizeAndGender.isNotEmpty) {
+            // Unisex kayıtları eski tek boyutlu map'e yansıt (geriye dönük uyumluluk için)
+            final flattened = <String, int>{};
+            stockBySizeAndGender.forEach((size, genderMap) {
+              final unisexQty = genderMap[ListingGender.unisex];
+              if (unisexQty != null) {
+                flattened[size] = unisexQty;
+              }
+            });
+            if (flattened.isNotEmpty) {
+              stockBySize = flattened;
+            }
           }
         }
       } catch (_) {
@@ -259,6 +305,10 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
         viewCount: listingJson['view_count'] as int? ?? 0,
         stockQuantity: listingJson['stock_quantity'] as int?,
         stockBySize: stockBySize,
+        stockGenderMode: listingJson['stock_gender_mode'] != null
+            ? ListingGenderMode.fromString(listingJson['stock_gender_mode'] as String)
+            : ListingGenderMode.unisex,
+        stockBySizeAndGender: stockBySizeAndGender,
         expiresAt: listingJson['expires_at'] != null
             ? DateTime.parse(listingJson['expires_at'] as String)
             : null,
@@ -601,6 +651,9 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           size: listingJson['size'] as String?,
           brand: listingJson['brand'] as String?,
           stockQuantity: listingJson['stock_quantity'] as int?,
+          stockGenderMode: listingJson['stock_gender_mode'] != null
+              ? ListingGenderMode.fromString(listingJson['stock_gender_mode'] as String)
+              : ListingGenderMode.unisex,
           imageUrls: sortedImageUrls,
           primaryImageUrl: sortedImageUrls.isNotEmpty ? sortedImageUrls.first : null,
           status: ListingStatus.fromString(listingJson['status'] as String),
@@ -1102,15 +1155,19 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
   @override
   Future<Map<String, int>> getStockBySize(String listingId) async {
     try {
-      final response = await _supabase
-          .from('listing_stock_by_size')
-          .select('size, quantity')
-          .eq('listing_id', listingId);
-
+      final bySizeGender = await getStockBySizeAndGender(listingId);
       final Map<String, int> stockBySize = {};
-      for (final row in response) {
-        stockBySize[row['size'] as String] = row['quantity'] as int;
-      }
+
+      bySizeGender.forEach((size, genderMap) {
+        if (genderMap.containsKey(ListingGender.unisex)) {
+          stockBySize[size] = genderMap[ListingGender.unisex]!;
+        } else {
+          // Geriye dönük uyumluluk için diğer cinsiyetlerin toplamı
+          final total = genderMap.values.fold<int>(0, (sum, qty) => sum + qty);
+          stockBySize[size] = total;
+        }
+      });
+
       return stockBySize;
     } on PostgrestException catch (e) {
       throw ServerException(message: e.message, code: e.code);
@@ -1121,6 +1178,54 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
 
   @override
   Future<void> updateStockBySize(String listingId, Map<String, int> stockBySize) async {
+    // Eski API: tüm stokları unisex olarak yazar
+    final Map<String, Map<ListingGender, int>> stockBySizeGender = {};
+    for (final entry in stockBySize.entries) {
+      stockBySizeGender[entry.key] = {ListingGender.unisex: entry.value};
+    }
+    return updateStockBySizeAndGender(listingId, stockBySizeGender);
+  }
+
+  @override
+  Future<Map<String, Map<ListingGender, int>>> getStockBySizeAndGender(
+    String listingId,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('listing_stock_by_size')
+          .select('size, gender, quantity')
+          .eq('listing_id', listingId);
+
+      final Map<String, Map<ListingGender, int>> stockBySizeGender = {};
+      for (final row in response) {
+        final size = row['size'] as String;
+        final genderStr = row['gender'] as String?;
+        final quantity = row['quantity'] as int;
+
+        final gender = genderStr != null
+            ? ListingGender.fromString(genderStr)
+            : ListingGender.unisex;
+
+        final byGender = stockBySizeGender.putIfAbsent(
+          size,
+          () => <ListingGender, int>{},
+        );
+        byGender[gender] = quantity;
+      }
+
+      return stockBySizeGender;
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Cinsiyet + beden bazlı stok alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<void> updateStockBySizeAndGender(
+    String listingId,
+    Map<String, Map<ListingGender, int>> stockBySizeGender,
+  ) async {
     try {
       if (_currentUserId == null) {
         throw ServerException(message: 'Kullanıcı giriş yapmamış', code: 'UNAUTHORIZED');
@@ -1133,12 +1238,18 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           .eq('listing_id', listingId);
 
       // Yeni stokları ekle
-      if (stockBySize.isNotEmpty) {
-        final inserts = stockBySize.entries.map((entry) => {
-          'listing_id': listingId,
-          'size': entry.key,
-          'quantity': entry.value,
-        }).toList();
+      if (stockBySizeGender.isNotEmpty) {
+        final inserts = <Map<String, dynamic>>[];
+        stockBySizeGender.forEach((size, genderMap) {
+          genderMap.forEach((gender, quantity) {
+            inserts.add({
+              'listing_id': listingId,
+              'size': size,
+              'gender': gender.value,
+              'quantity': quantity,
+            });
+          });
+        });
 
         await _supabase
             .from('listing_stock_by_size')
@@ -1148,6 +1259,29 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
       throw ServerException(message: 'Beden bazlı stok güncellenemedi: $e');
+    }
+  }
+
+  @override
+  Future<void> updateListingStockGenderMode(
+    String listingId,
+    ListingGenderMode mode,
+  ) async {
+    try {
+      if (_currentUserId == null) {
+        throw ServerException(message: 'Kullanıcı giriş yapmamış', code: 'UNAUTHORIZED');
+      }
+
+      await _supabase
+          .from('marketplace_listings')
+          .update({'stock_gender_mode': mode.value})
+          .eq('id', listingId);
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(
+        message: 'Stok gender modu güncellenemedi: $e',
+      );
     }
   }
 }

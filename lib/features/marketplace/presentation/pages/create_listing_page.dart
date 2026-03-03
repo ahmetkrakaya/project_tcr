@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/enums/gender.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_text_field.dart';
@@ -48,10 +49,13 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
   List<String> _imageUrls = [];
   final List<XFile> _selectedImageFiles = [];
   bool _isSubmitting = false;
-  
+  ListingGenderMode _stockGenderMode = ListingGenderMode.unisex;
+
   // Beden bazlı stok yönetimi
   List<String> _sizes = [];
   final Map<String, TextEditingController> _stockBySizeControllers = {};
+  final Map<String, Map<ListingGender, TextEditingController>>
+      _stockBySizeGenderControllers = {};
 
   @override
   void initState() {
@@ -79,6 +83,12 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
           controller.dispose();
         }
         _stockBySizeControllers.clear();
+        for (final genderMap in _stockBySizeGenderControllers.values) {
+          for (final controller in genderMap.values) {
+            controller.dispose();
+          }
+        }
+        _stockBySizeGenderControllers.clear();
         _sizes.clear();
         setState(() {});
       }
@@ -95,11 +105,21 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
         controller.dispose();
       }
       _stockBySizeControllers.clear();
+      for (final genderMap in _stockBySizeGenderControllers.values) {
+        for (final controller in genderMap.values) {
+          controller.dispose();
+        }
+      }
+      _stockBySizeGenderControllers.clear();
       
       // Yeni controller'ları oluştur
       _sizes = newSizes;
       for (final size in _sizes) {
         _stockBySizeControllers[size] = TextEditingController();
+        _stockBySizeGenderControllers[size] = {
+          ListingGender.male: TextEditingController(),
+          ListingGender.female: TextEditingController(),
+        };
       }
       setState(() {});
     }
@@ -122,7 +142,37 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
       _selectedType = listing.listingType;
       _selectedCategory = listing.category;
       _imageUrls = listing.imageUrls;
+      _stockGenderMode = listing.stockGenderMode;
     });
+
+    // Beden bazlı stok alanlarını populate et
+    _onSizeChanged();
+
+    if (listing.stockGenderMode == ListingGenderMode.gendered &&
+        listing.stockBySizeAndGender != null &&
+        listing.stockBySizeAndGender!.isNotEmpty) {
+      listing.stockBySizeAndGender!.forEach((size, genderMap) {
+        final controllers = _stockBySizeGenderControllers[size];
+        if (controllers != null) {
+          final maleQty = genderMap[ListingGender.male];
+          final femaleQty = genderMap[ListingGender.female];
+          if (maleQty != null) {
+            controllers[ListingGender.male]?.text = maleQty.toString();
+          }
+          if (femaleQty != null) {
+            controllers[ListingGender.female]?.text = femaleQty.toString();
+          }
+        }
+      });
+    } else if (listing.stockBySize != null &&
+        listing.stockBySize!.isNotEmpty) {
+      listing.stockBySize!.forEach((size, qty) {
+        final controller = _stockBySizeControllers[size];
+        if (controller != null) {
+          controller.text = qty.toString();
+        }
+      });
+    }
   }
 
   @override
@@ -148,6 +198,12 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
       controller.dispose();
     }
     _stockBySizeControllers.clear();
+    for (final genderMap in _stockBySizeGenderControllers.values) {
+      for (final controller in genderMap.values) {
+        controller.dispose();
+      }
+    }
+    _stockBySizeGenderControllers.clear();
     super.dispose();
   }
 
@@ -339,6 +395,46 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
             ),
             const SizedBox(height: 20),
 
+            // Stok tipi: Unisex / Erkek-Kadın
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.neutral100,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.neutral300,
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Stok Tipi',
+                    style: AppTypography.labelLarge.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.neutral700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      _buildStockGenderModeChip(
+                        mode: ListingGenderMode.unisex,
+                        label: 'Unisex',
+                      ),
+                      const SizedBox(width: 12),
+                      _buildStockGenderModeChip(
+                        mode: ListingGenderMode.gendered,
+                        label: 'Erkek / Kadın',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
             // Size & Stock Row
             Row(
               children: [
@@ -355,7 +451,8 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                     },
                   ),
                 ),
-                if (_sizes.isEmpty) ...[
+                if (_sizes.isEmpty &&
+                    _stockGenderMode == ListingGenderMode.unisex) ...[
                   const SizedBox(width: 16),
                   Expanded(
                     child: AppTextField(
@@ -370,8 +467,9 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
               ],
             ),
             
-            // Beden Bazlı Stok Yönetimi
-            if (_sizes.isNotEmpty) ...[
+            // Beden Bazlı Stok Yönetimi - Unisex
+            if (_sizes.isNotEmpty &&
+                _stockGenderMode == ListingGenderMode.unisex) ...[
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(20),
@@ -414,6 +512,87 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                           textInputAction: _sizes.indexOf(size) == _sizes.length - 1
                               ? TextInputAction.done
                               : TextInputAction.next,
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
+
+            // Beden Bazlı Stok Yönetimi - Erkek / Kadın
+            if (_sizes.isNotEmpty &&
+                _stockGenderMode == ListingGenderMode.gendered) ...[
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryContainer.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.inventory_2,
+                          size: 20,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Beden + Cinsiyet Bazlı Stok',
+                          style: AppTypography.labelLarge.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ..._sizes.map((size) {
+                      final controllers = _stockBySizeGenderControllers[size]!;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              size,
+                              style: AppTypography.bodyMedium.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: AppTextField(
+                                    controller:
+                                        controllers[ListingGender.male]!,
+                                    hint: 'Erkek stok (boş = 0)',
+                                    keyboardType: TextInputType.number,
+                                    textInputAction: TextInputAction.next,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: AppTextField(
+                                    controller:
+                                        controllers[ListingGender.female]!,
+                                    hint: 'Kadın stok (boş = 0)',
+                                    keyboardType: TextInputType.number,
+                                    textInputAction: TextInputAction.next,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       );
                     }),
@@ -528,6 +707,44 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
       case ListingCategory.other:
         return 'Diğer';
     }
+  }
+
+  Widget _buildStockGenderModeChip({
+    required ListingGenderMode mode,
+    required String label,
+  }) {
+    final isSelected = _stockGenderMode == mode;
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _stockGenderMode = mode;
+          });
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : AppColors.neutral100,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.neutral300,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: AppTypography.bodyMedium.copyWith(
+                color: isSelected ? Colors.white : AppColors.neutral700,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showCategoryMenu() {
@@ -872,12 +1089,46 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
       // Price is required, validation already done in form
       final price = double.parse(_priceController.text);
       
-      // Stok yönetimi: Eğer beden varsa beden bazlı, yoksa genel stok
+      // Stok yönetimi
       int? stockQuantity;
       Map<String, int>? stockBySize;
+      Map<String, Map<ListingGender, int>>? stockBySizeAndGender;
       
-      if (_sizes.isNotEmpty) {
-        // Beden bazlı stok
+      if (_sizes.isNotEmpty &&
+          _stockGenderMode == ListingGenderMode.gendered) {
+        // Beden + cinsiyet bazlı stok
+        stockBySizeAndGender = {};
+        for (final size in _sizes) {
+          final genderControllers = _stockBySizeGenderControllers[size];
+          if (genderControllers == null) continue;
+
+          final maleText = genderControllers[ListingGender.male]!.text.trim();
+          final femaleText = genderControllers[ListingGender.female]!.text.trim();
+
+          final byGender = <ListingGender, int>{};
+          if (maleText.isNotEmpty) {
+            final qty = int.tryParse(maleText);
+            if (qty != null && qty >= 0) {
+              byGender[ListingGender.male] = qty;
+            }
+          }
+          if (femaleText.isNotEmpty) {
+            final qty = int.tryParse(femaleText);
+            if (qty != null && qty >= 0) {
+              byGender[ListingGender.female] = qty;
+            }
+          }
+
+          if (byGender.isNotEmpty) {
+            stockBySizeAndGender[size] = byGender;
+          }
+        }
+
+        if (stockBySizeAndGender.isEmpty) {
+          stockBySizeAndGender = null;
+        }
+      } else if (_sizes.isNotEmpty) {
+        // Beden bazlı stok (unisex)
         stockBySize = {};
         for (final size in _sizes) {
           final controller = _stockBySizeControllers[size];
@@ -888,12 +1139,11 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
             }
           }
         }
-        // Eğer hiç stok girilmemişse null yap
         if (stockBySize.isEmpty) {
           stockBySize = null;
         }
       } else {
-        // Genel stok
+        // Genel stok (sadece unisex)
         stockQuantity = _stockQuantityController.text.isEmpty
             ? null
             : int.tryParse(_stockQuantityController.text);
@@ -919,6 +1169,8 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
               stockQuantity: stockQuantity,
               stockBySize: stockBySize,
               imageUrls: _imageUrls,
+              stockGenderMode: _stockGenderMode,
+              stockBySizeAndGender: stockBySizeAndGender,
             );
       } else {
         // Create
@@ -939,6 +1191,8 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
               stockQuantity: stockQuantity,
               stockBySize: stockBySize,
               imageUrls: _imageUrls,
+              stockGenderMode: _stockGenderMode,
+              stockBySizeAndGender: stockBySizeAndGender,
             );
       }
 
@@ -950,8 +1204,16 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
               // Refresh marketplace listings and wait for it to complete
               await ref.read(listingsProvider.notifier).refresh();
               
-              if (mounted) {
-                // Navigate to marketplace page after refresh
+              if (!mounted) return;
+
+              if (widget.listingId != null) {
+                // Edit sonrası ilan detayına dön
+                context.goNamed(
+                  RouteNames.listingDetail,
+                  pathParameters: {'listingId': listing.id},
+                );
+              } else {
+                // Yeni ilan sonrası marketplace listesine dön
                 context.goNamed(RouteNames.marketplace);
               }
             }

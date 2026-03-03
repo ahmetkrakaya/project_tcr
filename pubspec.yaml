@@ -1,7 +1,7 @@
 name: project_tcr
 description: "TCR (Twenty City Runners) - Koşu Kulübü Mobil Uygulaması"
 publish_to: 'none'
-version: 1.2026.1+13
+version: 1.2026.1+14
 
 environment:
   sdk: ^3.9.0

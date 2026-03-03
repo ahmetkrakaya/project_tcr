@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/enums/gender.dart';
 import '../../data/datasources/marketplace_remote_datasource.dart';
 import '../../data/models/listing_model.dart';
 import '../../data/models/order_model.dart';
@@ -216,6 +217,8 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
     int? stockQuantity,
     Map<String, int>? stockBySize,
     List<String> imageUrls = const [],
+    ListingGenderMode stockGenderMode = ListingGenderMode.unisex,
+    Map<String, Map<ListingGender, int>>? stockBySizeAndGender,
   }) async {
     state = const AsyncValue.loading();
 
@@ -236,16 +239,23 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
         status: ListingStatus.active,
         stockQuantity: stockQuantity,
         stockBySize: stockBySize,
+        stockGenderMode: stockGenderMode,
+        stockBySizeAndGender: stockBySizeAndGender,
         imageUrls: imageUrls,
         createdAt: DateTime.now(),
       );
 
       final created = await _dataSource.createListing(listing, imageUrls);
       
-      // Beden bazlı stok varsa kaydet
-      if (stockBySize != null && stockBySize.isNotEmpty) {
-        await _dataSource.updateStockBySize(created.id, stockBySize);
+      // Cinsiyet + beden bazlı stok varsa önce onu kaydet
+      if (stockBySizeAndGender != null && stockBySizeAndGender.isNotEmpty) {
+        await _dataSource.updateStockBySizeAndGender(created.id, stockBySizeAndGender);
         // Güncellenmiş listing'i tekrar getir
+        final updated = await _dataSource.getListingById(created.id);
+        state = AsyncValue.data(updated);
+      } else if (stockBySize != null && stockBySize.isNotEmpty) {
+        // Eski API: sadece beden bazlı (unisex) stok
+        await _dataSource.updateStockBySize(created.id, stockBySize);
         final updated = await _dataSource.getListingById(created.id);
         state = AsyncValue.data(updated);
       } else {
@@ -271,6 +281,8 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
     int? stockQuantity,
     Map<String, int>? stockBySize,
     List<String>? imageUrls,
+    ListingGenderMode stockGenderMode = ListingGenderMode.unisex,
+    Map<String, Map<ListingGender, int>>? stockBySizeAndGender,
   }) async {
     state = const AsyncValue.loading();
 
@@ -291,16 +303,22 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
         status: ListingStatus.active,
         stockQuantity: stockQuantity,
         stockBySize: stockBySize,
+        stockGenderMode: stockGenderMode,
+        stockBySizeAndGender: stockBySizeAndGender,
         imageUrls: imageUrls ?? [],
         createdAt: DateTime.now(),
       );
 
       final updated = await _dataSource.updateListing(listing, imageUrls);
       
-      // Beden bazlı stok varsa kaydet
-      if (stockBySize != null) {
-        await _dataSource.updateStockBySize(listingId, stockBySize);
+      // Cinsiyet + beden bazlı stok varsa önce onu kaydet
+      if (stockBySizeAndGender != null) {
+        await _dataSource.updateStockBySizeAndGender(listingId, stockBySizeAndGender);
         // Güncellenmiş listing'i tekrar getir
+        final finalUpdated = await _dataSource.getListingById(listingId);
+        state = AsyncValue.data(finalUpdated);
+      } else if (stockBySize != null) {
+        await _dataSource.updateStockBySize(listingId, stockBySize);
         final finalUpdated = await _dataSource.getListingById(listingId);
         state = AsyncValue.data(finalUpdated);
       } else {
@@ -409,6 +427,7 @@ class CreateOrderNotifier extends StateNotifier<AsyncValue<OrderModel?>> {
     String currency = 'TRY',
     String? buyerNote,
     String? selectedSize,
+    ListingGender? selectedGender,
   }) async {
     state = const AsyncValue.loading();
 
@@ -424,6 +443,7 @@ class CreateOrderNotifier extends StateNotifier<AsyncValue<OrderModel?>> {
         status: OrderStatus.pending,
         buyerNote: buyerNote,
         selectedSize: selectedSize,
+        selectedGender: selectedGender,
         createdAt: DateTime.now(),
       );
 

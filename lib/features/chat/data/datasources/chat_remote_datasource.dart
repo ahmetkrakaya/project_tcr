@@ -39,6 +39,13 @@ abstract class ChatRemoteDataSource {
   /// Mesajları okundu olarak işaretle
   Future<void> markMessagesAsRead(String roomId);
 
+  /// Bir mesajı uygunsuz olarak raporla
+  Future<void> reportMessage({
+    required String messageId,
+    required String roomId,
+    String? reason,
+  });
+
   /// Realtime mesaj dinleyici
   Stream<ChatMessageModel> subscribeToMessages(String roomId);
 
@@ -438,6 +445,29 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
           .eq('user_id', userId);
     } catch (e) {
       // Sessizce hata yakala
+    }
+  }
+
+  @override
+  Future<void> reportMessage({
+    required String messageId,
+    required String roomId,
+    String? reason,
+  }) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+
+    try {
+      await _supabase.from('chat_message_reports').insert({
+        'message_id': messageId,
+        'room_id': roomId,
+        'reporter_id': userId,
+        'reason': reason,
+      });
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (_) {
+      // Sessiz: rapor atılamasa bile kullanıcıya hata göstermiyoruz
     }
   }
 

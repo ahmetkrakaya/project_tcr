@@ -296,6 +296,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                       showAvatar: showAvatar,
                       onReply: canWrite ? () => _setReplyTo(message) : null,
                       onDelete: isMe && canWrite ? () => _deleteMessage(message.id, chatRoom.id) : null,
+                      onReport: !isMe ? () => _reportMessage(message, chatRoom.id) : null,
                     );
                   },
                 ),
@@ -342,6 +343,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
     bool showAvatar = false,
     VoidCallback? onReply,
     VoidCallback? onDelete,
+    VoidCallback? onReport,
   }) {
     final isTempMessage = message.id.startsWith('temp_');
     
@@ -349,8 +351,8 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
       padding: const EdgeInsets.only(bottom: 8),
       child: GestureDetector(
         onLongPress: () {
-          if (onReply != null || onDelete != null) {
-            _showMessageOptions(message, onReply, onDelete);
+          if (onReply != null || onDelete != null || onReport != null) {
+            _showMessageOptions(message, onReply, onDelete, onReport);
           }
         },
         child: Row(
@@ -550,7 +552,44 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
     }
   }
 
-  void _showMessageOptions(ChatMessageModel message, VoidCallback? onReply, VoidCallback? onDelete) {
+  Future<void> _reportMessage(ChatMessageModel message, String roomId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mesajı Bildir'),
+        content: const Text('Bu mesajı uygunsuz olarak bildirmek istediğinizden emin misiniz?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('İptal')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Bildir')),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await ref
+            .read(chatDataSourceProvider)
+            .reportMessage(messageId: message.id, roomId: roomId, reason: null);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Mesaj inceleme için bildirildi. Teşekkürler.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } on ServerException {
+        // Rapor sırasında hata olsa bile kullanıcıya ekstra hata göstermiyoruz
+      }
+    }
+  }
+
+  void _showMessageOptions(
+    ChatMessageModel message,
+    VoidCallback? onReply,
+    VoidCallback? onDelete,
+    VoidCallback? onReport,
+  ) {
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -566,6 +605,15 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                   onTap: () {
                     Navigator.pop(context);
                     onReply();
+                  },
+                ),
+              if (onReport != null)
+                ListTile(
+                  leading: const Icon(Icons.flag_outlined),
+                  title: const Text('Mesajı Bildir'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onReport();
                   },
                 ),
               if (onDelete != null)

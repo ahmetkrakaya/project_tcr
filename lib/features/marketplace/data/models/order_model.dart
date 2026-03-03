@@ -1,3 +1,5 @@
+import '../../../../core/enums/gender.dart';
+
 /// Order Status Enum
 enum OrderStatus {
   pending('pending'),
@@ -43,6 +45,7 @@ class OrderModel {
   final String? updatedByName;
   final String? updatedByAvatarUrl;
   final String? selectedSize; // Siparişte seçilen beden
+  final ListingGender? selectedGender; // Siparişte seçilen cinsiyet
 
   const OrderModel({
     required this.id,
@@ -70,6 +73,7 @@ class OrderModel {
     this.updatedByName,
     this.updatedByAvatarUrl,
     this.selectedSize,
+    this.selectedGender,
   });
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
@@ -107,6 +111,9 @@ class OrderModel {
       updatedByName: json['updated_by_name'] as String?,
       updatedByAvatarUrl: json['updated_by_avatar'] as String?,
       selectedSize: json['selected_size'] as String?,
+      selectedGender: json['selected_gender'] != null
+          ? ListingGender.fromString(json['selected_gender'] as String)
+          : null,
     );
   }
 
@@ -122,6 +129,7 @@ class OrderModel {
       'buyer_note': buyerNote,
       'seller_note': sellerNote,
       if (selectedSize != null) 'selected_size': selectedSize,
+      if (selectedGender != null) 'selected_gender': selectedGender!.value,
     };
   }
 
@@ -151,6 +159,7 @@ class OrderModel {
     String? updatedByName,
     String? updatedByAvatarUrl,
     String? selectedSize,
+    ListingGender? selectedGender,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -178,6 +187,7 @@ class OrderModel {
       updatedByName: updatedByName ?? this.updatedByName,
       updatedByAvatarUrl: updatedByAvatarUrl ?? this.updatedByAvatarUrl,
       selectedSize: selectedSize ?? this.selectedSize,
+      selectedGender: selectedGender ?? this.selectedGender,
     );
   }
 }

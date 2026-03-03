@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/enums/gender.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -29,6 +30,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   bool _hasLoadedFavorite = false;
   int _currentPageIndex = 0;
   String? _selectedSize;
+  ListingGender? _selectedGender;
 
   @override
   void initState() {
@@ -204,24 +206,47 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                     ),
             ),
             actions: [
-              // Stock Management Button (Admin only)
+              // Edit & Stock Management Buttons (Admin only)
               Consumer(
                 builder: (context, ref, child) {
                   final isAdmin = ref.watch(isAdminProvider);
                   if (!isAdmin) return const SizedBox.shrink();
                   
-                  return Container(
-                    margin: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.inventory_2),
-                      color: Colors.white,
-                      tooltip: 'Stok Yönetimi',
-                      onPressed: () => _showStockManagementDialog(context, listing),
-                    ),
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          color: Colors.white,
+                          tooltip: 'Düzenle',
+                          onPressed: () {
+                            context.pushNamed(
+                              RouteNames.listingEdit,
+                              pathParameters: {'listingId': listing.id},
+                            );
+                          },
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.inventory_2),
+                          color: Colors.white,
+                          tooltip: 'Stok Yönetimi',
+                          onPressed: () => _showStockManagementDialog(context, listing),
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
@@ -416,6 +441,12 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                   // Size Selection
                   if (listing.size != null) ...[
                     _buildSizeSelector(listing.size!),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Gender Selection (only for gendered stock)
+                  if (listing.stockGenderMode == ListingGenderMode.gendered) ...[
+                    _buildGenderSelector(listing),
                     const SizedBox(height: 24),
                   ],
 
@@ -454,9 +485,9 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
 
 
   void _showStockManagementDialog(BuildContext context, ListingModel listing) {
-    // Eğer beden varsa beden bazlı stok yönetimi, yoksa genel stok yönetimi
+    // Eğer beden varsa stok tipi (unisex / erkek-kadın) popup içinde seçilir, yoksa genel stok yönetimi
     if (listing.size != null) {
-      _showStockBySizeDialog(context, listing);
+      _showStockBySizeModeDialog(context, listing);
     } else {
       _showGeneralStockDialog(context, listing);
     }
@@ -574,6 +605,21 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
     );
   }
 
+  void _showStockBySizeModeDialog(BuildContext context, ListingModel listing) {
+    // Bedenleri parse et
+    final sizes = listing.size!.split(',').map((s) => s.trim()).toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => _StockBySizeModeDialog(
+        listing: listing,
+        sizes: sizes,
+        initialStockBySize: listing.stockBySize ?? {},
+        initialStockByGender: listing.stockBySizeAndGender ?? {},
+      ),
+    );
+  }
+
   void _openFullScreenImageViewer(BuildContext context, List<String> imageUrls, int initialIndex) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -622,6 +668,85 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   }
 
   Widget _buildStockStatusCompact(ListingModel listing) {
+    // Cinsiyet + beden bazlı stok varsa önce onu kontrol et
+    if (listing.stockGenderMode == ListingGenderMode.gendered &&
+        listing.stockBySizeAndGender != null &&
+        listing.stockBySizeAndGender!.isNotEmpty) {
+      if (_selectedSize != null && _selectedGender != null) {
+        final genderMap = listing.stockBySizeAndGender![_selectedSize!];
+        final stockForCombo = genderMap?[_selectedGender!] ?? 0;
+
+        if (stockForCombo > 0) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.inventory_2, size: 14, color: AppColors.warning),
+                const SizedBox(width: 6),
+                Text(
+                  '$stockForCombo',
+                  style: AppTypography.labelSmall.copyWith(
+                    color: AppColors.warning,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.cancel, size: 14, color: AppColors.error),
+                const SizedBox(width: 6),
+                Text(
+                  'Yok',
+                  style: AppTypography.labelSmall.copyWith(
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+      } else if (_selectedSize != null && _selectedGender == null) {
+        // Beden seçili ama cinsiyet seçilmemiş
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.neutral200,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.info_outline, size: 14, color: AppColors.neutral500),
+              const SizedBox(width: 6),
+              Text(
+                'Cinsiyet seç',
+                style: AppTypography.labelSmall.copyWith(
+                  color: AppColors.neutral500,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
     // Beden bazlı stok varsa seçilen bedenin stok durumunu göster
     if (listing.stockBySize != null && listing.stockBySize!.isNotEmpty) {
       if (_selectedSize != null && listing.stockBySize!.containsKey(_selectedSize)) {
@@ -793,6 +918,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
               onTap: () {
                 setState(() {
                   _selectedSize = isSelected ? null : size;
+              // Beden seçimi cinsiyeti resetlemez; kullanıcı isterse ayrıca cinsiyet değiştirebilir
                 });
               },
               borderRadius: BorderRadius.circular(12),
@@ -827,6 +953,61 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
           }).toList(),
         ),
       ],
+    );
+  }
+
+  Widget _buildGenderSelector(ListingModel listing) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cinsiyet Seçiniz',
+          style: AppTypography.labelMedium.copyWith(
+            color: AppColors.neutral700,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildGenderChip(ListingGender.male, 'Erkek'),
+            _buildGenderChip(ListingGender.female, 'Kadın'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGenderChip(ListingGender gender, String label) {
+    final isSelected = _selectedGender == gender;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedGender = isSelected ? null : gender;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : AppColors.neutral100,
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.neutral300,
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.bodyMedium.copyWith(
+            color: isSelected ? Colors.white : AppColors.neutral700,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
     );
   }
 
@@ -941,10 +1122,18 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
       );
     }
 
-    // Stok kontrolü - beden bazlı veya genel
+    // Stok kontrolü - cinsiyet + beden bazlı veya genel
     bool isOutOfStock = false;
-    if (listing.stockBySize != null && listing.stockBySize!.isNotEmpty) {
-      // Beden bazlı stok kontrolü
+    if (listing.stockGenderMode == ListingGenderMode.gendered &&
+        listing.stockBySizeAndGender != null &&
+        listing.stockBySizeAndGender!.isNotEmpty &&
+        _selectedSize != null &&
+        _selectedGender != null) {
+      final genderMap = listing.stockBySizeAndGender![_selectedSize!];
+      final stockForCombo = genderMap?[_selectedGender!] ?? 0;
+      isOutOfStock = stockForCombo <= 0;
+    } else if (listing.stockBySize != null && listing.stockBySize!.isNotEmpty) {
+      // Beden bazlı stok kontrolü (unisex)
       if (_selectedSize != null) {
         final stockForSize = listing.stockBySize![_selectedSize] ?? 0;
         isOutOfStock = stockForSize <= 0;
@@ -959,7 +1148,13 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
     
     // Beden kontrolü - eğer ürünün bedeni varsa ve seçilmemişse buton devre dışı
     final isSizeNotSelected = listing.size != null && _selectedSize == null;
-    final isButtonDisabled = isOutOfStock || isSizeNotSelected;
+    // Cinsiyet kontrolü - gendered stokta cinsiyet seçilmemişse buton devre dışı
+    final isGenderNotSelected =
+        listing.stockGenderMode == ListingGenderMode.gendered &&
+        listing.stockBySizeAndGender != null &&
+        listing.stockBySizeAndGender!.isNotEmpty &&
+        _selectedGender == null;
+    final isButtonDisabled = isOutOfStock || isSizeNotSelected || isGenderNotSelected;
 
     return Container(
       width: double.infinity,
@@ -999,7 +1194,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                   Icon(
                     isOutOfStock
                         ? Icons.cancel_outlined
-                        : isSizeNotSelected
+                        : isSizeNotSelected || isGenderNotSelected
                             ? Icons.info_outline
                             : Icons.shopping_cart_outlined,
                     color: isButtonDisabled ? AppColors.neutral500 : Colors.white,
@@ -1011,7 +1206,9 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                         ? 'Stokta Yok'
                         : isSizeNotSelected
                             ? 'Beden Seçiniz'
-                            : 'Sipariş Ver',
+                            : isGenderNotSelected
+                                ? 'Cinsiyet Seçiniz'
+                                : 'Sipariş Ver',
                     style: AppTypography.titleLarge.copyWith(
                       color: isButtonDisabled ? AppColors.neutral500 : Colors.white,
                       fontWeight: FontWeight.bold,
@@ -1028,10 +1225,21 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   void _showOrderDialog(BuildContext context, ListingModel listing) {
     final noteController = TextEditingController();
 
-    // Maksimum adet hesapla - beden bazlı stok varsa onu kullan, yoksa genel stok
+    // Maksimum adet hesapla - cinsiyet + beden bazlı stok varsa onu kullan, yoksa genel stok
     int maxQuantity = 5;
-    if (listing.stockBySize != null && listing.stockBySize!.isNotEmpty && _selectedSize != null) {
-      // Beden bazlı stok
+    if (listing.stockGenderMode == ListingGenderMode.gendered &&
+        listing.stockBySizeAndGender != null &&
+        listing.stockBySizeAndGender!.isNotEmpty &&
+        _selectedSize != null &&
+        _selectedGender != null) {
+      // Cinsiyet + beden bazlı stok
+      final genderMap = listing.stockBySizeAndGender![_selectedSize!];
+      final stockForCombo = genderMap?[_selectedGender!] ?? 0;
+      maxQuantity = stockForCombo > 5 ? 5 : stockForCombo;
+    } else if (listing.stockBySize != null &&
+        listing.stockBySize!.isNotEmpty &&
+        _selectedSize != null) {
+      // Beden bazlı stok (unisex)
       final stockForSize = listing.stockBySize![_selectedSize] ?? 0;
       maxQuantity = stockForSize > 5 ? 5 : stockForSize;
     } else if (listing.stockQuantity != null) {
@@ -1053,6 +1261,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
           quantityOptions: quantityOptions,
           maxQuantity: maxQuantity,
           selectedSize: _selectedSize,
+          selectedGender: _selectedGender,
         );
       },
     );
@@ -1065,6 +1274,7 @@ class _OrderDialogContent extends StatefulWidget {
   final List<int> quantityOptions;
   final int maxQuantity;
   final String? selectedSize;
+   final ListingGender? selectedGender;
 
   const _OrderDialogContent({
     required this.listing,
@@ -1072,6 +1282,7 @@ class _OrderDialogContent extends StatefulWidget {
     required this.quantityOptions,
     required this.maxQuantity,
     required this.selectedSize,
+    required this.selectedGender,
   });
 
   @override
@@ -1203,6 +1414,41 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                           ],
                         ),
                       ],
+                      if (widget.listing.stockGenderMode == ListingGenderMode.gendered &&
+                          widget.selectedGender != null) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Text(
+                              'Cinsiyet: ',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.neutral600,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.secondary,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                widget.selectedGender == ListingGender.male
+                                    ? 'Erkek'
+                                    : widget.selectedGender == ListingGender.female
+                                        ? 'Kadın'
+                                        : 'Unisex',
+                                style: AppTypography.labelMedium.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1278,7 +1524,25 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                   ),
                 ),
                 // Stok bilgisi göster
-                if (widget.listing.stockBySize != null && 
+                if (widget.listing.stockGenderMode == ListingGenderMode.gendered &&
+                    widget.listing.stockBySizeAndGender != null &&
+                    widget.listing.stockBySizeAndGender!.isNotEmpty &&
+                    widget.selectedSize != null &&
+                    widget.selectedGender != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    () {
+                      final genderMap = widget
+                          .listing.stockBySizeAndGender![widget.selectedSize!];
+                      final qty =
+                          genderMap?[widget.selectedGender!] ?? 0;
+                      return 'Mevcut stok: $qty adet';
+                    }(),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                  ),
+                ] else if (widget.listing.stockBySize != null && 
                     widget.listing.stockBySize!.isNotEmpty && 
                     widget.selectedSize != null) ...[
                   const SizedBox(height: 8),
@@ -1353,18 +1617,36 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                                 final messenger = ScaffoldMessenger.of(context);
                                 final navigator = Navigator.of(context);
 
-                                // Stok kontrolü - beden bazlı veya genel
+                                // Stok kontrolü - cinsiyet + beden bazlı veya genel
                                 bool stockCheckFailed = false;
                                 String stockMessage = '';
                                 
-                                if (widget.listing.stockBySize != null && 
+                                if (widget.listing.stockGenderMode == ListingGenderMode.gendered &&
+                                    widget.listing.stockBySizeAndGender != null &&
+                                    widget.listing.stockBySizeAndGender!.isNotEmpty &&
+                                    widget.selectedSize != null &&
+                                    widget.selectedGender != null) {
+                                  // Cinsiyet + beden bazlı stok kontrolü
+                                  final genderMap = widget
+                                      .listing
+                                      .stockBySizeAndGender![widget.selectedSize!];
+                                  final stockForCombo =
+                                      genderMap?[widget.selectedGender!] ?? 0;
+                                  if (selectedQuantity > stockForCombo) {
+                                    stockCheckFailed = true;
+                                    stockMessage =
+                                        'Stokta sadece $stockForCombo adet var';
+                                  }
+                                } else if (widget.listing.stockBySize != null && 
                                     widget.listing.stockBySize!.isNotEmpty && 
                                     widget.selectedSize != null) {
-                                  // Beden bazlı stok kontrolü
-                                  final stockForSize = widget.listing.stockBySize![widget.selectedSize] ?? 0;
+                                  // Beden bazlı stok kontrolü (unisex)
+                                  final stockForSize =
+                                      widget.listing.stockBySize![widget.selectedSize] ?? 0;
                                   if (selectedQuantity > stockForSize) {
                                     stockCheckFailed = true;
-                                    stockMessage = 'Stokta sadece $stockForSize adet var';
+                                    stockMessage =
+                                        'Stokta sadece $stockForSize adet var';
                                   }
                                 } else if (widget.listing.stockQuantity != null) {
                                   // Genel stok kontrolü
@@ -1396,6 +1678,7 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                                           ? null
                                           : widget.noteController.text,
                                       selectedSize: widget.selectedSize,
+                                      selectedGender: widget.selectedGender,
                                     );
 
                                 final result = ref.read(createOrderProvider);
@@ -1613,33 +1896,39 @@ class _StockBySizeDialogState extends ConsumerState<_StockBySizeDialog> {
                         }
                       }
 
-                      await ref
-                          .read(updateStockBySizeProvider.notifier)
-                          .updateStockBySize(widget.listing.id, stockBySize);
+                      final dataSource =
+                          ref.read(marketplaceDataSourceProvider);
 
-                      if (mounted) {
-                        final result = ref.read(updateStockBySizeProvider);
-                        result.when(
-                          data: (_) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Stok güncellendi!'),
-                                backgroundColor: AppColors.success,
-                              ),
-                            );
-                            // Refresh listing
-                            ref.invalidate(listingByIdProvider(widget.listing.id));
-                          },
-                          loading: () {},
-                          error: (error, _) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Hata: $error'),
-                                backgroundColor: AppColors.error,
-                              ),
-                            );
-                          },
+                      try {
+                        // Unisex moda al ve stokları güncelle
+                        await dataSource.updateStockBySize(
+                          widget.listing.id,
+                          stockBySize,
+                        );
+                        await dataSource.updateListingStockGenderMode(
+                          widget.listing.id,
+                          ListingGenderMode.unisex,
+                        );
+
+                        if (!mounted) return;
+
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Stok güncellendi! (Unisex mod)'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                        // Refresh listing
+                        ref.invalidate(
+                            listingByIdProvider(widget.listing.id));
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Hata: $e'),
+                            backgroundColor: AppColors.error,
+                          ),
                         );
                       }
                     },
@@ -1657,6 +1946,438 @@ class _StockBySizeDialogState extends ConsumerState<_StockBySizeDialog> {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// _StockBySizeGenderDialog kaldırıldı, yerine _StockBySizeModeDialog kullanılmaktadır.
+
+class _StockBySizeModeDialog extends ConsumerStatefulWidget {
+  final ListingModel listing;
+  final List<String> sizes;
+  final Map<String, int> initialStockBySize;
+  final Map<String, Map<ListingGender, int>> initialStockByGender;
+
+  const _StockBySizeModeDialog({
+    required this.listing,
+    required this.sizes,
+    required this.initialStockBySize,
+    required this.initialStockByGender,
+  });
+
+  @override
+  ConsumerState<_StockBySizeModeDialog> createState() =>
+      _StockBySizeModeDialogState();
+}
+
+class _StockBySizeModeDialogState
+    extends ConsumerState<_StockBySizeModeDialog> {
+  late ListingGenderMode _mode;
+  late Map<String, TextEditingController> _unisexControllers;
+  late Map<String, Map<ListingGender, TextEditingController>>
+      _genderControllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.listing.stockGenderMode;
+    _unisexControllers = {};
+    _genderControllers = {};
+
+    for (final size in widget.sizes) {
+      final unisexQty = widget.initialStockBySize[size];
+      _unisexControllers[size] = TextEditingController(
+        text: unisexQty?.toString() ?? '',
+      );
+
+      final genderStock = widget.initialStockByGender[size] ?? {};
+      _genderControllers[size] = {
+        ListingGender.male: TextEditingController(
+          text: genderStock[ListingGender.male]?.toString() ?? '',
+        ),
+        ListingGender.female: TextEditingController(
+          text: genderStock[ListingGender.female]?.toString() ?? '',
+        ),
+      };
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _unisexControllers.values) {
+      c.dispose();
+    }
+    for (final genderMap in _genderControllers.values) {
+      for (final c in genderMap.values) {
+        c.dispose();
+      }
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 600),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.inventory_2,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Stok Yönetimi',
+                        style: AppTypography.titleLarge.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        widget.listing.title,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.neutral600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Stok tipi seçimi
+            Text(
+              'Stok Tipi',
+              style: AppTypography.labelMedium.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildModeChip(
+                    mode: ListingGenderMode.unisex,
+                    label: 'Unisex',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildModeChip(
+                    mode: ListingGenderMode.gendered,
+                    label: 'Erkek / Kadın',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Stock Inputs
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: widget.sizes.map((size) {
+                    if (_mode == ListingGenderMode.unisex) {
+                      final controller = _unisexControllers[size]!;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: AppTextField(
+                          controller: controller,
+                          label: '$size Beden',
+                          hint: 'Boş = stok yok',
+                          keyboardType: TextInputType.number,
+                          suffix: Text(
+                            'adet',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.neutral500,
+                            ),
+                          ),
+                        ),
+                      );
+                    } else {
+                      final controllers = _genderControllers[size]!;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              size,
+                              style: AppTypography.bodyMedium.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: AppTextField(
+                                    controller:
+                                        controllers[ListingGender.male]!,
+                                    label: 'Erkek',
+                                    hint: 'Boş = stok yok',
+                                    keyboardType: TextInputType.number,
+                                    suffix: Text(
+                                      'adet',
+                                      style:
+                                          AppTypography.bodySmall.copyWith(
+                                        color: AppColors.neutral500,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: AppTextField(
+                                    controller:
+                                        controllers[ListingGender.female]!,
+                                    label: 'Kadın',
+                                    hint: 'Boş = stok yok',
+                                    keyboardType: TextInputType.number,
+                                    suffix: Text(
+                                      'adet',
+                                      style:
+                                          AppTypography.bodySmall.copyWith(
+                                        color: AppColors.neutral500,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  }).toList(),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Actions
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('İptal'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      final dataSource =
+                          ref.read(marketplaceDataSourceProvider);
+
+                      try {
+                        if (_mode == ListingGenderMode.unisex) {
+                          // Unisex stok haritasını oluştur
+                          final stockBySize = <String, int>{};
+                          for (final size in widget.sizes) {
+                            final text =
+                                _unisexControllers[size]!.text.trim();
+                            if (text.isNotEmpty) {
+                              final qty = int.tryParse(text);
+                              if (qty != null && qty >= 0) {
+                                stockBySize[size] = qty;
+                              } else if (qty != null && qty < 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        '$size beden için stok negatif olamaz'),
+                                    backgroundColor: AppColors.error,
+                                  ),
+                                );
+                                return;
+                              }
+                            }
+                          }
+
+                          await dataSource.updateStockBySize(
+                            widget.listing.id,
+                            stockBySize,
+                          );
+                          await dataSource.updateListingStockGenderMode(
+                            widget.listing.id,
+                            ListingGenderMode.unisex,
+                          );
+                        } else {
+                          // Erkek/Kadın stok haritasını oluştur
+                          final stockBySizeGender =
+                              <String, Map<ListingGender, int>>{};
+
+                          for (final size in widget.sizes) {
+                            final controllers = _genderControllers[size]!;
+                            final maleText =
+                                controllers[ListingGender.male]!.text.trim();
+                            final femaleText =
+                                controllers[ListingGender.female]!
+                                    .text
+                                    .trim();
+
+                            final byGender = <ListingGender, int>{};
+
+                            if (maleText.isNotEmpty) {
+                              final qty = int.tryParse(maleText);
+                              if (qty != null && qty >= 0) {
+                                byGender[ListingGender.male] = qty;
+                              } else if (qty != null && qty < 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        '$size beden için erkek stok negatif olamaz'),
+                                    backgroundColor: AppColors.error,
+                                  ),
+                                );
+                                return;
+                              }
+                            }
+
+                            if (femaleText.isNotEmpty) {
+                              final qty = int.tryParse(femaleText);
+                              if (qty != null && qty >= 0) {
+                                byGender[ListingGender.female] = qty;
+                              } else if (qty != null && qty < 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        '$size beden için kadın stok negatif olamaz'),
+                                    backgroundColor: AppColors.error,
+                                  ),
+                                );
+                                return;
+                              }
+                            }
+
+                            if (byGender.isNotEmpty) {
+                              stockBySizeGender[size] = byGender;
+                            }
+                          }
+
+                          await dataSource.updateStockBySizeAndGender(
+                            widget.listing.id,
+                            stockBySizeGender,
+                          );
+                          await dataSource.updateListingStockGenderMode(
+                            widget.listing.id,
+                            ListingGenderMode.gendered,
+                          );
+                        }
+
+                        if (!mounted) return;
+
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Stok güncellendi!'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                        // Refresh listing
+                        ref.invalidate(
+                            listingByIdProvider(widget.listing.id));
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Hata: $e'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Güncelle'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeChip({
+    required ListingGenderMode mode,
+    required String label,
+  }) {
+    final isSelected = _mode == mode;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _mode = mode;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : AppColors.neutral100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.neutral300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: AppTypography.bodyMedium.copyWith(
+              color: isSelected ? Colors.white : AppColors.neutral700,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
         ),
       ),
     );

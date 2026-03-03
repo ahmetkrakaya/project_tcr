@@ -92,7 +92,7 @@ function getVdotPaceRange(
   const lower = segmentType.toLowerCase();
   if (lower === "warmup" || lower === "recovery" || lower === "cooldown") {
     return { paceMinSec: threshold + 45, paceMaxSec: threshold + 75 };
-  }
+  };
   if (lower === "main") {
     if (offsetMin != null && offsetMax != null) {
       return { paceMinSec: threshold + offsetMin, paceMaxSec: threshold + offsetMax };
@@ -100,6 +100,26 @@ function getVdotPaceRange(
     return { paceMinSec: threshold + 45, paceMaxSec: threshold + 75 };
   }
   return null;
+}
+
+interface PaceRangeOffsets {
+  paceFastSec: number;
+  paceSlowSec: number;
+}
+
+function getPaceRangeFromOffsets(
+  vdot: number | null,
+  offsetMin: number | null,
+  offsetMax: number | null,
+): PaceRangeOffsets | null {
+  if (vdot == null || vdot <= 0) return null;
+  if (offsetMin == null || offsetMax == null) return null;
+  const threshold = getThresholdPace(vdot);
+  if (threshold <= 0) return null;
+  return {
+    paceFastSec: threshold + offsetMin,
+    paceSlowSec: threshold + offsetMax,
+  };
 }
 
 // ---------- TCR -> Garmin Format Converter ----------
@@ -139,6 +159,213 @@ interface VdotContext {
   userVdot: number | null;
   offsetMin: number | null;
   offsetMax: number | null;
+}
+
+function segmentPaceSecFromSegment(seg: TcrSegment, vdotCtx: VdotContext): number | null {
+  let paceSec =
+    seg.custom_pace_seconds_per_km ??
+    seg.pace_seconds_per_km ??
+    seg.pace_seconds_per_km_min ??
+    null;
+
+  if (
+    paceSec == null &&
+    seg.target === "pace" &&
+    seg.use_vdot_for_pace === true &&
+    vdotCtx.userVdot != null &&
+    vdotCtx.userVdot > 0
+  ) {
+    const range = getVdotPaceRange(
+      vdotCtx.userVdot,
+      seg.segment_type,
+      vdotCtx.offsetMin,
+      vdotCtx.offsetMax,
+    );
+    if (range) {
+      paceSec = range.paceMinSec;
+    }
+  }
+
+  return paceSec;
+}
+
+function pickRepresentativeSegments(definition: TcrWorkoutDefinition): {
+  main?: TcrSegment;
+  recovery?: TcrSegment;
+} {
+  let mainSeg: TcrSegment | undefined;
+  let recoverySeg: TcrSegment | undefined;
+
+  function walk(steps: TcrStep[]): boolean {
+    for (const step of steps) {
+      if (step.type === "segment" && step.segment) {
+        const seg = step.segment;
+        const typeLower = seg.segment_type.toLowerCase();
+        if (!mainSeg && typeLower === "main") {
+          mainSeg = seg;
+        } else if (!recoverySeg && typeLower === "recovery") {
+          recoverySeg = seg;
+        }
+        if (mainSeg && recoverySeg) return true;
+      } else if (step.type === "repeat" && step.steps && step.steps.length > 0) {
+        if (walk(step.steps)) return true;
+      }
+    }
+    return false;
+  }
+
+  walk(definition.steps);
+  return { main: mainSeg, recovery: recoverySeg };
+}
+
+interface LaneConfigLane {
+  lane_number: number;
+  pace_min_sec_per_km: number;
+  pace_max_sec_per_km: number;
+  label?: string;
+}
+
+interface LaneConfig {
+  track_length_km?: number;
+  lanes: LaneConfigLane[];
+}
+
+function parseLaneConfig(raw: any): LaneConfig | null {
+  if (!raw || typeof raw !== "object") return null;
+  const lanesRaw = Array.isArray(raw.lanes) ? raw.lanes : [];
+  const lanes: LaneConfigLane[] = [];
+  for (const l of lanesRaw) {
+    if (!l) continue;
+    const laneNum = typeof l.lane_number === "number" ? l.lane_number : null;
+    const paceMin = typeof l.pace_min_sec_per_km === "number" ? l.pace_min_sec_per_km : null;
+    const paceMax = typeof l.pace_max_sec_per_km === "number" ? l.pace_max_sec_per_km : null;
+    if (laneNum == null || paceMin == null || paceMax == null) continue;
+    lanes.push({
+      lane_number: laneNum,
+      pace_min_sec_per_km: paceMin,
+      pace_max_sec_per_km: paceMax,
+      label: typeof l.label === "string" ? l.label : undefined,
+    });
+  }
+  if (lanes.length === 0) return null;
+  const trackLen =
+    typeof raw.track_length_km === "number"
+      ? raw.track_length_km
+      : undefined;
+  return { track_length_km: trackLen, lanes };
+}
+
+function laneNumberForPace(laneConfig: LaneConfig | null, paceSecPerKm: number | null): number | null {
+  if (!laneConfig || paceSecPerKm == null || paceSecPerKm <= 0) return null;
+  for (const lane of laneConfig.lanes) {
+    if (
+      paceSecPerKm >= lane.pace_min_sec_per_km &&
+      paceSecPerKm <= lane.pace_max_sec_per_km
+    ) {
+      return lane.lane_number;
+    }
+  }
+  return null;
+}
+
+function trackLengthKmForLane(lane1TrackKm: number | null | undefined, laneNumber: number | null): number | null {
+  if (!lane1TrackKm || lane1TrackKm <= 0) return null;
+  if (!laneNumber || laneNumber <= 1) return lane1TrackKm;
+  const laneWidthM = 1.22;
+  const extraMetersPerLane = 2 * Math.PI * laneWidthM;
+  return lane1TrackKm + (laneNumber - 1) * (extraMetersPerLane / 1000);
+}
+
+function formatDurationMinSec(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function computeLapTimesForGarmin(
+  definition: TcrWorkoutDefinition,
+  vdotCtx: VdotContext,
+  laneConfigRaw: any,
+  routeTotalKmRaw: any,
+): { laneNumber?: number; mainLapSec?: number; recoveryLapSec?: number } {
+  const laneConfig = parseLaneConfig(laneConfigRaw);
+  if (!laneConfig) return {};
+
+  const { main, recovery } = pickRepresentativeSegments(definition);
+  if (!main) return {};
+
+  const mainPaceSec = segmentPaceSecFromSegment(main, vdotCtx);
+  if (!mainPaceSec || mainPaceSec <= 0) return {};
+
+  const recoveryPaceSec = recovery
+    ? segmentPaceSecFromSegment(recovery, vdotCtx)
+    : null;
+
+  let routeTotalKm: number | null = null;
+  if (typeof routeTotalKmRaw === "number") {
+    routeTotalKm = routeTotalKmRaw;
+  } else if (typeof routeTotalKmRaw === "string") {
+    const parsed = parseFloat(routeTotalKmRaw);
+    if (!Number.isNaN(parsed)) routeTotalKm = parsed;
+  }
+
+  const baseTrackKm = laneConfig.track_length_km ?? routeTotalKm;
+  if (!baseTrackKm || baseTrackKm <= 0) return {};
+
+  const laneNumber =
+    laneNumberForPace(laneConfig, mainPaceSec) ??
+    (laneConfig.lanes.length > 0 ? laneConfig.lanes[0].lane_number : undefined);
+
+  const trackKmForLane =
+    trackLengthKmForLane(baseTrackKm, laneNumber ?? null) ?? baseTrackKm;
+
+  const mainLapSec = trackKmForLane * mainPaceSec;
+  const recoveryLapSec =
+    recoveryPaceSec && recoveryPaceSec > 0
+      ? trackKmForLane * recoveryPaceSec
+      : undefined;
+
+  return { laneNumber, mainLapSec, recoveryLapSec };
+}
+
+function buildGarminDescription(options: {
+  laneNumber?: number;
+  mainLapSec?: number;
+  recoveryLapSec?: number;
+}): string {
+  const { laneNumber, mainLapSec, recoveryLapSec } = options;
+  const parts: string[] = [];
+
+  if (laneNumber != null) {
+    parts.push(`Kulvar ${laneNumber}`);
+  }
+  if (mainLapSec != null && mainLapSec > 0) {
+    parts.push(`Ana: 1 tur ≈ ${formatDurationMinSec(mainLapSec)}`);
+  }
+  if (recoveryLapSec != null && recoveryLapSec > 0) {
+    parts.push(`Toparlanma: 1 tur ≈ ${formatDurationMinSec(recoveryLapSec)}`);
+  }
+
+  return parts.join(" · ");
+}
+
+function reorderStepsForGarmin(steps: TcrStep[]): TcrStep[] {
+  const warmups: TcrStep[] = [];
+  const cooldowns: TcrStep[] = [];
+  const others: TcrStep[] = [];
+
+  for (const step of steps) {
+    if (step.type === "segment" && step.segment?.segment_type === "warmup") {
+      warmups.push(step);
+    } else if (step.type === "segment" && step.segment?.segment_type === "cooldown") {
+      cooldowns.push(step);
+    } else {
+      others.push(step);
+    }
+  }
+
+  return [...warmups, ...others, ...cooldowns];
 }
 
 function mapIntensity(segmentType: string): string {
@@ -279,7 +506,8 @@ function convertTcrToGarmin(
   vdotCtx: VdotContext,
 ): any {
   _globalStepOrder = 0;
-  const garminSteps = convertStepsGlobal(definition.steps, vdotCtx);
+  const orderedSteps = reorderStepsForGarmin(definition.steps);
+  const garminSteps = convertStepsGlobal(orderedSteps, vdotCtx);
 
   console.log(`convertTcrToGarmin: ${workoutName}, input steps: ${definition.steps.length}, output garmin steps: ${garminSteps.length}`);
   console.log("Garmin payload:", JSON.stringify(garminSteps));
@@ -466,7 +694,7 @@ async function syncUserWorkouts(
 
   const { data: events } = await supabase
     .from("events")
-    .select("id, title, start_time, end_time, event_type")
+    .select("id, title, start_time, end_time, event_type, lane_config, route_id, routes(total_distance)")
     .eq("event_type", "training")
     .gte("start_time", `${startDate}T00:00:00`)
     .lte("start_time", `${endDate}T23:59:59`)
@@ -480,7 +708,7 @@ async function syncUserWorkouts(
   const eventIds = events.map((e: any) => e.id);
   const { data: programs } = await supabase
     .from("event_group_programs")
-    .select("id, event_id, training_group_id, workout_definition, training_type_id, order_index")
+    .select("id, event_id, training_group_id, workout_definition, training_type_id, order_index, program_content")
     .in("event_id", eventIds)
     .in("training_group_id", groupIds)
     .not("workout_definition", "is", null);
@@ -502,16 +730,17 @@ async function syncUserWorkouts(
 
   // 7. Training type bilgilerini al (offset dahil)
   const trainingTypeIds = [...new Set(programs.map((p: any) => p.training_type_id).filter(Boolean))];
-  let trainingTypes: Record<string, { name: string; displayName: string; offsetMin: number | null; offsetMax: number | null }> = {};
+  let trainingTypes: Record<string, { name: string; displayName: string; description: string; offsetMin: number | null; offsetMax: number | null }> = {};
   if (trainingTypeIds.length > 0) {
     const { data: types } = await supabase
       .from("training_types")
-      .select("id, name, display_name, threshold_offset_min_seconds, threshold_offset_max_seconds")
+      .select("id, name, display_name, description, threshold_offset_min_seconds, threshold_offset_max_seconds")
       .in("id", trainingTypeIds);
     for (const t of (types ?? [])) {
       trainingTypes[t.id] = {
         name: t.name,
         displayName: t.display_name ?? t.name,
+        description: t.description ?? "",
         offsetMin: t.threshold_offset_min_seconds ?? null,
         offsetMax: t.threshold_offset_max_seconds ?? null,
       };
@@ -549,14 +778,27 @@ async function syncUserWorkouts(
     const eventDate = new Date(event.start_time);
     const dayName = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"][eventDate.getDay()];
     const workoutName = `${dayName} - ${event.title ?? "Antrenman"}`;
-    const workoutDescription = ttInfo?.displayName ?? "";
 
     const vdotCtx: VdotContext = {
       userVdot,
       offsetMin: ttInfo?.offsetMin ?? null,
       offsetMax: ttInfo?.offsetMax ?? null,
     };
-    const garminJson = convertTcrToGarmin(definition, workoutName, workoutDescription, vdotCtx);
+    const routeTotalKm =
+      event.routes && typeof event.routes.total_distance !== "undefined"
+        ? Number(event.routes.total_distance)
+        : null;
+
+    const lapInfo = computeLapTimesForGarmin(
+      definition,
+      vdotCtx,
+      event.lane_config ?? null,
+      routeTotalKm,
+    );
+
+    const description = buildGarminDescription(lapInfo);
+
+    const garminJson = convertTcrToGarmin(definition, workoutName, description, vdotCtx);
 
     const workoutId = await createGarminWorkout(accessToken, garminJson);
     if (!workoutId) continue;
@@ -622,7 +864,7 @@ async function handleSinglePush(
 
   const { data: program } = await supabase
     .from("event_group_programs")
-    .select("id, event_id, workout_definition, training_type_id")
+    .select("id, event_id, workout_definition, training_type_id, program_content")
     .eq("id", program_id)
     .eq("event_id", event_id)
     .single();
@@ -636,7 +878,7 @@ async function handleSinglePush(
 
   const { data: event } = await supabase
     .from("events")
-    .select("id, title, start_time")
+    .select("id, title, start_time, lane_config, route_id, routes(total_distance)")
     .eq("id", event_id)
     .single();
 
@@ -648,15 +890,17 @@ async function handleSinglePush(
   }
 
   let singleTypeDisplayName = "";
+  let singleTypeDescription = "";
   let singleOffsetMin: number | null = null;
   let singleOffsetMax: number | null = null;
   if (program.training_type_id) {
     const { data: tt } = await supabase
       .from("training_types")
-      .select("name, display_name, threshold_offset_min_seconds, threshold_offset_max_seconds")
+      .select("name, display_name, description, threshold_offset_min_seconds, threshold_offset_max_seconds")
       .eq("id", program.training_type_id)
       .single();
     singleTypeDisplayName = tt?.display_name ?? tt?.name ?? "";
+    singleTypeDescription = tt?.description ?? "";
     singleOffsetMin = tt?.threshold_offset_min_seconds ?? null;
     singleOffsetMax = tt?.threshold_offset_max_seconds ?? null;
   }
@@ -683,7 +927,21 @@ async function handleSinglePush(
     offsetMin: singleOffsetMin,
     offsetMax: singleOffsetMax,
   };
-  const garminJson = convertTcrToGarmin(singleDef, workoutName, singleTypeDisplayName, singleVdotCtx);
+  const singleRouteTotalKm =
+    event.routes && typeof event.routes.total_distance !== "undefined"
+      ? Number(event.routes.total_distance)
+      : null;
+
+  const singleLapInfo = computeLapTimesForGarmin(
+    singleDef,
+    singleVdotCtx,
+    event.lane_config ?? null,
+    singleRouteTotalKm,
+  );
+
+  const singleDescription = buildGarminDescription(singleLapInfo);
+
+  const garminJson = convertTcrToGarmin(singleDef, workoutName, singleDescription, singleVdotCtx);
   const workoutId = await createGarminWorkout(accessToken, garminJson);
 
   if (!workoutId) {
