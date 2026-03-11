@@ -12,6 +12,7 @@ import '../../../../shared/widgets/user_avatar.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
+import '../../../chat/presentation/providers/chat_provider.dart';
 import '../providers/group_provider.dart';
 import '../widgets/group_card.dart';
 import '../../domain/entities/group_entity.dart';
@@ -60,7 +61,6 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
 
   @override
   Widget build(BuildContext context) {
-    final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
     final isAdmin = ref.watch(isAdminProvider);
 
     return Scaffold(
@@ -74,7 +74,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
           ],
         ),
         actions: [
-          if (isAdminOrCoach && _tabController.index == 0)
+          if (isAdmin && _tabController.index == 0)
             IconButton(
               icon: const Icon(Icons.add),
               tooltip: 'Yeni Grup',
@@ -86,7 +86,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
               tooltip: 'Yaklaşan Doğum Günleri',
               onPressed: () => context.pushNamed(RouteNames.upcomingBirthdays),
             ),
-          if (isAdminOrCoach && _tabController.index == 1)
+          if (isAdmin && _tabController.index == 1)
             IconButton(
               icon: const Icon(Icons.assessment),
               tooltip: 'Etkinlik Raporu',
@@ -182,6 +182,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
   Widget _buildUsersTab(bool isAdmin) {
     final activeUsersAsync = ref.watch(activeUsersProvider);
     final pendingUsersAsync = isAdmin ? ref.watch(pendingUsersProvider) : null;
+    final blockedIds = ref.watch(blockedUserIdsProvider).valueOrNull ?? [];
     final searchQuery = _searchController.text.toLowerCase().trim();
 
     return Column(
@@ -211,10 +212,12 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
             },
             child: activeUsersAsync.when(
               data: (users) {
-                // Arama sorgusuna göre filtrele - sadece bir kez
-                final filteredUsers = searchQuery.isEmpty
+                final visibleUsers = blockedIds.isEmpty
                     ? users
-                    : users.where((user) {
+                    : users.where((u) => !blockedIds.contains(u.id)).toList();
+                final filteredUsers = searchQuery.isEmpty
+                    ? visibleUsers
+                    : visibleUsers.where((user) {
                         final fullName = user.fullName.toLowerCase();
                         final email = user.email.toLowerCase();
                         return fullName.contains(searchQuery) ||
@@ -386,6 +389,16 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
 
   void _showRoleChangeDialog(BuildContext context, WidgetRef ref, UserEntity user) async {
     final messenger = ScaffoldMessenger.of(context);
+    // Admin kullanıcıların rolü hiç bir şekilde UI'dan değiştirilemez
+    if (user.isAdmin) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Admin rolüne sahip kullanıcıların rolü değiştirilemez.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
     // Mevcut ana rolü belirle (öncelik: super_admin > coach > member)
     String currentRole = 'member';
     if (user.isAdmin) {
@@ -537,16 +550,44 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
         await notifier.leaveGroup(groupId);
       }
     } else {
-      // Gruba katıl
+      // Gruba katıl - performans grubu ise talep gönderilir
       try {
+        // Grubun tipini kontrol et
+        final groups = ref.read(allGroupsProvider).value ?? [];
+        final group = groups.where((g) => g.id == groupId).firstOrNull;
+        final isPerformance = group?.isPerformanceGroup ?? false;
+
+        if (isPerformance) {
+          // Bekleyen talep var mı kontrol et
+          final dataSource = ref.read(groupDataSourceProvider);
+          final hasPending = await dataSource.hasUserPendingRequest(groupId);
+          if (hasPending) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Bu grup için zaten bekleyen bir talebiniz var'),
+                  backgroundColor: AppColors.warning,
+                ),
+              );
+            }
+            return;
+          }
+        }
+
         await notifier.joinGroup(groupId);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Gruba katıldınız'),
+            SnackBar(
+              content: Text(isPerformance
+                  ? 'Katılım talebi gönderildi. Admin onayı bekleniyor.'
+                  : 'Gruba katıldınız'),
               backgroundColor: AppColors.success,
             ),
           );
+          if (isPerformance) {
+            ref.invalidate(userPendingJoinRequestsProvider);
+            ref.invalidate(hasUserPendingRequestProvider(groupId));
+          }
         }
       } on UserAlreadyInGroupException catch (e) {
         if (context.mounted) {
@@ -838,7 +879,8 @@ class _UserListItem {
     final approvalState = ref.watch(userApprovalProvider);
     final roleUpdateState = ref.watch(userRoleUpdateProvider);
     final currentUser = ref.watch(currentUserProfileProvider);
-    final canManage = isAdmin && currentUser?.id != user.id;
+    // Admin kullanıcıların rolü değiştirilemez; kendi kaydını da kimse yönetemez
+    final canManage = isAdmin && currentUser?.id != user.id && !user.isAdmin;
     final isLoading = approvalState.isLoading || roleUpdateState.isLoading;
 
     // Kullanıcının ana rolünü belirle (super_admin > coach > member)

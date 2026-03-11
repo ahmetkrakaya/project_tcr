@@ -31,6 +31,12 @@ import '../../features/activity/presentation/pages/leaderboard_page.dart';
 import '../../features/routes/presentation/pages/routes_page.dart';
 import '../../features/routes/presentation/pages/route_detail_page.dart' as route_pages;
 import '../../features/routes/presentation/pages/create_route_page.dart';
+import '../../features/club_races/domain/entities/club_race_entity.dart';
+import '../../features/club_races/presentation/pages/club_races_page.dart';
+import '../../features/club_races/presentation/pages/create_club_race_page.dart';
+import '../../features/donations/presentation/pages/donations_page.dart';
+import '../../features/donations/presentation/pages/create_donation_page.dart';
+import '../../features/donations/presentation/pages/foundations_page.dart';
 import '../../features/members_groups/presentation/pages/groups_page.dart';
 import '../../features/members_groups/presentation/pages/group_detail_page.dart';
 import '../../features/members_groups/presentation/pages/create_group_page.dart';
@@ -213,7 +219,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'create',
                 name: RouteNames.createEvent,
-                builder: (context, state) => const CreateEventPage(),
+                builder: (context, state) {
+                  final prefill = state.extra as Map<String, dynamic>?;
+                  return CreateEventPage(prefillData: prefill);
+                },
               ),
               GoRoute(
                 path: 'report',
@@ -316,7 +325,48 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ],
           ),
           
-          // Routes (GPX rotaları) - Shell içinde bottom nav ile
+          // Donations (Bağışlar) - Shell içinde bottom nav ile
+          GoRoute(
+            path: '/donations',
+            name: RouteNames.donations,
+            builder: (context, state) => const DonationsPage(),
+            routes: [
+              GoRoute(
+                path: 'create',
+                name: RouteNames.donationCreate,
+                builder: (context, state) => const CreateDonationPage(),
+              ),
+              GoRoute(
+                path: 'foundations',
+                name: RouteNames.foundations,
+                builder: (context, state) => const FoundationsPage(),
+              ),
+            ],
+          ),
+
+          // Club Races (TCR Yarış Takvimi) - Shell içinde, Etkinlikler'den erişilebilir
+          GoRoute(
+            path: '/races',
+            name: RouteNames.clubRaces,
+            builder: (context, state) => const ClubRacesPage(),
+            routes: [
+              GoRoute(
+                path: 'create',
+                name: RouteNames.clubRaceCreate,
+                builder: (context, state) => const CreateClubRacePage(),
+              ),
+              GoRoute(
+                path: 'edit/:raceId',
+                name: RouteNames.clubRaceEdit,
+                builder: (context, state) {
+                  final race = state.extra as ClubRaceEntity;
+                  return CreateClubRacePage(race: race);
+                },
+              ),
+            ],
+          ),
+
+          // Routes (GPX rotaları) - Shell içinde, profil sayfasından erişilebilir
           GoRoute(
             path: '/routes',
             name: RouteNames.routes,
@@ -565,7 +615,7 @@ class _MainBottomNavigationState extends ConsumerState<MainBottomNavigation>
       currentIndex = 2;
     } else if (currentLocation.startsWith('/groups')) {
       currentIndex = 3;
-    } else if (currentLocation.startsWith('/routes')) {
+    } else if (currentLocation.startsWith('/donations')) {
       currentIndex = 4;
     }
 
@@ -582,7 +632,7 @@ class _MainBottomNavigationState extends ConsumerState<MainBottomNavigation>
       (icon: Icons.event_outlined, selectedIcon: Icons.event_rounded, label: 'Etkinlikler'),
       (icon: Icons.shopping_bag_outlined, selectedIcon: Icons.shopping_bag_rounded, label: 'Market'),
       (icon: Icons.groups_outlined, selectedIcon: Icons.groups_rounded, label: 'Gruplar'),
-      (icon: Icons.route_outlined, selectedIcon: Icons.route_rounded, label: 'Rotalar'),
+      (icon: Icons.volunteer_activism_outlined, selectedIcon: Icons.volunteer_activism, label: 'Bağışlar'),
     ];
 
     final barColor = isDark ? AppColors.surfaceDark : Colors.white;
@@ -654,7 +704,7 @@ class _MainBottomNavigationState extends ConsumerState<MainBottomNavigation>
                           context.goNamed(RouteNames.groups);
                           break;
                         case 4:
-                          context.goNamed(RouteNames.routes);
+                          context.goNamed(RouteNames.donations);
                           break;
                       }
                     },

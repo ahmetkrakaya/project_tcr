@@ -73,14 +73,45 @@ class GroupCard extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            group.name,
-                            style: AppTypography.titleMedium.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: isSmallScreen ? 14 : null,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  group.name,
+                                  style: AppTypography.titleMedium.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: isSmallScreen ? 14 : null,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (group.isPerformanceGroup) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.secondary.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.star, size: 12, color: AppColors.secondary),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        'Performans',
+                                        style: AppTypography.labelSmall.copyWith(
+                                          color: AppColors.secondary,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ],

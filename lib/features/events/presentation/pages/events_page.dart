@@ -230,7 +230,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
+    final isAdmin = ref.watch(isAdminProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -244,7 +244,12 @@ class _EventsPageState extends ConsumerState<EventsPage> {
         ),
         title: const Text('Etkinlikler'),
         actions: [
-          if (isAdminOrCoach)
+          IconButton(
+            icon: const Icon(Icons.emoji_events_outlined),
+            tooltip: 'TCR Yarışları',
+            onPressed: () => context.pushNamed(RouteNames.clubRaces),
+          ),
+          if (isAdmin)
             IconButton(
               icon: const Icon(Icons.add),
               onPressed: () => context.pushNamed(RouteNames.createEvent),

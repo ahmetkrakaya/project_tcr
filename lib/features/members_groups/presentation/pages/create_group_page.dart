@@ -29,6 +29,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
   String _selectedColor = '#3B82F6';
   String _selectedIcon = 'directions_run';
   String _targetDistanceUnit = 'km'; // km veya m
+  String _selectedGroupType = 'normal'; // 'normal' veya 'performance'
   bool _isEditing = false;
 
   final List<Map<String, dynamic>> _colorOptions = [
@@ -78,6 +79,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
         _selectedDifficulty = group.difficultyLevel;
         _selectedColor = group.color;
         _selectedIcon = group.icon;
+        _selectedGroupType = group.groupType;
       });
     } catch (e) {
       if (mounted) {
@@ -153,6 +155,12 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
             children: [
               // Önizleme
               _buildPreview(),
+              const SizedBox(height: 24),
+
+              // Grup Türü
+              Text('Grup Türü', style: AppTypography.labelLarge),
+              const SizedBox(height: 12),
+              _buildGroupTypeSelector(),
               const SizedBox(height: 24),
 
               // Grup Adı
@@ -370,6 +378,144 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
     );
   }
 
+  Widget _buildGroupTypeSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedGroupType = 'normal'),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _selectedGroupType == 'normal'
+                        ? AppColors.primary.withValues(alpha: 0.1)
+                        : AppColors.neutral100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _selectedGroupType == 'normal'
+                          ? AppColors.primary
+                          : AppColors.neutral200,
+                      width: _selectedGroupType == 'normal' ? 2 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.groups,
+                        color: _selectedGroupType == 'normal'
+                            ? AppColors.primary
+                            : AppColors.neutral500,
+                        size: 28,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Normal Grup',
+                        style: AppTypography.titleSmall.copyWith(
+                          color: _selectedGroupType == 'normal'
+                              ? AppColors.primary
+                              : AppColors.neutral700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Herkes katılabilir',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.neutral500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedGroupType = 'performance'),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _selectedGroupType == 'performance'
+                        ? AppColors.secondary.withValues(alpha: 0.1)
+                        : AppColors.neutral100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _selectedGroupType == 'performance'
+                          ? AppColors.secondary
+                          : AppColors.neutral200,
+                      width: _selectedGroupType == 'performance' ? 2 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.star,
+                        color: _selectedGroupType == 'performance'
+                            ? AppColors.secondary
+                            : AppColors.neutral500,
+                        size: 28,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Performans',
+                        style: AppTypography.titleSmall.copyWith(
+                          color: _selectedGroupType == 'performance'
+                              ? AppColors.secondary
+                              : AppColors.neutral700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Admin onayı gerekir',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.neutral500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_selectedGroupType == 'performance') ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.secondary.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 18, color: AppColors.secondary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Performans grubuna katılım admin onayı gerektirir. Etkinliklerde her üyeye özel antrenman programı atanır.',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.neutral600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildDifficultySelector() {
     return Row(
       children: List.generate(5, (index) {
@@ -510,6 +656,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
         difficultyLevel: _selectedDifficulty,
         color: _selectedColor,
         icon: _selectedIcon,
+        groupType: _selectedGroupType,
       );
     } else {
       notifier.createGroup(
@@ -523,6 +670,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
         difficultyLevel: _selectedDifficulty,
         color: _selectedColor,
         icon: _selectedIcon,
+        groupType: _selectedGroupType,
       );
     }
   }

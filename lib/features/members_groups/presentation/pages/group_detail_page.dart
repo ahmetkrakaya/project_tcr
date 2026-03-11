@@ -11,6 +11,7 @@ import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
+import '../../../chat/presentation/providers/chat_provider.dart';
 import '../../domain/entities/group_entity.dart';
 import '../providers/group_provider.dart';
 
@@ -24,7 +25,7 @@ class GroupDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final groupAsync = ref.watch(groupByIdProvider(groupId));
     final membersAsync = ref.watch(groupMembersProvider(groupId));
-    final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
+    final isAdmin = ref.watch(isAdminProvider);
     final membershipState = ref.watch(groupMembershipProvider);
 
     return groupAsync.when(
@@ -52,7 +53,7 @@ class GroupDetailPage extends ConsumerWidget {
                 background: _buildHeader(group),
               ),
               actions: [
-                if (isAdminOrCoach)
+                if (isAdmin)
                   Container(
                     margin: const EdgeInsets.only(right: 8),
                     decoration: BoxDecoration(
@@ -115,6 +116,10 @@ class GroupDetailPage extends ConsumerWidget {
                     _buildJoinLeaveButton(context, ref, group, membershipState),
                     const SizedBox(height: 16),
 
+                    // Bekleyen talepler (admin, sadece performans grupları)
+                    if (isAdmin && group.isPerformanceGroup)
+                      _buildJoinRequestsSection(ref),
+
                     // Üyeler
                     Text(
                       'Üyeler (${group.memberCount})',
@@ -123,7 +128,7 @@ class GroupDetailPage extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _buildMembersList(membersAsync, isAdminOrCoach, ref),
+                    _buildMembersList(membersAsync, isAdmin, ref),
                   ],
                 ),
               ),
@@ -200,6 +205,31 @@ class GroupDetailPage extends ConsumerWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            if (group.isPerformanceGroup) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.star, size: 14, color: Colors.white),
+                    SizedBox(width: 4),
+                    Text(
+                      'Performans Grubu',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (group.targetDistance != null) ...[
               const SizedBox(height: 4),
               Text(
@@ -358,6 +388,84 @@ class GroupDetailPage extends ConsumerWidget {
       );
     }
 
+    // Performans grubu: bekleyen talep varsa farklı göster
+    if (group.isPerformanceGroup) {
+      final hasPendingAsync = ref.watch(hasUserPendingRequestProvider(groupId));
+      final hasPending = hasPendingAsync.value ?? false;
+
+      if (hasPending) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.warning.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.hourglass_top, color: AppColors.warning, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Katılım talebi bekleniyor',
+                  style: AppTypography.labelLarge.copyWith(
+                    color: AppColors.warning,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final dataSource = ref.read(groupDataSourceProvider);
+                  await dataSource.cancelJoinRequest(groupId);
+                  ref.invalidate(hasUserPendingRequestProvider(groupId));
+                  ref.invalidate(userPendingJoinRequestsProvider);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Talep iptal edildi')),
+                    );
+                  }
+                },
+                child: const Text('İptal Et'),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return AppButton(
+        text: 'Katılım Talebi Gönder',
+        icon: Icons.send,
+        isFullWidth: true,
+        isLoading: isLoading,
+        onPressed: () async {
+          try {
+            await ref.read(groupMembershipProvider.notifier).joinGroup(groupId);
+            ref.invalidate(hasUserPendingRequestProvider(groupId));
+            ref.invalidate(userPendingJoinRequestsProvider);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Katılım talebi gönderildi. Admin onayı bekleniyor.'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Talep gönderilirken hata: $e'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+            }
+          }
+        },
+      );
+    }
+
     return AppButton(
       text: 'Gruba Katıl',
       icon: Icons.add,
@@ -389,6 +497,91 @@ class GroupDetailPage extends ConsumerWidget {
           }
         }
       },
+    );
+  }
+
+  Widget _buildJoinRequestsSection(WidgetRef ref) {
+    final requestsAsync = ref.watch(groupJoinRequestsProvider(groupId));
+
+    return requestsAsync.when(
+      data: (requests) {
+        if (requests.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.pending_actions, size: 20, color: AppColors.warning),
+                const SizedBox(width: 8),
+                Text(
+                  'Bekleyen Talepler (${requests.length})',
+                  style: AppTypography.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...requests.map((request) => _buildJoinRequestCard(ref, request)),
+            const SizedBox(height: 16),
+          ],
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildJoinRequestCard(WidgetRef ref, GroupJoinRequestEntity request) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.warningContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          UserAvatar(
+            size: 40,
+            name: request.userName,
+            imageUrl: request.userAvatarUrl,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  request.userName,
+                  style: AppTypography.titleSmall.copyWith(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  'Talep: ${_formatDate(request.requestedAt)}',
+                  style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.check_circle, color: AppColors.success),
+            tooltip: 'Onayla',
+            onPressed: () async {
+              await ref.read(joinRequestActionProvider.notifier)
+                  .approveRequest(request.id, groupId);
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.cancel, color: AppColors.error),
+            tooltip: 'Reddet',
+            onPressed: () async {
+              await ref.read(joinRequestActionProvider.notifier)
+                  .rejectRequest(request.id, groupId);
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -448,11 +641,16 @@ class GroupDetailPage extends ConsumerWidget {
 
   Widget _buildMembersList(
     AsyncValue<List<GroupMemberEntity>> membersAsync,
-    bool isAdminOrCoach,
+    bool isAdmin,
     WidgetRef ref,
   ) {
+    final blockedIds = ref.watch(blockedUserIdsProvider).valueOrNull ?? [];
+
     return membersAsync.when(
-      data: (members) {
+      data: (allMembers) {
+        final members = blockedIds.isEmpty
+            ? allMembers
+            : allMembers.where((m) => !blockedIds.contains(m.userId)).toList();
         if (members.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(24),
@@ -496,27 +694,37 @@ class GroupDetailPage extends ConsumerWidget {
                   color: AppColors.neutral500,
                 ),
               ),
-              trailing: isAdminOrCoach
-                  ? IconButton(
-                      icon: const Icon(
-                        Icons.remove_circle_outline,
-                        color: AppColors.error,
-                      ),
-                      onPressed: () async {
-                        final confirmed = await _showRemoveMemberConfirmation(
-                          context,
-                          member.userName,
-                        );
-                        if (confirmed) {
-                          final dataSource = ref.read(groupDataSourceProvider);
-                          await dataSource.removeMemberFromGroup(
-                            groupId,
-                            member.userId,
-                          );
-                          ref.invalidate(groupMembersProvider(groupId));
-                          ref.invalidate(groupByIdProvider(groupId));
-                        }
-                      },
+              trailing: isAdmin
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.swap_horiz, color: AppColors.primary),
+                          tooltip: 'Gruba Taşı',
+                          onPressed: () => _showTransferMemberDialog(context, ref, member),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.remove_circle_outline,
+                            color: AppColors.error,
+                          ),
+                          onPressed: () async {
+                            final confirmed = await _showRemoveMemberConfirmation(
+                              context,
+                              member.userName,
+                            );
+                            if (confirmed) {
+                              final dataSource = ref.read(groupDataSourceProvider);
+                              await dataSource.removeMemberFromGroup(
+                                groupId,
+                                member.userId,
+                              );
+                              ref.invalidate(groupMembersProvider(groupId));
+                              ref.invalidate(groupByIdProvider(groupId));
+                            }
+                          },
+                        ),
+                      ],
                     )
                   : null,
             );
@@ -525,6 +733,135 @@ class GroupDetailPage extends ConsumerWidget {
       },
       loading: () => const Center(child: LoadingWidget(size: 24)),
       error: (_, __) => const Text('Üyeler yüklenemedi'),
+    );
+  }
+
+  void _showTransferMemberDialog(BuildContext context, WidgetRef ref, GroupMemberEntity member) async {
+    final groupsAsync = await ref.read(allGroupsProvider.future);
+    final otherGroups = groupsAsync.where((g) => g.id != groupId).toList();
+
+    if (otherGroups.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Taşınabilecek başka grup yok')),
+        );
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (ctx, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  '${member.userName} - Gruba Taşı',
+                  style: AppTypography.titleLarge,
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: otherGroups.length,
+                  itemBuilder: (ctx, index) {
+                    final targetGroup = otherGroups[index];
+                    return ListTile(
+                      leading: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: _parseColor(targetGroup.color).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.groups,
+                          color: _parseColor(targetGroup.color),
+                          size: 20,
+                        ),
+                      ),
+                      title: Row(
+                        children: [
+                          Flexible(child: Text(targetGroup.name)),
+                          if (targetGroup.isPerformanceGroup) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: AppColors.secondary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                'P',
+                                style: AppTypography.labelSmall.copyWith(
+                                  color: AppColors.secondary,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: targetGroup.targetDistance != null
+                          ? Text('Hedef: ${targetGroup.targetDistance}')
+                          : null,
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        try {
+                          await ref.read(memberTransferProvider.notifier).transferMember(
+                            member.userId,
+                            targetGroup.id,
+                            fromGroupId: groupId,
+                          );
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text('${member.userName} "${targetGroup.name}" grubuna taşındı'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        } catch (e) {
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text('Taşıma sırasında hata: $e'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

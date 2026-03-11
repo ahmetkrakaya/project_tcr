@@ -15,6 +15,13 @@ final _activityDataSourceProvider = Provider<ActivityRemoteDataSource>((ref) {
   return ActivityRemoteDataSourceImpl(ref.watch(_supabaseProvider));
 });
 
+/// User Total Race Points Provider
+final userTotalPointsProvider = FutureProvider.family<int, String>((ref, userId) async {
+  final supabase = ref.watch(_supabaseProvider);
+  final result = await supabase.rpc('get_user_total_points', params: {'target_user_id': userId});
+  return (result as int?) ?? 0;
+});
+
 /// Haftalık İstatistikler Provider (family - userId ile)
 final weeklyStatisticsProvider = FutureProvider.family<PeriodStatisticsEntity, String>((ref, userId) async {
   final dataSource = ref.watch(_activityDataSourceProvider);

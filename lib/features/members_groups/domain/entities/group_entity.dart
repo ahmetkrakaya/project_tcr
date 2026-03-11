@@ -10,6 +10,7 @@ class TrainingGroupEntity {
   final String color;
   final String icon;
   final bool isActive;
+  final String groupType;
   final int memberCount;
   final bool isUserMember;
   final String? createdBy;
@@ -24,11 +25,14 @@ class TrainingGroupEntity {
     this.color = '#3B82F6',
     this.icon = 'directions_run',
     this.isActive = true,
+    this.groupType = 'normal',
     this.memberCount = 0,
     this.isUserMember = false,
     this.createdBy,
     required this.createdAt,
   });
+
+  bool get isPerformanceGroup => groupType == 'performance';
 
   /// Zorluk seviyesi metni
   String get difficultyText {
@@ -68,6 +72,82 @@ class GroupMemberEntity {
   });
 }
 
+
+/// Group Join Request Entity - Performans Grubu Katılım Talebi
+class GroupJoinRequestEntity {
+  final String id;
+  final String groupId;
+  final String userId;
+  final String userName;
+  final String? userAvatarUrl;
+  final String status;
+  final DateTime requestedAt;
+  final DateTime? respondedAt;
+  final String? respondedBy;
+
+  const GroupJoinRequestEntity({
+    required this.id,
+    required this.groupId,
+    required this.userId,
+    required this.userName,
+    this.userAvatarUrl,
+    required this.status,
+    required this.requestedAt,
+    this.respondedAt,
+    this.respondedBy,
+  });
+
+  bool get isPending => status == 'pending';
+  bool get isApproved => status == 'approved';
+  bool get isRejected => status == 'rejected';
+}
+
+/// Event Member Program Entity - Performans Grubu Kişisel Antrenman Programı
+class EventMemberProgramEntity {
+  final String id;
+  final String eventId;
+  final String userId;
+  final String? userName;
+  final String? userAvatarUrl;
+  final String trainingGroupId;
+  final String? groupName;
+  final String? groupColor;
+  final String programContent;
+  final WorkoutDefinitionEntity? workoutDefinition;
+  final String? routeId;
+  final String? routeName;
+  final String? trainingTypeId;
+  final String? trainingTypeName;
+  final String? trainingTypeDescription;
+  final String? trainingTypeColor;
+  final int? thresholdOffsetMinSeconds;
+  final int? thresholdOffsetMaxSeconds;
+  final int orderIndex;
+  final DateTime createdAt;
+
+  const EventMemberProgramEntity({
+    required this.id,
+    required this.eventId,
+    required this.userId,
+    this.userName,
+    this.userAvatarUrl,
+    required this.trainingGroupId,
+    this.groupName,
+    this.groupColor,
+    required this.programContent,
+    this.workoutDefinition,
+    this.routeId,
+    this.routeName,
+    this.trainingTypeId,
+    this.trainingTypeName,
+    this.trainingTypeDescription,
+    this.trainingTypeColor,
+    this.thresholdOffsetMinSeconds,
+    this.thresholdOffsetMaxSeconds,
+    this.orderIndex = 0,
+    required this.createdAt,
+  });
+}
 
 /// Event Group Program Entity - Etkinlik Grup Programı
 class EventGroupProgramEntity {

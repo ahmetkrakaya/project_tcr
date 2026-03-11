@@ -28,8 +28,10 @@ class CreateEventPage extends ConsumerStatefulWidget {
   final String? eventId;
   /// Tekrarlayan düzenlemede: 'only_this' | 'all_future' (route query param)
   final String? editRecurrenceScope;
+  /// Yarıştan etkinlik oluşturma: önceden doldurulacak veriler
+  final Map<String, dynamic>? prefillData;
 
-  const CreateEventPage({super.key, this.eventId, this.editRecurrenceScope});
+  const CreateEventPage({super.key, this.eventId, this.editRecurrenceScope, this.prefillData});
 
   @override
   ConsumerState<CreateEventPage> createState() => _CreateEventPageState();
@@ -62,6 +64,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   String? _pickedLocationName;
   String? _pickedLocationAddress;
   List<EventGroupProgramItem> _groupPrograms = [];
+  List<EventMemberProgramItem> _memberPrograms = [];
   bool _isLoading = false;
   bool _isEditing = false;
   /// Antrenman için: team = toplu (Katılıyorum var), individual = isteğe bağlı bireysel
@@ -116,7 +119,35 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
     if (widget.eventId != null) {
       _isEditing = true;
       _loadEventData();
+    } else if (widget.prefillData != null) {
+      _applyPrefillData(widget.prefillData!);
     }
+  }
+
+  void _applyPrefillData(Map<String, dynamic> data) {
+    setState(() {
+      if (data['title'] != null) {
+        _titleController.text = data['title'] as String;
+      }
+      if (data['description'] != null) {
+        _descriptionController.text = data['description'] as String;
+      }
+      if (data['eventType'] != null) {
+        _selectedEventType = data['eventType'] as EventType;
+      }
+      if (data['startDate'] != null) {
+        _startDate = data['startDate'] as DateTime;
+      }
+      if (data['startTime'] != null) {
+        _startTime = data['startTime'] as TimeOfDay;
+      }
+      if (data['locationLat'] != null && data['locationLng'] != null) {
+        _pickedLocationLat = data['locationLat'] as double;
+        _pickedLocationLng = data['locationLng'] as double;
+        _pickedLocationName = data['locationName'] as String?;
+      }
+      _updateDateTimeDisplayControllers();
+    });
   }
 
   Future<void> _loadEventData() async {
@@ -147,6 +178,32 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           thresholdOffsetMaxSeconds: program.thresholdOffsetMaxSeconds,
         ));
       }
+
+      // Performans grubu üye programlarını yükle
+      final memberProgramItems = <EventMemberProgramItem>[];
+      final performanceGroups = allGroups.where((g) => g.isPerformanceGroup).toList();
+      final groupDataSource = ref.read(groupDataSourceProvider);
+      for (final pGroup in performanceGroups) {
+        final memberPrograms = await groupDataSource.getEventMemberPrograms(
+          widget.eventId!, pGroup.id,
+        );
+        for (final mp in memberPrograms) {
+          memberProgramItems.add(EventMemberProgramItem(
+            id: mp.id,
+            userId: mp.userId,
+            userName: mp.userName ?? '',
+            userAvatarUrl: mp.userAvatarUrl,
+            group: pGroup,
+            programContent: mp.programContent,
+            workoutDefinition: mp.workoutDefinition?.toEntity(),
+            trainingTypeId: mp.trainingTypeId,
+            trainingTypeName: mp.trainingTypeName,
+            trainingTypeColor: mp.trainingTypeColor,
+            thresholdOffsetMinSeconds: mp.thresholdOffsetMinSeconds,
+            thresholdOffsetMaxSeconds: mp.thresholdOffsetMaxSeconds,
+          ));
+        }
+      }
       
       setState(() {
         _titleController.text = event.title;
@@ -160,6 +217,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         }
         _selectedRouteId = event.routeId;
         _groupPrograms = programItems;
+        _memberPrograms = memberProgramItems;
         // Rota yoksa ama konum varsa (önceki konum seçimi) harita konumunu yükle
         if (event.routeId == null &&
             event.locationLat != null &&
@@ -252,6 +310,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         }
         _selectedRouteId = template.routeId;
         _groupPrograms = template.eventType == EventType.training ? programItems : [];
+        _memberPrograms = [];
         _pickedLocationLat = null;
         _pickedLocationLng = null;
         _pickedLocationName = null;
@@ -513,6 +572,10 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                   onChanged: (programs) {
                     setState(() => _groupPrograms = programs);
                   },
+                  memberPrograms: _memberPrograms,
+                  onMemberProgramsChanged: (memberPrograms) {
+                    setState(() => _memberPrograms = memberPrograms);
+                  },
                 ),
                 const SizedBox(height: 24),
               ],
@@ -572,9 +635,11 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           type == EventType.other) {
         _selectedRouteId = null;
         _groupPrograms = [];
+        _memberPrograms = [];
       }
       if (type == EventType.race || type == EventType.training) {
         _groupPrograms = type == EventType.race ? [] : _groupPrograms;
+        _memberPrograms = type == EventType.race ? [] : _memberPrograms;
         _pickedLocationLat = null;
         _pickedLocationLng = null;
         _pickedLocationName = null;
@@ -1320,11 +1385,11 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       // Grup programları validation'ı - sadece antrenman türünde zorunlu
       if (_showGroupPrograms) {
         // Grup programları zorunlu - en az bir grup olmalı
-        if (_groupPrograms.isEmpty) {
+        if (_groupPrograms.isEmpty && _memberPrograms.isEmpty) {
           throw Exception('En az bir grup programı eklenmelidir');
         }
-        
-        // Her grubun antrenman türü seçilmiş olmalı
+
+        // Her normal grubun antrenman türü seçilmiş olmalı
         for (final program in _groupPrograms) {
           if (program.trainingTypeId == null || program.trainingTypeId!.isEmpty) {
             throw Exception('${program.group.name} grubu için antrenman türü seçilmelidir');
@@ -1440,14 +1505,36 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       }
 
       // Grup programlarını kaydet (sadece antrenman etkinliklerinde; yarışta yok)
-      if (_showGroupPrograms && _groupPrograms.isNotEmpty) {
+      if (_showGroupPrograms && (_groupPrograms.isNotEmpty || _memberPrograms.isNotEmpty)) {
         final groupDataSource = ref.read(groupDataSourceProvider);
-        final programModels = _groupPrograms
-            .asMap()
-            .entries
-            .map((entry) => entry.value.toModel(createdEventId, entry.key))
-            .toList();
-        await groupDataSource.saveEventGroupPrograms(createdEventId, programModels);
+
+        // Normal grup programlarını kaydet
+        if (_groupPrograms.isNotEmpty) {
+          final programModels = _groupPrograms
+              .asMap()
+              .entries
+              .map((entry) => entry.value.toModel(createdEventId, entry.key))
+              .toList();
+          await groupDataSource.saveEventGroupPrograms(createdEventId, programModels);
+        }
+
+        // Performans grubu üye programlarını kaydet
+        if (_memberPrograms.isNotEmpty) {
+          // Grup ID'lerine göre grupla
+          final groupedMembers = <String, List<EventMemberProgramItem>>{};
+          for (final mp in _memberPrograms) {
+            groupedMembers.putIfAbsent(mp.group.id, () => []).add(mp);
+          }
+          for (final entry in groupedMembers.entries) {
+            final memberModels = entry.value
+                .asMap()
+                .entries
+                .map((e) => e.value.toModel(createdEventId, e.key))
+                .toList();
+            await groupDataSource.saveEventMemberPrograms(
+                createdEventId, entry.key, memberModels);
+          }
+        }
       }
 
       // Refresh providers
@@ -1458,6 +1545,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         ref.invalidate(eventByIdProvider(widget.eventId!));
         ref.invalidate(eventGroupProgramsProvider(widget.eventId!));
         ref.invalidate(userEventGroupProgramsProvider(widget.eventId!));
+        ref.invalidate(userEventMemberProgramsProvider(widget.eventId!));
       }
 
       if (mounted) {

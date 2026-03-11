@@ -193,7 +193,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   },
                 ),
               ),
-              if (isAdminOrCoach)
+              if (ref.watch(isAdminProvider))
                 Container(
                   margin: const EdgeInsets.only(right: 8),
                   decoration: BoxDecoration(
@@ -604,6 +604,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     required bool isAdminOrCoach,
     required EventEntity event,
   }) {
+    final isAdmin = ref.watch(isAdminProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -614,7 +615,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               'Yarış Sonuçları',
               style: AppTypography.titleMedium,
             ),
-            if (isAdminOrCoach)
+            if (isAdmin)
               TextButton.icon(
                 onPressed: () => _showResultsManagementDialog(context, ref, event),
                 icon: const Icon(Icons.settings, size: 18),
@@ -636,7 +637,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  isAdminOrCoach
+                  isAdmin
                       ? 'Bu yarış için henüz sonuç yüklenmemiş.\nYukarıdaki "Yönet" butonundan şablonu indirip doldurarak sonuçları yükleyebilirsiniz.'
                       : 'Bu yarış için sonuçlar henüz yayınlanmadı.',
                   style: AppTypography.bodyMedium.copyWith(

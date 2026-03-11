@@ -610,27 +610,35 @@ class _WorkoutSegmentEditorState extends ConsumerState<WorkoutSegmentEditor> {
             ),
             const SizedBox(width: 8),
             Flexible(
-              child: TextButton.icon(
-                onPressed: _addSegment,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Segment'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _addSegment,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Segment'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: 4),
             Flexible(
-              child: TextButton.icon(
-                onPressed: _addRepeat,
-                icon: const Icon(Icons.repeat, size: 18),
-                label: const Text('Tekrar'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _addRepeat,
+                  icon: const Icon(Icons.repeat, size: 18),
+                  label: const Text('Tekrar'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
               ),
             ),

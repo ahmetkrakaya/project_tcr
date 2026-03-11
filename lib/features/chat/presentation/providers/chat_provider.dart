@@ -55,6 +55,20 @@ void prefetchEventChat(WidgetRef ref, String eventId) {
   }).catchError((_) {}); // Hata olursa sessizce geç
 }
 
+/// Engellenen kullanıcı ID'leri (uygulama genelinde kullanılır)
+final blockedUserIdsProvider = FutureProvider<List<String>>((ref) async {
+  ref.keepAlive();
+  final dataSource = ref.watch(chatDataSourceProvider);
+  return dataSource.getBlockedUserIds();
+});
+
+/// Raporlanan mesaj ID'leri
+final reportedMessageIdsProvider = FutureProvider<List<String>>((ref) async {
+  ref.keepAlive();
+  final dataSource = ref.watch(chatDataSourceProvider);
+  return dataSource.getReportedMessageIds();
+});
+
 /// Chat mesajları state
 class ChatMessagesState {
   final List<ChatMessageModel> messages;
@@ -154,13 +168,17 @@ class ChatMessagesNotifier extends StateNotifier<ChatMessagesState> {
   void _subscribeToNewMessages() {
     final stream = _dataSource.subscribeToMessages(roomId);
     _subscription = stream.listen((message) {
-      // Kendi gönderdiğimiz mesajları zaten eklediğimiz için kontrol et
       final exists = state.messages.any((m) => m.id == message.id);
-      if (!exists) {
-        state = state.copyWith(
-          messages: [...state.messages, message],
-        );
+      if (exists) return;
+
+      final blockedIds = _ref.read(blockedUserIdsProvider).valueOrNull ?? [];
+      if (message.senderId != null && blockedIds.contains(message.senderId)) {
+        return;
       }
+
+      state = state.copyWith(
+        messages: [...state.messages, message],
+      );
     });
   }
 

@@ -29,7 +29,6 @@ class PostDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final postAsync = ref.watch(postByIdProvider(postId));
-    final currentUser = ref.watch(currentUserProfileProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -38,9 +37,9 @@ class PostDetailPage extends ConsumerWidget {
           postAsync.when(
             data: (post) {
               final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
-              final isOwner = currentUser?.id == post.userId;
+              final isAdmin = ref.watch(isAdminProvider);
               
-              if (isOwner || isAdminOrCoach) {
+              if (isAdminOrCoach) {
                 return PopupMenuButton<String>(
                   onSelected: (value) {
                     switch (value) {
@@ -49,7 +48,6 @@ class PostDetailPage extends ConsumerWidget {
                           RouteNames.editPost,
                           pathParameters: {'postId': post.id},
                         ).then((_) {
-                          // Düzenleme sayfasından dönünce post'u yenile
                           ref.invalidate(postByIdProvider(post.id));
                           ref.invalidate(postBlocksProvider(post.id));
                         });
@@ -70,16 +68,17 @@ class PostDetailPage extends ConsumerWidget {
                         ],
                       ),
                     ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline, color: AppColors.error),
-                          SizedBox(width: 8),
-                          Text('Sil', style: TextStyle(color: AppColors.error)),
-                        ],
+                    if (isAdmin)
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline, color: AppColors.error),
+                            SizedBox(width: 8),
+                            Text('Sil', style: TextStyle(color: AppColors.error)),
+                          ],
+                        ),
                       ),
-                    ),
                   ],
                 );
               }

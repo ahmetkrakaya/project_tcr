@@ -11,7 +11,7 @@ class AppConstants {
   // App Store URLs (for force update)
   static const String appStoreUrl = String.fromEnvironment(
     'APP_STORE_URL',
-    defaultValue: 'https://apps.apple.com/app/id123456789', // Placeholder - replace with actual App ID
+    defaultValue: 'https://apps.apple.com/us/app/twenty-city-runners/id6758884316', // Placeholder - replace with actual App ID
   );
   static const String playStoreUrl = String.fromEnvironment(
     'PLAY_STORE_URL',
@@ -252,6 +252,16 @@ class RouteNames {
   static const String favorites = 'favorites';
   static const String ordersManagement = 'orders-management';
   static const String myOrders = 'my-orders';
+
+  // Club Races (TCR Yarış Takvimi)
+  static const String clubRaces = 'club-races';
+  static const String clubRaceCreate = 'club-race-create';
+  static const String clubRaceEdit = 'club-race-edit';
+
+  // Donations (Bağışlar)
+  static const String donations = 'donations';
+  static const String donationCreate = 'donation-create';
+  static const String foundations = 'foundations';
 
   // Tools
   static const String paceCalculator = 'pace-calculator';

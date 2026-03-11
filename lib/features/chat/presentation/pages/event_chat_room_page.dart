@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
+import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/chat_model.dart';
 import '../providers/chat_provider.dart';
 
@@ -238,6 +239,15 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
     final messagesState = ref.watch(chatMessagesProvider(chatRoom.id));
     final canWriteAsync = ref.watch(canWriteInEventChatProvider(widget.eventId));
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
+    final blockedIds = ref.watch(blockedUserIdsProvider).valueOrNull ?? [];
+    final reportedIds = ref.watch(reportedMessageIdsProvider).valueOrNull ?? [];
+
+    final filteredMessages = messagesState.messages.where((m) {
+      if (m.senderId != null && blockedIds.contains(m.senderId)) return false;
+      if (reportedIds.contains(m.id)) return false;
+      return true;
+    }).toList();
 
     ref.listen(chatMessagesProvider(chatRoom.id), (previous, next) {
       if (previous?.messages.length != next.messages.length) {
@@ -268,7 +278,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
             ),
           ),
         Expanded(
-          child: messagesState.messages.isEmpty && !messagesState.isLoading
+          child: filteredMessages.isEmpty && !messagesState.isLoading
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -284,11 +294,13 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
               : ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
-                  itemCount: messagesState.messages.length,
+                  itemCount: filteredMessages.length,
                   itemBuilder: (context, index) {
-                    final message = messagesState.messages[index];
+                    final message = filteredMessages[index];
                     final isMe = message.senderId == currentUserId;
-                    final showAvatar = !isMe && (index == 0 || messagesState.messages[index - 1].senderId != message.senderId);
+                    final showAvatar = !isMe && (index == 0 || filteredMessages[index - 1].senderId != message.senderId);
+
+                    final showBlockOption = !isMe && !isAdminOrCoach;
 
                     return _buildMessageBubble(
                       message: message,
@@ -297,6 +309,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                       onReply: canWrite ? () => _setReplyTo(message) : null,
                       onDelete: isMe && canWrite ? () => _deleteMessage(message.id, chatRoom.id) : null,
                       onReport: !isMe ? () => _reportMessage(message, chatRoom.id) : null,
+                      onBlock: showBlockOption ? () => _blockUser(message) : null,
                     );
                   },
                 ),
@@ -344,6 +357,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
     VoidCallback? onReply,
     VoidCallback? onDelete,
     VoidCallback? onReport,
+    VoidCallback? onBlock,
   }) {
     final isTempMessage = message.id.startsWith('temp_');
     
@@ -351,8 +365,8 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
       padding: const EdgeInsets.only(bottom: 8),
       child: GestureDetector(
         onLongPress: () {
-          if (onReply != null || onDelete != null || onReport != null) {
-            _showMessageOptions(message, onReply, onDelete, onReport);
+          if (onReply != null || onDelete != null || onReport != null || onBlock != null) {
+            _showMessageOptions(message, onReply, onDelete, onReport, onBlock);
           }
         },
         child: Row(
@@ -557,7 +571,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Mesajı Bildir'),
-        content: const Text('Bu mesajı uygunsuz olarak bildirmek istediğinizden emin misiniz?'),
+        content: const Text('Bu mesajı uygunsuz olarak bildirmek istediğinizden emin misiniz? Mesaj artık size gösterilmeyecek.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('İptal')),
           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Bildir')),
@@ -571,10 +585,12 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
             .read(chatDataSourceProvider)
             .reportMessage(messageId: message.id, roomId: roomId, reason: null);
 
+        ref.invalidate(reportedMessageIdsProvider);
+
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Mesaj inceleme için bildirildi. Teşekkürler.'),
+            content: Text('Mesaj bildirildi ve gizlendi. Teşekkürler.'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -584,11 +600,48 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
     }
   }
 
+  Future<void> _blockUser(ChatMessageModel message) async {
+    final senderName = message.senderName ?? 'Bu kullanıcı';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Kullanıcıyı Engelle'),
+        content: Text('$senderName engellenecek. Bu kullanıcının tüm mesajları size gösterilmeyecek. Devam etmek istiyor musunuz?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('İptal')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Engelle', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted && message.senderId != null) {
+      try {
+        await ref.read(chatDataSourceProvider).blockUser(message.senderId!);
+
+        ref.invalidate(blockedUserIdsProvider);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$senderName engellendi.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } on ServerException {
+        // Sessiz
+      }
+    }
+  }
+
   void _showMessageOptions(
     ChatMessageModel message,
     VoidCallback? onReply,
     VoidCallback? onDelete,
     VoidCallback? onReport,
+    VoidCallback? onBlock,
   ) {
     showModalBottomSheet(
       context: context,
@@ -614,6 +667,15 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                   onTap: () {
                     Navigator.pop(context);
                     onReport();
+                  },
+                ),
+              if (onBlock != null)
+                ListTile(
+                  leading: Icon(Icons.block, color: AppColors.error),
+                  title: Text('Kullanıcıyı Engelle', style: TextStyle(color: AppColors.error)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onBlock();
                   },
                 ),
               if (onDelete != null)

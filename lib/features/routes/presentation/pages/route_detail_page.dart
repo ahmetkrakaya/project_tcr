@@ -122,16 +122,17 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                         ],
                       ),
                     ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, color: AppColors.error),
-                          SizedBox(width: 8),
-                          Text('Rotayı Sil'),
-                        ],
+                    if (ref.watch(isAdminProvider))
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, color: AppColors.error),
+                            SizedBox(width: 8),
+                            Text('Rotayı Sil'),
+                          ],
+                        ),
                       ),
-                    ),
                   ],
                 ),
             ],

@@ -392,6 +392,12 @@ class EventCarpoolSection extends ConsumerWidget {
             ],
             const SizedBox(height: 12),
             _buildInfoRow(
+              icon: Icons.calendar_today,
+              label: 'Kalkış Tarihi',
+              value: DateFormat('d MMMM yyyy', 'tr_TR').format(offer.departureTime),
+            ),
+            const SizedBox(height: 12),
+            _buildInfoRow(
               icon: Icons.access_time,
               label: 'Kalkış Saati',
               value: DateFormat('HH:mm').format(offer.departureTime),
@@ -405,43 +411,84 @@ class EventCarpoolSection extends ConsumerWidget {
               ),
             ],
 
-            // Action buttons
-            // Kontroller: sürücü değil, onaylanmamış, etkinlik bitmemiş, katılıyor, başka araca onaylanmamış, ilan açmamış
-            if (!isDriver && !isAccepted && canRequest) ...[
+            // Sürücü: İlanı Sil butonu
+            if (isDriver && !isEventFinished) ...[
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  if (hasRequest)
-                    Expanded(
-                      child: AppButton(
-                        text: 'İstek Gönderildi',
-                        variant: AppButtonVariant.outlined,
-                        icon: Icons.check,
-                        onPressed: null,
-                      ),
-                    )
-                  else if (!offer.isFull)
-                    Expanded(
-                      child: AppButton(
-                        text: 'Katıl',
-                        icon: Icons.person_add,
-                        onPressed: () => _showRequestSheet(
-                          context,
-                          ref,
-                          offer,
-                        ),
-                      ),
-                    )
-                  else
-                    Expanded(
-                      child: AppButton(
-                        text: 'Dolu',
-                        variant: AppButtonVariant.outlined,
-                        onPressed: null,
-                      ),
-                    ),
-                ],
+              AppButton(
+                text: 'İlanı Sil',
+                variant: AppButtonVariant.outlined,
+                icon: Icons.delete_outline,
+                isFullWidth: true,
+                onPressed: () => _showDeleteOfferDialog(
+                  context,
+                  ref,
+                  offer,
+                ),
               ),
+            ],
+
+            // Yolcu: istek gönderme / iptal / yolculuktan ayrılma
+            if (!isDriver) ...[
+              const SizedBox(height: 16),
+              if (isAccepted) ...[
+                // Onaylanmış yolcu: yolculuktan ayrıl
+                AppButton(
+                  text: 'Yolculuktan Ayrıl',
+                  variant: AppButtonVariant.outlined,
+                  icon: Icons.logout,
+                  isFullWidth: true,
+                  onPressed: () {
+                    final req = offer.requests.firstWhere(
+                      (r) => r.passengerId == currentUserId && r.isAccepted,
+                    );
+                    _showCancelRequestDialog(
+                      context,
+                      ref,
+                      req,
+                      offer,
+                      isAccepted: true,
+                    );
+                  },
+                ),
+              ] else if (hasRequest) ...[
+                // Bekleyen istek: isteği kaldır
+                AppButton(
+                  text: 'İsteği Kaldır',
+                  variant: AppButtonVariant.outlined,
+                  icon: Icons.close,
+                  isFullWidth: true,
+                  onPressed: () {
+                    final req = offer.requests.firstWhere(
+                      (r) => r.passengerId == currentUserId && r.isPending,
+                    );
+                    _showCancelRequestDialog(
+                      context,
+                      ref,
+                      req,
+                      offer,
+                      isAccepted: false,
+                    );
+                  },
+                ),
+              ] else if (canRequest && !offer.isFull) ...[
+                AppButton(
+                  text: 'Katıl',
+                  icon: Icons.person_add,
+                  isFullWidth: true,
+                  onPressed: () => _showRequestSheet(
+                    context,
+                    ref,
+                    offer,
+                  ),
+                ),
+              ] else if (canRequest && offer.isFull) ...[
+                AppButton(
+                  text: 'Dolu',
+                  variant: AppButtonVariant.outlined,
+                  isFullWidth: true,
+                  onPressed: null,
+                ),
+              ],
             ],
 
             // Sürücü için request listesi
@@ -734,5 +781,102 @@ class EventCarpoolSection extends ConsumerWidget {
         ),
       );
     }
+  }
+
+  void _showDeleteOfferDialog(
+    BuildContext context,
+    WidgetRef ref,
+    CarpoolOfferEntity offer,
+  ) {
+    final acceptedCount = offer.requests.where((r) => r.isAccepted).length;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('İlanı Sil'),
+        content: Text(
+          acceptedCount > 0
+              ? '$acceptedCount onaylı yolcunuz var. İlanı sildiğinizde yolcularınıza bildirim gönderilecek. Devam etmek istiyor musunuz?'
+              : 'Bu ilanı silmek istediğinize emin misiniz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(carpoolNotifierProvider.notifier).deleteOffer(
+                    offer.id,
+                    eventId,
+                  );
+              if (context.mounted) {
+                // Bottom sheet'i kapat
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('İlan silindi'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCancelRequestDialog(
+    BuildContext context,
+    WidgetRef ref,
+    CarpoolRequestEntity request,
+    CarpoolOfferEntity offer, {
+    required bool isAccepted,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isAccepted ? 'Yolculuktan Ayrıl' : 'İsteği Kaldır'),
+        content: Text(
+          isAccepted
+              ? 'Onaylanmış yolculuğunuzdan ayrılmak istediğinize emin misiniz?'
+              : 'Yolculuk isteğinizi kaldırmak istediğinize emin misiniz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(carpoolNotifierProvider.notifier).cancelRequest(
+                    request.id,
+                    offer.id,
+                    eventId,
+                  );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      isAccepted
+                          ? 'Yolculuktan ayrıldınız'
+                          : 'İstek kaldırıldı',
+                    ),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: Text(isAccepted ? 'Ayrıl' : 'Kaldır'),
+          ),
+        ],
+      ),
+    );
   }
 }

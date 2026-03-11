@@ -17,7 +17,7 @@ class GroupRemoteDataSource {
     // Tüm grupları tek sorguda al
     final groupsResponse = await _supabase
         .from('training_groups')
-        .select('id, name, description, target_distance, difficulty_level, color, icon, is_active, created_by, created_at')
+        .select('id, name, description, target_distance, difficulty_level, color, icon, is_active, group_type, created_by, created_at')
         .eq('is_active', true)
         .order('difficulty_level', ascending: true);
 
@@ -64,7 +64,7 @@ class GroupRemoteDataSource {
   Future<TrainingGroupModel> getGroupById(String groupId) async {
     final response = await _supabase
         .from('training_groups')
-        .select('id, name, description, target_distance, difficulty_level, color, icon, is_active, created_by, created_at')
+        .select('id, name, description, target_distance, difficulty_level, color, icon, is_active, group_type, created_by, created_at')
         .eq('id', groupId)
         .single();
 
@@ -98,7 +98,7 @@ class GroupRemoteDataSource {
   Future<List<TrainingGroupModel>> getUserGroups(String userId) async {
     final response = await _supabase
         .from('group_members')
-        .select('group_id, training_groups(id, name, description, target_distance, difficulty_level, color, icon, is_active, created_by, created_at)')
+        .select('group_id, training_groups(id, name, description, target_distance, difficulty_level, color, icon, is_active, group_type, created_by, created_at)')
         .eq('user_id', userId);
 
     final groups = <TrainingGroupModel>[];
@@ -139,20 +139,37 @@ class GroupRemoteDataSource {
     return response?['group_id'] as String?;
   }
 
-  /// Gruba katıl. Kullanıcı zaten başka bir gruba üyeyse UserAlreadyInGroupException fırlatır.
+  /// Gruba katıl. Performans grubuysa talep oluşturur, normal gruba direkt katılır.
+  /// Kullanıcı zaten başka bir gruba üyeyse UserAlreadyInGroupException fırlatır.
   Future<void> joinGroup(String groupId) async {
     if (_currentUserId == null) {
       throw Exception('Kullanıcı giriş yapmamış');
     }
 
+    // Grup tipini kontrol et
+    final groupRow = await _supabase
+        .from('training_groups')
+        .select('group_type, name')
+        .eq('id', groupId)
+        .single();
+
+    final groupType = groupRow['group_type'] as String? ?? 'normal';
+
+    if (groupType == 'performance') {
+      // Performans grubu - talep oluştur
+      await requestJoinGroup(groupId);
+      return;
+    }
+
+    // Normal grup - direkt katıl
     final currentGroupId = await getCurrentUserGroupId();
     if (currentGroupId != null && currentGroupId != groupId) {
-      final groupRow = await _supabase
+      final currentGroupRow = await _supabase
           .from('training_groups')
           .select('name')
           .eq('id', currentGroupId)
           .maybeSingle();
-      final groupName = groupRow?['name'] as String? ?? 'mevcut grup';
+      final groupName = currentGroupRow?['name'] as String? ?? 'mevcut grup';
       throw UserAlreadyInGroupException(
         message:
             'Zaten bir gruba üyesiniz. Başka gruba geçmek için önce mevcut gruptan ayrılmalısınız.',
@@ -188,6 +205,170 @@ class GroupRemoteDataSource {
         .eq('user_id', userId)
         .maybeSingle();
     return response?['group_id'] as String?;
+  }
+
+  // ==================== Join Requests (Performans Grupları) ====================
+
+  /// Performans grubuna katılım talebi oluştur
+  Future<void> requestJoinGroup(String groupId) async {
+    if (_currentUserId == null) {
+      throw Exception('Kullanıcı giriş yapmamış');
+    }
+
+    // Mevcut bekleyen talep var mı kontrol et
+    final existing = await _supabase
+        .from('group_join_requests')
+        .select('id')
+        .eq('group_id', groupId)
+        .eq('user_id', _currentUserId!)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+    if (existing != null) {
+      throw Exception('Bu grup için zaten bekleyen bir talebiniz var');
+    }
+
+    // Reddedilen talebi sil (yeniden başvurabilmek için)
+    await _supabase
+        .from('group_join_requests')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('user_id', _currentUserId!)
+        .eq('status', 'rejected');
+
+    await _supabase.from('group_join_requests').insert({
+      'group_id': groupId,
+      'user_id': _currentUserId,
+    });
+  }
+
+  /// Grubun katılım taleplerini getir (admin)
+  Future<List<GroupJoinRequestModel>> getGroupJoinRequests(String groupId) async {
+    final response = await _supabase
+        .from('group_join_requests')
+        .select('*, users(first_name, last_name, avatar_url)')
+        .eq('group_id', groupId)
+        .eq('status', 'pending')
+        .order('requested_at', ascending: true);
+
+    return (response as List)
+        .map((json) => GroupJoinRequestModel.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Tüm grupların bekleyen katılım taleplerini getir (admin)
+  Future<List<GroupJoinRequestModel>> getAllPendingJoinRequests() async {
+    final response = await _supabase
+        .from('group_join_requests')
+        .select('*, users(first_name, last_name, avatar_url)')
+        .eq('status', 'pending')
+        .order('requested_at', ascending: true);
+
+    return (response as List)
+        .map((json) => GroupJoinRequestModel.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Kullanıcının bekleyen taleplerini getir
+  Future<List<GroupJoinRequestModel>> getUserPendingJoinRequests() async {
+    if (_currentUserId == null) return [];
+
+    final response = await _supabase
+        .from('group_join_requests')
+        .select('*, users(first_name, last_name, avatar_url)')
+        .eq('user_id', _currentUserId!)
+        .eq('status', 'pending')
+        .order('requested_at', ascending: true);
+
+    return (response as List)
+        .map((json) => GroupJoinRequestModel.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Katılım talebini onayla (admin) - RPC kullanır
+  Future<void> approveJoinRequest(String requestId) async {
+    if (_currentUserId == null) {
+      throw Exception('Kullanıcı giriş yapmamış');
+    }
+
+    await _supabase.rpc('approve_group_join_request', params: {
+      'request_id': requestId,
+      'admin_user_id': _currentUserId,
+    });
+  }
+
+  /// Katılım talebini reddet (admin)
+  Future<void> rejectJoinRequest(String requestId) async {
+    if (_currentUserId == null) {
+      throw Exception('Kullanıcı giriş yapmamış');
+    }
+
+    await _supabase
+        .from('group_join_requests')
+        .update({
+          'status': 'rejected',
+          'responded_at': DateTime.now().toIso8601String(),
+          'responded_by': _currentUserId,
+        })
+        .eq('id', requestId);
+  }
+
+  /// Kullanıcının bekleyen talebini iptal et
+  Future<void> cancelJoinRequest(String groupId) async {
+    if (_currentUserId == null) {
+      throw Exception('Kullanıcı giriş yapmamış');
+    }
+
+    await _supabase
+        .from('group_join_requests')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('user_id', _currentUserId!)
+        .eq('status', 'pending');
+  }
+
+  /// Kullanıcıyı başka bir gruba taşı (admin). Mevcut gruptan çıkarır, yeni gruba ekler.
+  Future<void> transferMemberToGroup(String userId, String targetGroupId) async {
+    // Mevcut gruptan çıkar
+    final currentGroupId = await getUserGroupId(userId);
+    if (currentGroupId != null) {
+      await _supabase
+          .from('group_members')
+          .delete()
+          .eq('user_id', userId)
+          .eq('group_id', currentGroupId);
+    }
+
+    // Yeni gruba ekle
+    await _supabase.from('group_members').insert({
+      'group_id': targetGroupId,
+      'user_id': userId,
+    });
+  }
+
+  /// Grubun tipini getir
+  Future<String> getGroupType(String groupId) async {
+    final response = await _supabase
+        .from('training_groups')
+        .select('group_type')
+        .eq('id', groupId)
+        .single();
+    return response['group_type'] as String? ?? 'normal';
+  }
+
+  /// Kullanıcının belirli bir gruba bekleyen talebi var mı?
+  Future<bool> hasUserPendingRequest(String groupId) async {
+    if (_currentUserId == null) return false;
+
+    final response = await _supabase
+        .from('group_join_requests')
+        .select('id')
+        .eq('group_id', groupId)
+        .eq('user_id', _currentUserId!)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+    return response != null;
   }
 
   /// Gruba üye ekle (Admin). Kullanıcı zaten başka bir gruba üyeyse UserAlreadyInGroupException fırlatır.
@@ -373,6 +554,77 @@ class GroupRemoteDataSource {
         .toList();
   }
 
+  // ==================== Event Member Programs (Performans Grupları) ====================
+
+  /// Performans grubunun etkinlik için üye bazlı programlarını getir
+  Future<List<EventMemberProgramModel>> getEventMemberPrograms(
+    String eventId,
+    String groupId,
+  ) async {
+    final response = await _supabase
+        .from('event_member_programs')
+        .select('*, users(first_name, last_name, avatar_url), training_groups(name, color), routes(name), training_types(display_name, description, color, threshold_offset_min_seconds, threshold_offset_max_seconds)')
+        .eq('event_id', eventId)
+        .eq('training_group_id', groupId)
+        .order('order_index', ascending: true);
+
+    return (response as List)
+        .map((json) => EventMemberProgramModel.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Kullanıcının performans grubu kişisel programını getir
+  Future<List<EventMemberProgramModel>> getUserEventMemberPrograms(
+    String eventId,
+  ) async {
+    if (_currentUserId == null) return [];
+
+    final response = await _supabase
+        .from('event_member_programs')
+        .select('*, users(first_name, last_name, avatar_url), training_groups(name, color), routes(name), training_types(display_name, description, color, threshold_offset_min_seconds, threshold_offset_max_seconds)')
+        .eq('event_id', eventId)
+        .eq('user_id', _currentUserId!)
+        .order('order_index', ascending: true);
+
+    return (response as List)
+        .map((json) => EventMemberProgramModel.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Performans grubu için etkinlik üye programlarını kaydet (sil ve yeniden ekle)
+  Future<List<EventMemberProgramModel>> saveEventMemberPrograms(
+    String eventId,
+    String groupId,
+    List<EventMemberProgramModel> programs,
+  ) async {
+    // Önce bu grubun mevcut programlarını sil
+    await _supabase
+        .from('event_member_programs')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('training_group_id', groupId);
+
+    if (programs.isEmpty) return [];
+
+    final dataList = programs.asMap().entries.map((entry) {
+      final program = entry.value;
+      final data = program.toJson();
+      data['event_id'] = eventId;
+      data['training_group_id'] = groupId;
+      data['order_index'] = entry.key;
+      return data;
+    }).toList();
+
+    final response = await _supabase
+        .from('event_member_programs')
+        .insert(dataList)
+        .select('*, users(first_name, last_name, avatar_url), training_groups(name, color), routes(name)');
+
+    return (response as List)
+        .map((json) => EventMemberProgramModel.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
   // ==================== User Management ====================
 
   /// Tüm aktif kullanıcıları getir
@@ -435,6 +687,19 @@ class GroupRemoteDataSource {
     final currentUserId = _currentUserId;
     if (currentUserId == null) {
       throw Exception('Kullanıcı giriş yapmamış');
+    }
+
+    // Admin kullanıcıların rolü değiştirilemez
+    final existingRoles = await _supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
+
+    final hasSuperAdminRole = (existingRoles as List)
+        .any((row) => row['role'] == 'super_admin');
+
+    if (hasSuperAdminRole) {
+      throw Exception('Admin rolüne sahip kullanıcıların rolü değiştirilemez.');
     }
 
     // Önce mevcut rolleri sil

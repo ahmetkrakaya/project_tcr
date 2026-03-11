@@ -66,6 +66,7 @@ class _CreateCarpoolOfferSheetState
   final _notesController = TextEditingController();
 
   TimeOfDay? _departureTime;
+  DateTime? _departureDate; // sadece race event'lerinde seçilebilir
   int _totalSeats = 4;
   
   // Güzergah noktaları
@@ -221,6 +222,8 @@ class _CreateCarpoolOfferSheetState
                   // Departure Time (etkinlik saatine göre sınırlı)
                   eventAsync.when(
                     data: (event) {
+                      final isRaceEvent = event.eventType == EventType.race;
+
                       // Etkinlik başlangıç saati
                       final eventStartTime = TimeOfDay.fromDateTime(event.startTime);
                       // En fazla 15 dakika geç seçilebilir
@@ -231,12 +234,56 @@ class _CreateCarpoolOfferSheetState
                       
                       // İlk yüklemede event başlangıç saatini kullan
                       _departureTime ??= eventStartTime;
+                      // Race event ise ilk yüklemede event tarihini kullan
+                      if (isRaceEvent) {
+                        _departureDate ??= DateTime(
+                          event.startTime.year,
+                          event.startTime.month,
+                          event.startTime.day,
+                        );
+                      }
                       
-                      return _buildTimeField(
-                        label: 'Kalkış Saati',
-                        value: _departureTime!,
-                        maxTime: maxTime,
-                        onTap: () => _selectTime(maxTime),
+                      if (!isRaceEvent) {
+                        return _buildTimeField(
+                          label: 'Kalkış Saati',
+                          value: _departureTime!,
+                          maxTime: maxTime,
+                          onTap: () => _selectTime(maxTime),
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: _buildDateField(
+                              label: 'Kalkış Tarihi',
+                              value: _departureDate!,
+                              minDate: DateTime.now(),
+                              maxDate: DateTime(
+                                event.startTime.year,
+                                event.startTime.month,
+                                event.startTime.day,
+                              ),
+                              onTap: () => _selectDate(
+                                minDate: DateTime.now(),
+                                maxDate: DateTime(
+                                  event.startTime.year,
+                                  event.startTime.month,
+                                  event.startTime.day,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildTimeField(
+                              label: 'Kalkış Saati',
+                              value: _departureTime!,
+                              maxTime: maxTime,
+                              onTap: () => _selectTime(maxTime),
+                            ),
+                          ),
+                        ],
                       );
                     },
                     loading: () => const Center(
@@ -250,24 +297,17 @@ class _CreateCarpoolOfferSheetState
                   const SizedBox(height: 24),
 
                   // Total Seats
-                  Text('Toplam Koltuk Sayısı', style: AppTypography.labelLarge),
+                  Text('Toplam Boş Koltuk Sayısı', style: AppTypography.labelLarge),
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
                     children: [
-                      for (int i = 2; i <= 8; i++)
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: ChoiceChip(
-                              label: Text('$i'),
-                              selected: _totalSeats == i,
-                              onSelected: (selected) {
-                                if (selected) {
-                                  setState(() => _totalSeats = i);
-                                }
-                              },
-                            ),
-                          ),
+                      for (int i = 2; i <= 6; i++)
+                        _SeatChip(
+                          value: i,
+                          selected: _totalSeats == i,
+                          onTap: () => setState(() => _totalSeats = i),
                         ),
                     ],
                   ),
@@ -356,6 +396,54 @@ class _CreateCarpoolOfferSheetState
     );
   }
 
+  Widget _buildDateField({
+    required String label,
+    required DateTime value,
+    required DateTime minDate,
+    required DateTime maxDate,
+    required VoidCallback onTap,
+  }) {
+    final dateText = '${value.day.toString().padLeft(2, '0')}.'
+        '${value.month.toString().padLeft(2, '0')}.'
+        '${value.year}';
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.neutral300),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.calendar_today, size: 20, color: AppColors.neutral500),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: AppTypography.labelSmall.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateText,
+                    style: AppTypography.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _selectTime(TimeOfDay maxTime) async {
     // Async sonrasında context kullanmamak için referansları başta al
     final messenger = ScaffoldMessenger.of(context);
@@ -397,6 +485,25 @@ class _CreateCarpoolOfferSheetState
       } else {
         setState(() => _departureTime = picked);
       }
+    }
+  }
+
+  Future<void> _selectDate({
+    required DateTime minDate,
+    required DateTime maxDate,
+  }) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _departureDate ?? maxDate,
+      firstDate: DateTime(minDate.year, minDate.month, minDate.day),
+      lastDate: maxDate,
+      locale: const Locale('tr', 'TR'),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _departureDate = DateTime(picked.year, picked.month, picked.day);
+      });
     }
   }
 
@@ -701,10 +808,15 @@ class _CreateCarpoolOfferSheetState
       return;
     }
     
+    final isRaceEvent = event.eventType == EventType.race;
+    final baseDate = isRaceEvent && _departureDate != null
+        ? _departureDate!
+        : DateTime(event.startTime.year, event.startTime.month, event.startTime.day);
+
     final departureDateTime = DateTime(
-      event.startTime.year,
-      event.startTime.month,
-      event.startTime.day,
+      baseDate.year,
+      baseDate.month,
+      baseDate.day,
       _departureTime!.hour,
       _departureTime!.minute,
     );
@@ -772,5 +884,48 @@ class _CreateCarpoolOfferSheetState
         );
       }
     }
+  }
+
+  // Seat chip - daha geniş ve okunaklı
+  Widget _SeatChip({
+    required int value,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final bg = selected ? AppColors.primary : AppColors.neutral100;
+    final border = selected ? AppColors.primary : AppColors.neutral300;
+    final fg = selected ? Colors.white : AppColors.neutral800;
+
+    return Material(
+      color: bg,
+      shape: StadiumBorder(side: BorderSide(color: border)),
+      elevation: selected ? 2 : 0,
+      shadowColor: AppColors.primary.withValues(alpha: 0.25),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const StadiumBorder(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$value',
+                style: AppTypography.labelLarge.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: fg,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.event_seat,
+                size: 18,
+                color: selected ? Colors.white.withValues(alpha: 0.95) : AppColors.neutral500,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

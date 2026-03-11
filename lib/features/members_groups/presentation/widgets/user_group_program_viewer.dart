@@ -27,155 +27,131 @@ class UserGroupProgramViewer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final programsAsync = ref.watch(userEventGroupProgramsProvider(eventId));
+    final memberProgramsAsync = ref.watch(userEventMemberProgramsProvider(eventId));
     final eventAsync = ref.watch(eventByIdProvider(eventId));
     final userVdot = ref.watch(userVdotProvider);
 
-    return programsAsync.when(
-      data: (programs) {
-        if (programs.isEmpty) {
-          return const SizedBox.shrink();
-        }
+    return eventAsync.when(
+      data: (event) {
+        if (event.isPast) return const SizedBox.shrink();
 
-        return eventAsync.when(
-          data: (event) {
-            if (event.isPast) {
-              return const SizedBox.shrink();
-            }
-            final trackLengthKmNoRoute = event.laneConfig?.trackLengthKm;
-            if (event.routeId == null) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.fitness_center, size: 20, color: AppColors.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Senin Programın',
-                        style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ...programs.map((program) => _buildProgramCard(
-                        context,
-                        ref,
-                        program,
-                        userVdot,
-                        event: event,
-                        trackLengthKm: trackLengthKmNoRoute,
-                      )),
-                  const SizedBox(height: 16),
-                ],
-              );
-            }
-            final routeAsync = ref.watch(routeByIdProvider(event.routeId!));
-            return routeAsync.when(
-              data: (route) {
-                final trackLengthKm = event.laneConfig?.trackLengthKm ?? route.totalDistance;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.fitness_center, size: 20, color: AppColors.primary),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Senin Programın',
-                          style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    ...programs.map((program) => _buildProgramCard(
-                          context,
-                          ref,
-                          program,
-                          userVdot,
-                          event: event,
-                          trackLengthKm: trackLengthKm,
-                        )),
-                    const SizedBox(height: 16),
-                  ],
+        return programsAsync.when(
+          data: (programs) {
+            return memberProgramsAsync.when(
+              data: (memberPrograms) {
+                if (programs.isEmpty && memberPrograms.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                // Kişisel programları EventGroupProgramEntity formatına dönüştür
+                final allPrograms = <EventGroupProgramEntity>[
+                  ...programs,
+                  ...memberPrograms.map((mp) => EventGroupProgramEntity(
+                    id: mp.id,
+                    eventId: mp.eventId,
+                    trainingGroupId: mp.trainingGroupId,
+                    groupName: mp.groupName,
+                    groupColor: mp.groupColor,
+                    programContent: mp.programContent,
+                    workoutDefinition: mp.workoutDefinition,
+                    routeId: mp.routeId,
+                    routeName: mp.routeName,
+                    trainingTypeId: mp.trainingTypeId,
+                    trainingTypeName: mp.trainingTypeName,
+                    trainingTypeDescription: mp.trainingTypeDescription,
+                    trainingTypeColor: mp.trainingTypeColor,
+                    thresholdOffsetMinSeconds: mp.thresholdOffsetMinSeconds,
+                    thresholdOffsetMaxSeconds: mp.thresholdOffsetMaxSeconds,
+                    orderIndex: mp.orderIndex,
+                    createdAt: mp.createdAt,
+                  )),
+                ];
+
+                final trackLengthKmNoRoute = event.laneConfig?.trackLengthKm;
+                if (event.routeId == null) {
+                  return _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty);
+                }
+                final routeAsync = ref.watch(routeByIdProvider(event.routeId!));
+                return routeAsync.when(
+                  data: (route) {
+                    final trackLengthKm = event.laneConfig?.trackLengthKm ?? route.totalDistance;
+                    return _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKm, memberPrograms.isNotEmpty);
+                  },
+                  loading: () => _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty),
+                  error: (_, __) => _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty),
                 );
               },
-              loading: () => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.fitness_center, size: 20, color: AppColors.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Senin Programın',
-                        style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ...programs.map((program) => _buildProgramCard(
-                        context,
-                        ref,
-                        program,
-                        userVdot,
-                        event: event,
-                        trackLengthKm: event.laneConfig?.trackLengthKm,
-                      )),
-                  const SizedBox(height: 16),
-                ],
-              ),
-              error: (_, __) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.fitness_center, size: 20, color: AppColors.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Senin Programın',
-                        style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ...programs.map((program) => _buildProgramCard(
-                        context,
-                        ref,
-                        program,
-                        userVdot,
-                        event: event,
-                        trackLengthKm: event.laneConfig?.trackLengthKm,
-                      )),
-                  const SizedBox(height: 16),
-                ],
-              ),
+              loading: () => _buildGroupProgramsFallback(context, ref, programs, userVdot, event),
+              error: (_, __) => _buildGroupProgramsFallback(context, ref, programs, userVdot, event),
             );
           },
           loading: () => Container(
             padding: const EdgeInsets.all(16),
-            child: const Center(
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
+            child: const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
           ),
           error: (_, __) => const SizedBox.shrink(),
         );
       },
       loading: () => Container(
         padding: const EdgeInsets.all(16),
-        child: const Center(
-          child: SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
+        child: const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
       ),
       error: (_, __) => const SizedBox.shrink(),
     );
+  }
+
+  Widget _buildProgramsColumn(
+    BuildContext context,
+    WidgetRef ref,
+    List<EventGroupProgramEntity> programs,
+    double? userVdot,
+    EventEntity event,
+    double? trackLengthKm,
+    bool hasPersonalProgram,
+  ) {
+    if (programs.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              hasPersonalProgram ? Icons.star : Icons.fitness_center,
+              size: 20,
+              color: hasPersonalProgram ? AppColors.secondary : AppColors.primary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              hasPersonalProgram ? 'Kişisel Programın' : 'Senin Programın',
+              style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...programs.map((program) => _buildProgramCard(
+              context,
+              ref,
+              program,
+              userVdot,
+              event: event,
+              trackLengthKm: trackLengthKm,
+            )),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildGroupProgramsFallback(
+    BuildContext context,
+    WidgetRef ref,
+    List<EventGroupProgramEntity> programs,
+    double? userVdot,
+    EventEntity event,
+  ) {
+    if (programs.isEmpty) return const SizedBox.shrink();
+    final trackLengthKm = event.laneConfig?.trackLengthKm;
+    return _buildProgramsColumn(context, ref, programs, userVdot, event, trackLengthKm, false);
   }
 
   Widget _buildProgramCard(

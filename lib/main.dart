@@ -199,6 +199,7 @@ void _updateAppShortcuts(WidgetRef ref) {
   final authState = ref.read(auth_providers.authNotifierProvider);
   final isAuthenticated = authState is auth_providers.AuthAuthenticated;
   final isAdmin = isAuthenticated && ref.read(auth_providers.isAdminProvider);
+  final isAdminOrCoach = isAuthenticated && ref.read(auth_providers.isAdminOrCoachProvider);
 
   final items = <ShortcutItem>[
     const ShortcutItem(
@@ -213,20 +214,23 @@ void _updateAppShortcuts(WidgetRef ref) {
     ),
   ];
   if (isAdmin) {
-    items.insertAll(
+    items.insert(
       0,
-      [
-        const ShortcutItem(
-          type: AppShortcutTypes.createEvent,
-          localizedTitle: 'Etkinlik Oluştur',
-          icon: 'shortcut_create_event',
-        ),
-        const ShortcutItem(
-          type: AppShortcutTypes.createPost,
-          localizedTitle: 'Post Oluştur',
-          icon: 'shortcut_create_post',
-        ),
-      ],
+      const ShortcutItem(
+        type: AppShortcutTypes.createEvent,
+        localizedTitle: 'Etkinlik Oluştur',
+        icon: 'shortcut_create_event',
+      ),
+    );
+  }
+  if (isAdminOrCoach) {
+    items.insert(
+      isAdmin ? 1 : 0,
+      const ShortcutItem(
+        type: AppShortcutTypes.createPost,
+        localizedTitle: 'Post Oluştur',
+        icon: 'shortcut_create_post',
+      ),
     );
   }
   setAppShortcutItems(items);

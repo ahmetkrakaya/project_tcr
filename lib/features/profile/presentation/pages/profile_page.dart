@@ -10,7 +10,7 @@ import '../../../../shared/widgets/user_avatar.dart';
 import '../../../activity/presentation/providers/activity_provider.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
-import '../../../events/presentation/providers/event_provider.dart';
+import '../providers/statistics_provider.dart';
 import '../../../../shared/providers/auth_provider.dart';
 
 /// Profile Page
@@ -258,7 +258,9 @@ class ProfilePage extends ConsumerWidget {
     final statsAsync = targetUserId != null
         ? ref.watch(userStatisticsProvider(targetUserId))
         : ref.watch(currentUserStatisticsProvider);
-    final userEventsAsync = ref.watch(currentUserEventsProvider);
+    final pointsAsync = targetUserId != null
+        ? ref.watch(userTotalPointsProvider(targetUserId))
+        : const AsyncValue<int>.data(0);
     final runningCountAsync = targetUserId != null
         ? ref.watch(userRunningActivitiesCountProvider(targetUserId))
         : ref.watch(currentUserRunningActivitiesCountProvider);
@@ -310,22 +312,10 @@ class ProfilePage extends ConsumerWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: userEventsAsync.when(
-              data: (events) => _buildStatCard(
-                value: events.length.toString(),
-                label: 'Etkinlik',
-                icon: Icons.event,
-              ),
-              loading: () => _buildStatCard(
-                value: '...',
-                label: 'Etkinlik',
-                icon: Icons.event,
-              ),
-              error: (_, __) => _buildStatCard(
-                value: '--',
-                label: 'Etkinlik',
-                icon: Icons.event,
-              ),
+            child: pointsAsync.when(
+              data: (points) => _buildPointsCard(points),
+              loading: () => _buildPointsCard(null),
+              error: (_, __) => _buildPointsCard(null),
             ),
           ),
           const SizedBox(width: 8),
@@ -341,6 +331,51 @@ class ProfilePage extends ConsumerWidget {
     );
   }
   
+  String _formatPoints(int points) {
+    if (points >= 1000) {
+      final thousands = points ~/ 1000;
+      return '${thousands}K';
+    }
+    return points.toString();
+  }
+
+  Widget _buildPointsCard(int? points) {
+    final hasPoints = points != null && points > 0;
+
+    return AppCard(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+      backgroundColor: hasPoints ? const Color(0xFFFFF8E1) : null,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.emoji_events,
+            color: hasPoints ? const Color(0xFFFF8F00) : AppColors.primary,
+            size: 22,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            hasPoints ? _formatPoints(points) : (points == null ? '...' : '0'),
+            style: AppTypography.titleLarge.copyWith(
+              fontWeight: FontWeight.bold,
+              color: hasPoints ? const Color(0xFFFF8F00) : AppColors.neutral400,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Puan',
+            style: AppTypography.labelSmall.copyWith(
+              color: hasPoints ? const Color(0xFFFF8F00) : AppColors.neutral500,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildVdotCard(
     BuildContext context, {
     double? vdot,
@@ -499,6 +534,20 @@ class ProfilePage extends ConsumerWidget {
           onTap: () => context.pushNamed(RouteNames.paceCalculator),
         ),
       );
+
+      // Rotalar - Sadece admin ve koçlar görebilir
+      if (ref.watch(isAdminOrCoachProvider)) {
+        menuItems.add(
+          _buildMenuItem(
+            context,
+            icon: Icons.route_outlined,
+            title: 'Rotalar',
+            subtitle: 'GPX rotalarını görüntüle ve yönet',
+            iconColor: AppColors.tertiary,
+            onTap: () => context.pushNamed(RouteNames.routes),
+          ),
+        );
+      }
       
       // Bağlantılar - Sadece kendisi görebilir
       menuItems.add(_buildIntegrationsMenuItem(context, ref));

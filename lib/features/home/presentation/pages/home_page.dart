@@ -1057,7 +1057,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ],
                     ),
                   ),
-                  if (ref.watch(isAdminProvider))
+                  if (ref.watch(isAdminOrCoachProvider))
                     PopupMenuButton<String>(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -1078,16 +1078,17 @@ class _HomePageState extends ConsumerState<HomePage> {
                             ],
                           ),
                         ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete_outline, size: 20, color: AppColors.error),
-                              SizedBox(width: 8),
-                              Text('Sil', style: TextStyle(color: AppColors.error)),
-                            ],
+                        if (ref.watch(isAdminProvider))
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline, size: 20, color: AppColors.error),
+                                SizedBox(width: 8),
+                                Text('Sil', style: TextStyle(color: AppColors.error)),
+                              ],
+                            ),
                           ),
-                        ),
                         PopupMenuItem(
                           value: 'pin',
                           child: Row(

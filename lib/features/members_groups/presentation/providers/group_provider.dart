@@ -160,6 +160,7 @@ class GroupCreationNotifier extends StateNotifier<GroupCreationState> {
     int difficultyLevel = 1,
     String color = '#3B82F6',
     String icon = 'directions_run',
+    String groupType = 'normal',
   }) async {
     state = state.copyWith(isLoading: true, error: null);
 
@@ -173,6 +174,7 @@ class GroupCreationNotifier extends StateNotifier<GroupCreationState> {
         color: color,
         icon: icon,
         isActive: true,
+        groupType: groupType,
         createdAt: DateTime.now(),
       );
 
@@ -201,6 +203,7 @@ class GroupCreationNotifier extends StateNotifier<GroupCreationState> {
     int difficultyLevel = 1,
     String color = '#3B82F6',
     String icon = 'directions_run',
+    String groupType = 'normal',
   }) async {
     state = state.copyWith(isLoading: true, error: null);
 
@@ -214,6 +217,7 @@ class GroupCreationNotifier extends StateNotifier<GroupCreationState> {
         color: color,
         icon: icon,
         isActive: true,
+        groupType: groupType,
         createdAt: DateTime.now(),
       );
 
@@ -361,6 +365,169 @@ final eventGroupProgramsSaveProvider =
         (ref) {
   final dataSource = ref.watch(groupDataSourceProvider);
   return EventGroupProgramsNotifier(dataSource, ref);
+});
+
+// ==================== Join Requests (Performans Grupları) ====================
+
+/// Grubun katılım talepleri provider (admin)
+final groupJoinRequestsProvider =
+    FutureProvider.family<List<GroupJoinRequestEntity>, String>((ref, groupId) async {
+  final dataSource = ref.watch(groupDataSourceProvider);
+  final models = await dataSource.getGroupJoinRequests(groupId);
+  return models.map((m) => m.toEntity()).toList();
+});
+
+/// Tüm bekleyen katılım talepleri provider (admin)
+final allPendingJoinRequestsProvider =
+    FutureProvider<List<GroupJoinRequestEntity>>((ref) async {
+  final dataSource = ref.watch(groupDataSourceProvider);
+  final models = await dataSource.getAllPendingJoinRequests();
+  return models.map((m) => m.toEntity()).toList();
+});
+
+/// Kullanıcının bekleyen talepleri provider
+final userPendingJoinRequestsProvider =
+    FutureProvider<List<GroupJoinRequestEntity>>((ref) async {
+  final dataSource = ref.watch(groupDataSourceProvider);
+  final models = await dataSource.getUserPendingJoinRequests();
+  return models.map((m) => m.toEntity()).toList();
+});
+
+/// Kullanıcının belirli bir gruba bekleyen talebi var mı provider
+final hasUserPendingRequestProvider =
+    FutureProvider.family<bool, String>((ref, groupId) async {
+  final dataSource = ref.watch(groupDataSourceProvider);
+  return dataSource.hasUserPendingRequest(groupId);
+});
+
+/// Katılım talebi onay/red notifier
+class JoinRequestActionNotifier extends StateNotifier<AsyncValue<void>> {
+  final GroupRemoteDataSource _dataSource;
+  final Ref _ref;
+
+  JoinRequestActionNotifier(this._dataSource, this._ref)
+      : super(const AsyncValue.data(null));
+
+  Future<void> approveRequest(String requestId, String groupId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.approveJoinRequest(requestId);
+      state = const AsyncValue.data(null);
+
+      _ref.invalidate(groupJoinRequestsProvider(groupId));
+      _ref.invalidate(allPendingJoinRequestsProvider);
+      _ref.invalidate(allGroupsProvider);
+      _ref.invalidate(groupByIdProvider(groupId));
+      _ref.invalidate(groupMembersProvider(groupId));
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  Future<void> rejectRequest(String requestId, String groupId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.rejectJoinRequest(requestId);
+      state = const AsyncValue.data(null);
+
+      _ref.invalidate(groupJoinRequestsProvider(groupId));
+      _ref.invalidate(allPendingJoinRequestsProvider);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+}
+
+/// Katılım talebi onay/red provider
+final joinRequestActionProvider =
+    StateNotifierProvider<JoinRequestActionNotifier, AsyncValue<void>>((ref) {
+  final dataSource = ref.watch(groupDataSourceProvider);
+  return JoinRequestActionNotifier(dataSource, ref);
+});
+
+/// Üye transfer notifier (admin)
+class MemberTransferNotifier extends StateNotifier<AsyncValue<void>> {
+  final GroupRemoteDataSource _dataSource;
+  final Ref _ref;
+
+  MemberTransferNotifier(this._dataSource, this._ref)
+      : super(const AsyncValue.data(null));
+
+  Future<void> transferMember(String userId, String targetGroupId, {String? fromGroupId}) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.transferMemberToGroup(userId, targetGroupId);
+      state = const AsyncValue.data(null);
+
+      _ref.invalidate(allGroupsProvider);
+      _ref.invalidate(groupByIdProvider(targetGroupId));
+      _ref.invalidate(groupMembersProvider(targetGroupId));
+      if (fromGroupId != null) {
+        _ref.invalidate(groupByIdProvider(fromGroupId));
+        _ref.invalidate(groupMembersProvider(fromGroupId));
+      }
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+}
+
+/// Üye transfer provider (admin)
+final memberTransferProvider =
+    StateNotifierProvider<MemberTransferNotifier, AsyncValue<void>>((ref) {
+  final dataSource = ref.watch(groupDataSourceProvider);
+  return MemberTransferNotifier(dataSource, ref);
+});
+
+// ==================== Event Member Programs (Performans Grupları) ====================
+
+/// Performans grubunun etkinlik üye programları provider
+final eventMemberProgramsProvider =
+    FutureProvider.family<List<EventMemberProgramEntity>, ({String eventId, String groupId})>((ref, params) async {
+  final dataSource = ref.watch(groupDataSourceProvider);
+  final models = await dataSource.getEventMemberPrograms(params.eventId, params.groupId);
+  return models.map((m) => m.toEntity()).toList();
+});
+
+/// Kullanıcının kişisel performans grubu programı provider
+final userEventMemberProgramsProvider =
+    FutureProvider.family<List<EventMemberProgramEntity>, String>((ref, eventId) async {
+  final dataSource = ref.watch(groupDataSourceProvider);
+  final models = await dataSource.getUserEventMemberPrograms(eventId);
+  return models.map((m) => m.toEntity()).toList();
+});
+
+/// Event member programs kaydetme notifier
+class EventMemberProgramsSaveNotifier extends StateNotifier<AsyncValue<void>> {
+  final GroupRemoteDataSource _dataSource;
+  final Ref _ref;
+
+  EventMemberProgramsSaveNotifier(this._dataSource, this._ref)
+      : super(const AsyncValue.data(null));
+
+  Future<void> savePrograms(
+    String eventId,
+    String groupId,
+    List<EventMemberProgramModel> programs,
+  ) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.saveEventMemberPrograms(eventId, groupId, programs);
+      state = const AsyncValue.data(null);
+
+      _ref.invalidate(eventMemberProgramsProvider((eventId: eventId, groupId: groupId)));
+      _ref.invalidate(userEventMemberProgramsProvider(eventId));
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+}
+
+/// Event member programs kaydetme provider
+final eventMemberProgramsSaveProvider =
+    StateNotifierProvider<EventMemberProgramsSaveNotifier, AsyncValue<void>>((ref) {
+  final dataSource = ref.watch(groupDataSourceProvider);
+  return EventMemberProgramsSaveNotifier(dataSource, ref);
 });
 
 // ==================== User Management ====================

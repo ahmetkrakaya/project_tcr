@@ -46,6 +46,18 @@ abstract class ChatRemoteDataSource {
     String? reason,
   });
 
+  /// Kullanıcıyı engelle
+  Future<void> blockUser(String blockedUserId);
+
+  /// Engeli kaldır
+  Future<void> unblockUser(String blockedUserId);
+
+  /// Engellenen kullanıcı ID listesi
+  Future<List<String>> getBlockedUserIds();
+
+  /// Kullanıcının raporladığı mesaj ID listesi
+  Future<List<String>> getReportedMessageIds();
+
   /// Realtime mesaj dinleyici
   Stream<ChatMessageModel> subscribeToMessages(String roomId);
 
@@ -519,6 +531,76 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   void unsubscribeFromMessages() {
     _messageChannel?.unsubscribe();
     _messageChannel = null;
+  }
+
+  @override
+  Future<void> blockUser(String blockedUserId) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+
+    try {
+      await _supabase.from('user_blocks').insert({
+        'blocker_id': userId,
+        'blocked_id': blockedUserId,
+      });
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') return; // already blocked
+      throw ServerException(message: e.message, code: e.code);
+    }
+  }
+
+  @override
+  Future<void> unblockUser(String blockedUserId) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+
+    try {
+      await _supabase
+          .from('user_blocks')
+          .delete()
+          .eq('blocker_id', userId)
+          .eq('blocked_id', blockedUserId);
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    }
+  }
+
+  @override
+  Future<List<String>> getBlockedUserIds() async {
+    final userId = _currentUserId;
+    if (userId == null) return [];
+
+    try {
+      final response = await _supabase
+          .from('user_blocks')
+          .select('blocked_id')
+          .eq('blocker_id', userId);
+
+      return (response as List<dynamic>)
+          .map((row) => row['blocked_id'] as String)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  @override
+  Future<List<String>> getReportedMessageIds() async {
+    final userId = _currentUserId;
+    if (userId == null) return [];
+
+    try {
+      final response = await _supabase
+          .from('chat_message_reports')
+          .select('message_id')
+          .eq('reporter_id', userId);
+
+      return (response as List<dynamic>)
+          .map((row) => row['message_id'] as String)
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   // Helper methods
