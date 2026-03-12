@@ -116,10 +116,6 @@ class GroupDetailPage extends ConsumerWidget {
                     _buildJoinLeaveButton(context, ref, group, membershipState),
                     const SizedBox(height: 16),
 
-                    // Bekleyen talepler (admin, sadece performans grupları)
-                    if (isAdmin && group.isPerformanceGroup)
-                      _buildJoinRequestsSection(ref),
-
                     // Üyeler
                     Text(
                       'Üyeler (${group.memberCount})',
@@ -497,91 +493,6 @@ class GroupDetailPage extends ConsumerWidget {
           }
         }
       },
-    );
-  }
-
-  Widget _buildJoinRequestsSection(WidgetRef ref) {
-    final requestsAsync = ref.watch(groupJoinRequestsProvider(groupId));
-
-    return requestsAsync.when(
-      data: (requests) {
-        if (requests.isEmpty) return const SizedBox.shrink();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.pending_actions, size: 20, color: AppColors.warning),
-                const SizedBox(width: 8),
-                Text(
-                  'Bekleyen Talepler (${requests.length})',
-                  style: AppTypography.titleMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ...requests.map((request) => _buildJoinRequestCard(ref, request)),
-            const SizedBox(height: 16),
-          ],
-        );
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-    );
-  }
-
-  Widget _buildJoinRequestCard(WidgetRef ref, GroupJoinRequestEntity request) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.warningContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          UserAvatar(
-            size: 40,
-            name: request.userName,
-            imageUrl: request.userAvatarUrl,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  request.userName,
-                  style: AppTypography.titleSmall.copyWith(fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  'Talep: ${_formatDate(request.requestedAt)}',
-                  style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.check_circle, color: AppColors.success),
-            tooltip: 'Onayla',
-            onPressed: () async {
-              await ref.read(joinRequestActionProvider.notifier)
-                  .approveRequest(request.id, groupId);
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.cancel, color: AppColors.error),
-            tooltip: 'Reddet',
-            onPressed: () async {
-              await ref.read(joinRequestActionProvider.notifier)
-                  .rejectRequest(request.id, groupId);
-            },
-          ),
-        ],
-      ),
     );
   }
 

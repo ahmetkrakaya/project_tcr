@@ -246,7 +246,7 @@ class GroupRemoteDataSource {
   Future<List<GroupJoinRequestModel>> getGroupJoinRequests(String groupId) async {
     final response = await _supabase
         .from('group_join_requests')
-        .select('*, users(first_name, last_name, avatar_url)')
+        .select('*, users!group_join_requests_user_id_fkey(first_name, last_name, avatar_url)')
         .eq('group_id', groupId)
         .eq('status', 'pending')
         .order('requested_at', ascending: true);
@@ -260,7 +260,7 @@ class GroupRemoteDataSource {
   Future<List<GroupJoinRequestModel>> getAllPendingJoinRequests() async {
     final response = await _supabase
         .from('group_join_requests')
-        .select('*, users(first_name, last_name, avatar_url)')
+        .select('*, users!group_join_requests_user_id_fkey(first_name, last_name, avatar_url), training_groups(name)')
         .eq('status', 'pending')
         .order('requested_at', ascending: true);
 
@@ -275,7 +275,7 @@ class GroupRemoteDataSource {
 
     final response = await _supabase
         .from('group_join_requests')
-        .select('*, users(first_name, last_name, avatar_url)')
+        .select('*, users!group_join_requests_user_id_fkey(first_name, last_name, avatar_url)')
         .eq('user_id', _currentUserId!)
         .eq('status', 'pending')
         .order('requested_at', ascending: true);
@@ -327,9 +327,10 @@ class GroupRemoteDataSource {
         .eq('status', 'pending');
   }
 
-  /// Kullanıcıyı başka bir gruba taşı (admin). Mevcut gruptan çıkarır, yeni gruba ekler.
+  /// Kullanıcıyı başka bir gruba taşı (admin).
+  /// Kullanıcı zaten bir gruptaysa önce mevcut gruptan çıkarılır, sonra yeni gruba eklenir.
   Future<void> transferMemberToGroup(String userId, String targetGroupId) async {
-    // Mevcut gruptan çıkar
+    // 1. Mevcut gruptan çıkar (varsa)
     final currentGroupId = await getUserGroupId(userId);
     if (currentGroupId != null) {
       await _supabase
@@ -339,7 +340,7 @@ class GroupRemoteDataSource {
           .eq('group_id', currentGroupId);
     }
 
-    // Yeni gruba ekle
+    // 2. Yeni gruba ekle
     await _supabase.from('group_members').insert({
       'group_id': targetGroupId,
       'user_id': userId,

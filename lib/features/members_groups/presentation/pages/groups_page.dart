@@ -43,6 +43,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
       ref.read(activeUsersProvider.future);
       if (ref.read(isAdminProvider)) {
         ref.read(pendingUsersProvider.future);
+        ref.read(allPendingJoinRequestsProvider.future);
       }
     });
   }
@@ -106,26 +107,39 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
 
   Widget _buildGroupsTab() {
     final groupsAsync = ref.watch(allGroupsProvider);
+    final joinRequestsAsync = ref.watch(isAdminProvider)
+        ? ref.watch(allPendingJoinRequestsProvider)
+        : null;
     // Sadece loading state için watch et, her build'de yeniden hesaplama yapma
     final membershipState = ref.watch(groupMembershipProvider);
     final isLoadingMembership = membershipState is AsyncLoading;
 
     return groupsAsync.when(
       data: (groups) {
-        if (groups.isEmpty) {
+        // Filtreleme işlemini optimize et - sadece bir kez yap
+        final userGroups = groups.where((g) => g.isUserMember).toList();
+        final otherGroups = groups.where((g) => !g.isUserMember).toList();
+
+        // Liste item'larını oluştur - Bekleyen Katılım Talepleri en üstte (admin)
+        final items = <_GroupListItem>[];
+        if (ref.read(isAdminProvider) &&
+            joinRequestsAsync?.value != null &&
+            joinRequestsAsync!.value!.isNotEmpty) {
+          final joinRequests = joinRequestsAsync.value!;
+          items.add(_GroupListItem.joinRequestsHeader(count: joinRequests.length));
+          for (final r in joinRequests) {
+            items.add(_GroupListItem.joinRequest(r));
+          }
+          items.add(_GroupListItem.spacer());
+        }
+
+        if (groups.isEmpty && items.isEmpty) {
           return const EmptyStateWidget(
             icon: Icons.groups_outlined,
             title: 'Henüz grup yok',
             description: 'Antrenman grupları burada görünecek',
           );
         }
-
-        // Filtreleme işlemini optimize et - sadece bir kez yap
-        final userGroups = groups.where((g) => g.isUserMember).toList();
-        final otherGroups = groups.where((g) => !g.isUserMember).toList();
-
-        // Liste item'larını oluştur
-        final items = <_GroupListItem>[];
         
         if (userGroups.isNotEmpty) {
           items.add(_GroupListItem.header(
@@ -151,6 +165,9 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
         return RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(allGroupsProvider);
+            if (ref.read(isAdminProvider)) {
+              ref.invalidate(allPendingJoinRequestsProvider);
+            }
           },
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -161,8 +178,12 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                 context: context,
                 ref: ref,
                 isLoadingMembership: isLoadingMembership,
-                onJoinLeave: (groupId, isMember) => 
+                onJoinLeave: (groupId, isMember) =>
                     _handleJoinLeave(context, ref, groupId, isMember),
+                onApproveJoinRequest: (requestId, groupId) =>
+                    _handleApproveJoinRequest(context, ref, requestId, groupId),
+                onRejectJoinRequest: (requestId, groupId) =>
+                    _handleRejectJoinRequest(context, ref, requestId, groupId),
               );
             },
           ),
@@ -242,7 +263,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
 
                 // Tüm item'ları oluştur
                 final items = <_UserListItem>[];
-                
+
                 if (filteredUsers.isEmpty && filteredPendingUsers.isEmpty) {
                   return EmptyStateWidget(
                     icon: Icons.search_off,
@@ -292,6 +313,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                       onApproveUser: (userId) => _handleApproveUser(context, ref, userId),
                       onDeactivateUser: (userId) => _handleDeactivateUser(context, ref, userId),
                       onShowRoleChangeDialog: (user) => _showRoleChangeDialog(context, ref, user),
+                      onAssignToGroup: (user) => _showAssignToGroupDialog(context, ref, user),
                     );
                   },
                 );
@@ -347,6 +369,223 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
           backgroundColor: AppColors.success,
         ),
       );
+    }
+  }
+
+  void _handleApproveJoinRequest(
+    BuildContext context,
+    WidgetRef ref,
+    String requestId,
+    String groupId,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(joinRequestActionProvider.notifier).approveRequest(
+            requestId,
+            groupId,
+          );
+      ref.invalidate(allPendingJoinRequestsProvider);
+      if (context.mounted) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Katılım talebi onaylandı'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Onay sırasında hata: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _handleRejectJoinRequest(
+    BuildContext context,
+    WidgetRef ref,
+    String requestId,
+    String groupId,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(joinRequestActionProvider.notifier).rejectRequest(
+            requestId,
+            groupId,
+          );
+      ref.invalidate(allPendingJoinRequestsProvider);
+      if (context.mounted) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Katılım talebi reddedildi'),
+            backgroundColor: AppColors.neutral600,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Reddetme sırasında hata: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showAssignToGroupDialog(
+    BuildContext context,
+    WidgetRef ref,
+    UserEntity user,
+  ) async {
+    final groupsAsync = await ref.read(allGroupsProvider.future);
+    if (groupsAsync.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Henüz grup oluşturulmamış')),
+        );
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (ctx, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  '${user.fullName} - Gruba Ata',
+                  style: AppTypography.titleLarge,
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: groupsAsync.length,
+                  itemBuilder: (ctx, index) {
+                    final group = groupsAsync[index];
+                    return ListTile(
+                      leading: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: _parseGroupColor(group.color)
+                              .withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.groups,
+                          color: _parseGroupColor(group.color),
+                          size: 20,
+                        ),
+                      ),
+                      title: Row(
+                        children: [
+                          Flexible(child: Text(group.name)),
+                          if (group.isPerformanceGroup) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.secondary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                'P',
+                                style: AppTypography.labelSmall.copyWith(
+                                  color: AppColors.secondary,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: group.targetDistance != null
+                          ? Text('Hedef: ${group.targetDistance}')
+                          : null,
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        try {
+                          await ref.read(memberTransferProvider.notifier).transferMember(
+                                user.id,
+                                group.id,
+                              );
+                          ref.invalidate(activeUsersProvider);
+                          ref.invalidate(allGroupsProvider);
+                          if (context.mounted) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '${user.fullName} "${group.name}" grubuna atandı',
+                                ),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        } catch (_) {
+                          if (context.mounted) {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Gruba atama başarısız. Lütfen tekrar deneyin.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _parseGroupColor(String colorHex) {
+    try {
+      final hex = colorHex.replaceFirst('#', '');
+      return Color(int.parse('FF$hex', radix: 16));
+    } catch (_) {
+      return AppColors.primary;
     }
   }
 
@@ -691,18 +930,22 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
 class _GroupListItem {
   final _ItemType type;
   final TrainingGroupEntity? group;
+  final GroupJoinRequestEntity? joinRequest;
   final bool? isUserMember;
   final IconData? icon;
   final String? title;
   final Color? iconColor;
+  final int? count;
 
   _GroupListItem._({
     required this.type,
     this.group,
+    this.joinRequest,
     this.isUserMember,
     this.icon,
     this.title,
     this.iconColor,
+    this.count,
   });
 
   factory _GroupListItem.group(TrainingGroupEntity group, bool isUserMember) {
@@ -710,6 +953,23 @@ class _GroupListItem {
       type: _ItemType.group,
       group: group,
       isUserMember: isUserMember,
+    );
+  }
+
+  factory _GroupListItem.joinRequestsHeader({required int count}) {
+    return _GroupListItem._(
+      type: _ItemType.joinRequestsHeader,
+      icon: Icons.group_add,
+      title: 'Bekleyen Katılım Talepleri',
+      iconColor: AppColors.warning,
+      count: count,
+    );
+  }
+
+  factory _GroupListItem.joinRequest(GroupJoinRequestEntity request) {
+    return _GroupListItem._(
+      type: _ItemType.joinRequest,
+      joinRequest: request,
     );
   }
 
@@ -735,8 +995,37 @@ class _GroupListItem {
     required WidgetRef ref,
     required bool isLoadingMembership,
     required void Function(String groupId, bool isMember) onJoinLeave,
+    void Function(String requestId, String groupId)? onApproveJoinRequest,
+    void Function(String requestId, String groupId)? onRejectJoinRequest,
   }) {
     switch (type) {
+      case _ItemType.joinRequestsHeader:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon!, size: 20, color: iconColor),
+                const SizedBox(width: 8),
+                Text(
+                  '$title (${count ?? 0})',
+                  style: AppTypography.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+        );
+      case _ItemType.joinRequest:
+        return _buildJoinRequestCard(
+          context,
+          ref,
+          joinRequest!,
+          onApproveJoinRequest ?? (_, __) {},
+          onRejectJoinRequest ?? (_, __) {},
+        );
       case _ItemType.group:
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -761,10 +1050,72 @@ class _GroupListItem {
         return const SizedBox(height: 12);
     }
   }
+
+  static Widget _buildJoinRequestCard(
+    BuildContext context,
+    WidgetRef ref,
+    GroupJoinRequestEntity request,
+    void Function(String requestId, String groupId) onApprove,
+    void Function(String requestId, String groupId) onReject,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.warningContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          UserAvatar(
+            size: 40,
+            name: request.userName,
+            imageUrl: request.userAvatarUrl,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  request.userName,
+                  style: AppTypography.titleSmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '${request.groupName ?? "Grup"} • Talep: ${_formatJoinRequestDate(request.requestedAt)}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.neutral500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.check_circle, color: AppColors.success),
+            tooltip: 'Onayla',
+            onPressed: () => onApprove(request.id, request.groupId),
+          ),
+          IconButton(
+            icon: const Icon(Icons.cancel, color: AppColors.error),
+            tooltip: 'Reddet',
+            onPressed: () => onReject(request.id, request.groupId),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatJoinRequestDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
+  }
 }
 
 enum _ItemType {
   group,
+  joinRequestsHeader,
+  joinRequest,
   header,
   spacer,
 }
@@ -826,6 +1177,7 @@ class _UserListItem {
     required void Function(String userId) onApproveUser,
     required void Function(String userId) onDeactivateUser,
     required void Function(UserEntity user) onShowRoleChangeDialog,
+    void Function(UserEntity user)? onAssignToGroup,
   }) {
     switch (type) {
       case _UserItemType.user:
@@ -838,6 +1190,7 @@ class _UserListItem {
             user!,
             onDeactivateUser,
             onShowRoleChangeDialog,
+            onAssignToGroup,
           );
         }
       case _UserItemType.header:
@@ -874,6 +1227,7 @@ class _UserListItem {
     UserEntity user,
     void Function(String userId) onDeactivateUser,
     void Function(UserEntity user) onShowRoleChangeDialog,
+    void Function(UserEntity user)? onAssignToGroup,
   ) {
     final isAdmin = ref.watch(isAdminProvider);
     final approvalState = ref.watch(userApprovalProvider);
@@ -946,6 +1300,17 @@ class _UserListItem {
                     : Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (onAssignToGroup != null)
+                            _buildActionButton(
+                              context: context,
+                              ref: ref,
+                              user: user,
+                              icon: Icons.group_add,
+                              color: AppColors.secondary,
+                              tooltip: 'Gruba Ata',
+                              onPressed: () => onAssignToGroup(user),
+                            ),
+                          if (onAssignToGroup != null) const SizedBox(width: 4),
                           _buildActionButton(
                             context: context,
                             ref: ref,

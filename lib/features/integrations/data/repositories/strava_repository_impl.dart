@@ -398,6 +398,20 @@ class StravaRepositoryImpl implements StravaRepository {
     // Not: Strava model'inde bu alanlar var ama entity'ye aktarılmıyor
     // İleride entity'ye eklenebilir
 
+    // Strava API kadansı RPM (revolutions per minute - tek bacak) döndürür.
+    // Koşu/yürüyüş için Garmin ve kullanıcılar SPM (steps per minute) bekler.
+    // SPM = RPM * 2. Bisiklette RPM zaten doğru formatta.
+    final int? averageCadenceDb;
+    if (activity.averageCadence != null) {
+      if (activityType == 'running' || activityType == 'walking') {
+        averageCadenceDb = (activity.averageCadence! * 2).round();
+      } else {
+        averageCadenceDb = activity.averageCadence!.round();
+      }
+    } else {
+      averageCadenceDb = null;
+    }
+
     final data = {
       'user_id': userId,
       'activity_type': activityType,
@@ -413,7 +427,7 @@ class StravaRepositoryImpl implements StravaRepository {
       'best_pace_seconds': bestPaceSeconds, // Max speed'den hesaplanan en iyi pace
       'average_heart_rate': activity.averageHeartrate?.round(),
       'max_heart_rate': activity.maxHeartrate?.round(),
-      'average_cadence': activity.averageCadence?.round(),
+      'average_cadence': averageCadenceDb,
       'route_polyline': activity.mapPolyline,
       'calories_burned': activity.calories?.round(),
       'is_public': true,

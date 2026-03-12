@@ -252,6 +252,7 @@ class EventGroupProgramModel {
 class GroupJoinRequestModel {
   final String id;
   final String groupId;
+  final String? groupName;
   final String userId;
   final String userName;
   final String? userAvatarUrl;
@@ -263,6 +264,7 @@ class GroupJoinRequestModel {
   const GroupJoinRequestModel({
     required this.id,
     required this.groupId,
+    this.groupName,
     required this.userId,
     required this.userName,
     this.userAvatarUrl,
@@ -278,9 +280,13 @@ class GroupJoinRequestModel {
         ? '${userData['first_name'] ?? ''} ${userData['last_name'] ?? ''}'.trim()
         : 'Anonim';
 
+    final groupData = json['training_groups'] as Map<String, dynamic>?;
+    final groupName = groupData?['name'] as String?;
+
     return GroupJoinRequestModel(
       id: json['id'] as String,
       groupId: json['group_id'] as String,
+      groupName: groupName,
       userId: json['user_id'] as String,
       userName: userName.isEmpty ? 'Anonim' : userName,
       userAvatarUrl: userData?['avatar_url'] as String?,
@@ -297,6 +303,7 @@ class GroupJoinRequestModel {
     return GroupJoinRequestEntity(
       id: id,
       groupId: groupId,
+      groupName: groupName,
       userId: userId,
       userName: userName,
       userAvatarUrl: userAvatarUrl,

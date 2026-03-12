@@ -77,6 +77,7 @@ class GroupMemberEntity {
 class GroupJoinRequestEntity {
   final String id;
   final String groupId;
+  final String? groupName;
   final String userId;
   final String userName;
   final String? userAvatarUrl;
@@ -88,6 +89,7 @@ class GroupJoinRequestEntity {
   const GroupJoinRequestEntity({
     required this.id,
     required this.groupId,
+    this.groupName,
     required this.userId,
     required this.userName,
     this.userAvatarUrl,

@@ -255,6 +255,18 @@ async function saveActivityToDatabase(supabase: any, userId: string, activity: a
     metadata.end_latlng = activity.end_latlng[0];
   }
 
+  // Strava API kadansı RPM (revolutions per minute - tek bacak) döndürür.
+  // Koşu/yürüyüş için Garmin ve kullanıcılar SPM (steps per minute) bekler.
+  // SPM = RPM * 2. Bisiklette RPM zaten doğru formatta.
+  let averageCadence: number | null = null;
+  if (activity.average_cadence != null) {
+    if (activityType === 'running' || activityType === 'walking') {
+      averageCadence = Math.round(activity.average_cadence * 2);
+    } else {
+      averageCadence = Math.round(activity.average_cadence);
+    }
+  }
+
   const activityData = {
     user_id: userId,
     activity_type: activityType,
@@ -270,7 +282,7 @@ async function saveActivityToDatabase(supabase: any, userId: string, activity: a
     best_pace_seconds: bestPaceSeconds,
     average_heart_rate: activity.average_heartrate ? Math.round(activity.average_heartrate) : null,
     max_heart_rate: activity.max_heartrate ? Math.round(activity.max_heartrate) : null,
-    average_cadence: activity.average_cadence ? Math.round(activity.average_cadence) : null,
+    average_cadence,
     route_polyline: activity.map?.polyline || null,
     calories_burned: activity.calories ? Math.round(activity.calories) : null,
     is_public: true,

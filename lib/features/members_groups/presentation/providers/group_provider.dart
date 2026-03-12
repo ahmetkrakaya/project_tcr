@@ -468,6 +468,7 @@ class MemberTransferNotifier extends StateNotifier<AsyncValue<void>> {
       }
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+      rethrow;
     }
   }
 }
