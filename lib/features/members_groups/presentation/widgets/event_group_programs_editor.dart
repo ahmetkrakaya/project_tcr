@@ -151,8 +151,15 @@ class _EventGroupProgramsEditorState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.programs != widget.programs) {
       _programs = List.from(widget.programs);
-      _programExpandedStates =
-          List<bool>.filled(_programs.length, false, growable: true);
+      final oldLength = _programExpandedStates.length;
+      final newLength = _programs.length;
+      if (newLength > oldLength) {
+        _programExpandedStates.addAll(
+          List<bool>.filled(newLength - oldLength, false),
+        );
+      } else if (newLength < oldLength) {
+        _programExpandedStates = _programExpandedStates.sublist(0, newLength);
+      }
     }
     if (oldWidget.memberPrograms != widget.memberPrograms) {
       _memberPrograms = List.from(widget.memberPrograms);

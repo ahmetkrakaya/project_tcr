@@ -1233,8 +1233,11 @@ class _UserListItem {
     final approvalState = ref.watch(userApprovalProvider);
     final roleUpdateState = ref.watch(userRoleUpdateProvider);
     final currentUser = ref.watch(currentUserProfileProvider);
-    // Admin kullanıcıların rolü değiştirilemez; kendi kaydını da kimse yönetemez
-    final canManage = isAdmin && currentUser?.id != user.id && !user.isAdmin;
+    final isNotSelf = currentUser?.id != user.id;
+    // Rol değiştirme ve pasifleştirme: admin kullanıcılara uygulanamaz
+    final canManage = isAdmin && isNotSelf && !user.isAdmin;
+    // Grup ataması: admin kullanıcılara da yapılabilir
+    final canAssignGroup = isAdmin && isNotSelf;
     final isLoading = approvalState.isLoading || roleUpdateState.isLoading;
 
     // Kullanıcının ana rolünü belirle (super_admin > coach > member)
@@ -1243,6 +1246,8 @@ class _UserListItem {
         : user.isCoach
             ? 'coach'
             : 'member';
+
+    final showActions = canManage || canAssignGroup;
 
     return Material(
       color: Colors.transparent,
@@ -1289,7 +1294,7 @@ class _UserListItem {
                 ),
               ),
               // Action butonları
-              if (canManage) ...[
+              if (showActions) ...[
                 const SizedBox(width: 8),
                 isLoading
                     ? const SizedBox(
@@ -1300,7 +1305,7 @@ class _UserListItem {
                     : Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (onAssignToGroup != null)
+                          if (onAssignToGroup != null && canAssignGroup)
                             _buildActionButton(
                               context: context,
                               ref: ref,
@@ -1310,26 +1315,29 @@ class _UserListItem {
                               tooltip: 'Gruba Ata',
                               onPressed: () => onAssignToGroup(user),
                             ),
-                          if (onAssignToGroup != null) const SizedBox(width: 4),
-                          _buildActionButton(
-                            context: context,
-                            ref: ref,
-                            user: user,
-                            icon: Icons.admin_panel_settings,
-                            color: AppColors.primary,
-                            tooltip: 'Rolü Değiştir',
-                            onPressed: () => onShowRoleChangeDialog(user),
-                          ),
-                          const SizedBox(width: 4),
-                          _buildActionButton(
-                            context: context,
-                            ref: ref,
-                            user: user,
-                            icon: Icons.block,
-                            color: AppColors.error,
-                            tooltip: 'Kullanıcıyı Pasifleştir',
-                            onPressed: () => onDeactivateUser(user.id),
-                          ),
+                          if (onAssignToGroup != null && canAssignGroup && canManage)
+                            const SizedBox(width: 4),
+                          if (canManage)
+                            _buildActionButton(
+                              context: context,
+                              ref: ref,
+                              user: user,
+                              icon: Icons.admin_panel_settings,
+                              color: AppColors.primary,
+                              tooltip: 'Rolü Değiştir',
+                              onPressed: () => onShowRoleChangeDialog(user),
+                            ),
+                          if (canManage) const SizedBox(width: 4),
+                          if (canManage)
+                            _buildActionButton(
+                              context: context,
+                              ref: ref,
+                              user: user,
+                              icon: Icons.block,
+                              color: AppColors.error,
+                              tooltip: 'Kullanıcıyı Pasifleştir',
+                              onPressed: () => onDeactivateUser(user.id),
+                            ),
                         ],
                       ),
               ],

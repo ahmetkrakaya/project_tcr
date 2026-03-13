@@ -769,7 +769,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
-                    'Haritada rota konumunu seçmek için haritaya dokunun',
+                    'Haritada dokunarak veya arama yaparak konum seçin',
                     style: AppTypography.bodySmall.copyWith(
                       color: AppColors.neutral500,
                     ),

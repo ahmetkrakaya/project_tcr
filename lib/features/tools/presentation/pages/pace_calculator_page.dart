@@ -38,7 +38,8 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
 
   double? _calculatedVdot;
   bool _isSaving = false;
-  bool _showCalculator = false; // Hesaplama modunu göster/gizle
+  bool _showCalculator = false;
+  String _vdotCalcMethod = 'race'; // 'race' veya 'cooper'
 
   // Lane Calculator
   int _selectedLane = 1;
@@ -238,12 +239,13 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
             ),
             const SizedBox(height: 24),
 
-            // Yarış sonucundan hesapla
-            _buildRaceCalculator(),
-            const SizedBox(height: 24),
+            _buildCalcMethodSelector(),
+            const SizedBox(height: 16),
 
-            // Cooper testinden hesapla
-            _buildCooperCalculator(),
+            if (_vdotCalcMethod == 'race')
+              _buildRaceCalculator()
+            else
+              _buildCooperCalculator(),
             const SizedBox(height: 24),
 
             // Yeni hesaplanan sonuçlar
@@ -269,7 +271,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
             const SizedBox(height: 24),
             Center(
               child: Text(
-                'Yukarıdan yarış sonucunu veya Cooper test mesafesini girerek VDOT\'unu hesapla!',
+                'Yukarıdan hesaplama yöntemini seçerek VDOT\'unu hesapla!',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.neutral500,
                 ),
@@ -375,6 +377,33 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
             ),
           )),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCalcMethodSelector() {
+    return SegmentedButton<String>(
+      segments: const [
+        ButtonSegment(
+          value: 'race',
+          label: Text('Jack Daniels'),
+          icon: Icon(Icons.emoji_events, size: 18),
+        ),
+        ButtonSegment(
+          value: 'cooper',
+          label: Text('Cooper Testi'),
+          icon: Icon(Icons.timer, size: 18),
+        ),
+      ],
+      selected: {_vdotCalcMethod},
+      onSelectionChanged: (selected) {
+        setState(() {
+          _vdotCalcMethod = selected.first;
+          _calculatedVdot = null;
+        });
+      },
+      style: ButtonStyle(
+        visualDensity: VisualDensity.compact,
       ),
     );
   }
@@ -488,7 +517,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
           ),
           const SizedBox(height: 8),
           Text(
-            '12 dakikada koştuğunuz mesafeyi girin',
+            '20 dakikada koştuğunuz mesafeyi girin',
             style: AppTypography.bodySmall.copyWith(
               color: AppColors.neutral500,
             ),

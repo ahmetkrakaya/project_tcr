@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +17,8 @@ import '../../../events/presentation/providers/event_provider.dart';
 import '../../../integrations/apple_watch/apple_watch_integration_settings.dart';
 import '../../../integrations/apple_watch/apple_watch_provider.dart';
 import '../../../integrations/apple_watch/apple_watch_workout_sync_service.dart';
+import '../../../integrations/health_connect/health_connect_provider.dart';
+import '../../../integrations/health_connect/health_connect_workout_sync_service.dart';
 import '../../../posts/domain/entities/post_entity.dart';
 import '../../../posts/presentation/providers/post_provider.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
@@ -55,22 +58,41 @@ class _HomePageState extends ConsumerState<HomePage> {
       ref.read(postsProvider.notifier).loadPosts();
     });
 
-    // Apple Watch Auto Send: uygulama açılışında 7 günlük senkron
-    Future.microtask(() async {
-      try {
-        final s = ref.read(appleWatchIntegrationProvider).settings;
-        if (!s.enabled || s.mode != AppleWatchSendMode.autoSend) return;
+    // Apple Watch Auto Send: uygulama açılışında 7 günlük senkron (iOS)
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      Future.microtask(() async {
+        try {
+          final s = ref.read(appleWatchIntegrationProvider).settings;
+          if (!s.enabled || s.mode != AppleWatchSendMode.autoSend) return;
 
-        // Çok sık senkronu engelle (örn. 6 saatten sık olmasın)
-        final last = s.lastSyncAt;
-        if (last != null && DateTime.now().difference(last).inHours < 6) return;
+          final last = s.lastSyncAt;
+          if (last != null && DateTime.now().difference(last).inHours < 6) return;
 
-        await ref.read(appleWatchWorkoutSyncServiceProvider).syncNext7Days();
-        await ref.read(appleWatchIntegrationProvider.notifier).setLastSyncNow();
-      } catch (_) {
-        // Sessiz: bağlantı/yetki yoksa kullanıcı zaten Bağlantılar ekranından görecek
-      }
-    });
+          await ref.read(appleWatchWorkoutSyncServiceProvider).syncNext7Days();
+          await ref.read(appleWatchIntegrationProvider.notifier).setLastSyncNow();
+        } catch (_) {
+          // Sessiz: bağlantı/yetki yoksa kullanıcı zaten Bağlantılar ekranından görecek
+        }
+      });
+    }
+
+    // Health Connect Auto Send: uygulama açılışında 7 günlük senkron (Android)
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      Future.microtask(() async {
+        try {
+          final state = ref.read(healthConnectIntegrationProvider);
+          if (!state.isConnected) return;
+
+          final last = state.lastSyncAt;
+          if (last != null && DateTime.now().difference(last).inHours < 6) return;
+
+          await ref.read(healthConnectWorkoutSyncServiceProvider).syncNext7Days();
+          await ref.read(healthConnectIntegrationProvider.notifier).setLastSyncNow();
+        } catch (_) {
+          // Sessiz
+        }
+      });
+    }
     // Infinite scroll için scroll listener
     _scrollController.addListener(_onScroll);
     // ScrollController'ı provider'a kaydet

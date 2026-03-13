@@ -35,30 +35,32 @@ class WorkoutExportService {
     return out;
   }
 
-  /// Pace değerini hesapla (VDOT modu veya manuel)
-  /// Offset bazlı: threshold + offset ile pace aralığı hesaplanır, hızlı pace döner.
-  int? _getEffectivePace(
+  /// Pace aralığını hesapla (VDOT modu veya manuel).
+  /// Dönen tuple: (hızlı pace, yavaş pace) saniye/km cinsinden.
+  (int, int)? _getEffectivePaceRange(
     WorkoutSegmentEntity s,
     double? userVdot, {
     int? offsetMin,
     int? offsetMax,
   }) {
-    if (s.target == WorkoutTarget.pace) {
-      if (s.useVdotForPace == true && userVdot != null && userVdot > 0) {
-        final paceRange = VdotCalculator.getPaceRangeForSegmentType(
-          userVdot,
-          s.segmentType.name,
-          offsetMin,
-          offsetMax,
-        );
-        if (paceRange != null) return paceRange.$1; // Hızlı pace
-        return null;
-      } else {
-        // Manuel pace
-        return s.customPaceSecondsPerKm ?? s.paceSecondsPerKm ?? s.paceSecondsPerKmMin;
-      }
+    if (s.target != WorkoutTarget.pace) return null;
+
+    if (s.useVdotForPace == true && userVdot != null && userVdot > 0) {
+      final paceRange = VdotCalculator.getPaceRangeForSegmentType(
+        userVdot,
+        s.segmentType.name,
+        offsetMin,
+        offsetMax,
+      );
+      if (paceRange != null) return (paceRange.$1, paceRange.$2);
+      return null;
     }
-    return null;
+
+    // Manuel: aralık varsa aralığı, yoksa tek değeri kullan
+    final paceMin = s.paceSecondsPerKmMin ?? s.customPaceSecondsPerKm ?? s.paceSecondsPerKm;
+    final paceMax = s.paceSecondsPerKmMax ?? paceMin;
+    if (paceMin == null) return null;
+    return (paceMin, paceMax!);
   }
 
   /// FIT dosyası oluşturur (Garmin vb.)
@@ -104,12 +106,11 @@ class WorkoutExportService {
         stepMsg.durationType = WorkoutStepDuration.open;
       }
 
-      final paceSec = _getEffectivePace(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
-      if (s.target == WorkoutTarget.pace && paceSec != null && paceSec > 0) {
+      final paceRange = _getEffectivePaceRange(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
+      if (s.target == WorkoutTarget.pace && paceRange != null && paceRange.$1 > 0) {
         stepMsg.targetType = WorkoutStepTarget.speed;
-        final speedMs = 1000.0 / paceSec;
-        stepMsg.customTargetSpeedLow = speedMs;
-        stepMsg.customTargetSpeedHigh = speedMs;
+        stepMsg.customTargetSpeedLow = 1000.0 / paceRange.$2;
+        stepMsg.customTargetSpeedHigh = 1000.0 / paceRange.$1;
       } else if (s.target == WorkoutTarget.heartRate && (s.heartRateBpmMin != null || s.heartRateBpmMax != null)) {
         stepMsg.targetType = WorkoutStepTarget.heartRate;
         if (s.heartRateBpmMin != null) stepMsg.customTargetHeartRateLow = s.heartRateBpmMin!;
@@ -169,13 +170,14 @@ class WorkoutExportService {
         buffer.writeln('        </Duration>');
       }
 
-      final paceSec = _getEffectivePace(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
-      if (s.target == WorkoutTarget.pace && paceSec != null && paceSec > 0) {
-        final speedMs = 1000.0 / paceSec;
+      final paceRange = _getEffectivePaceRange(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
+      if (s.target == WorkoutTarget.pace && paceRange != null && paceRange.$1 > 0) {
+        final speedLow = 1000.0 / paceRange.$2;
+        final speedHigh = 1000.0 / paceRange.$1;
         buffer.writeln('        <Target>');
         buffer.writeln('          <Speed>');
-        buffer.writeln('            <LowInMetersPerSecond>$speedMs</LowInMetersPerSecond>');
-        buffer.writeln('            <HighInMetersPerSecond>$speedMs</HighInMetersPerSecond>');
+        buffer.writeln('            <LowInMetersPerSecond>$speedLow</LowInMetersPerSecond>');
+        buffer.writeln('            <HighInMetersPerSecond>$speedHigh</HighInMetersPerSecond>');
         buffer.writeln('          </Speed>');
         buffer.writeln('        </Target>');
       } else if (s.target == WorkoutTarget.heartRate && (s.heartRateBpmMin != null || s.heartRateBpmMax != null)) {

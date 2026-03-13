@@ -564,6 +564,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     hintText: 'ornek@email.com',
                   ),
                   keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textCapitalization: TextCapitalization.none,
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(
                       RegExp(r'[a-zA-Z0-9@._\-+]+'),

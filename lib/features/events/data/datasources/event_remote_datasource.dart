@@ -33,6 +33,12 @@ abstract class EventRemoteDataSource {
   /// Etkinlik sil
   Future<void> deleteEvent(String id);
 
+  /// Etkinlikle ilgili herkese manuel bildirim gönder (admin)
+  Future<void> sendManualEventNotification(String eventId);
+
+  /// Restricted etkinlik için görünür kullanıcıları kaydet
+  Future<void> saveEventVisibleUsers(String eventId, List<String> userIds);
+
   /// Etkinliğe katıl (RSVP)
   Future<void> rsvpToEvent(String eventId, String status, {String? note});
 
@@ -378,6 +384,26 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           .eq('id', id)
           .single();
 
+      // Görünürlük kontrolü (admin/coach ve oluşturucu her zaman görebilir)
+      final isCreator = response['created_by'] == _currentUserId;
+      if (!isCreator) {
+        final isAdmin = await _isCurrentUserAdminOrCoach();
+        if (!isAdmin) {
+          final userGroupIds = await _getUserGroupIds();
+          final eventGroupsMap = await _getAllEventGroupIds([id]);
+          final visibleEventIds = await _getVisibleEventIdsForUser([id]);
+          final canSee = _canUserSeeEvent(
+            response,
+            userGroupIds,
+            eventGroupsMap,
+            visibleEventIds,
+          );
+          if (!canSee) {
+            throw ServerException(message: 'Bu etkinliğe erişim yetkiniz yok');
+          }
+        }
+      }
+
       final participantCount = await _getParticipantCount(id);
       final isParticipating = await _isUserParticipating(id);
 
@@ -387,6 +413,8 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       );
     } on PostgrestException catch (e) {
       throw ServerException(message: e.message, code: e.code);
+    } on ServerException {
+      rethrow;
     } catch (e) {
       throw ServerException(message: 'Etkinlik bulunamadı: $e');
     }
@@ -470,6 +498,41 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
       throw ServerException(message: 'Etkinlik silinemedi: $e');
+    }
+  }
+
+  @override
+  Future<void> sendManualEventNotification(String eventId) async {
+    try {
+      await _supabase.rpc(
+        'send_manual_event_notification',
+        params: {'p_event_id': eventId},
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Bildirim gönderilemedi: $e');
+    }
+  }
+
+  @override
+  Future<void> saveEventVisibleUsers(String eventId, List<String> userIds) async {
+    try {
+      await _supabase
+          .from('event_visible_users')
+          .delete()
+          .eq('event_id', eventId);
+
+      if (userIds.isNotEmpty) {
+        final rows = userIds
+            .map((uid) => {'event_id': eventId, 'user_id': uid})
+            .toList();
+        await _supabase.from('event_visible_users').insert(rows);
+      }
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Görünür kullanıcılar kaydedilemedi: $e');
     }
   }
 
@@ -697,6 +760,21 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
     } catch (e) {
       // Hata durumunda tüm event'ler için false döndür
       return {for (final eventId in eventIds) eventId: false};
+    }
+  }
+
+  Future<bool> _isCurrentUserAdminOrCoach() async {
+    final userId = _currentUserId;
+    if (userId == null) return false;
+    try {
+      final response = await _supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .inFilter('role', ['super_admin', 'coach']);
+      return (response as List<dynamic>).isNotEmpty;
+    } catch (_) {
+      return false;
     }
   }
 

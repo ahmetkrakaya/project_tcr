@@ -171,10 +171,9 @@ class VdotCalculator {
   }
 
   /// Cooper testinden VDOT hesapla
-  /// [distanceMeters] - 12 dakikada koşulan mesafe
+  /// [distanceMeters] - 20 dakikada koşulan mesafe
   static double calculateFromCooperTest(double distanceMeters) {
-    // Cooper test 12 dakikadır
-    return calculateFromRace(distanceMeters, 12 * 60);
+    return calculateFromRace(distanceMeters, 20 * 60);
   }
 
   /// VDOT'tan tahmini yarış süresi hesapla

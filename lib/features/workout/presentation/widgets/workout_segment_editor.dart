@@ -715,17 +715,6 @@ class _StepRowState extends ConsumerState<_StepRow> {
     _isExpanded = widget.step.isExpanded;
   }
   
-  // Pace modu: true = Aralık, false = Değer
-  bool _isPaceRangeMode() {
-    final s = widget.step.segment;
-    if (s == null) return false;
-    // Eğer min veya max varsa ve customPaceSecondsPerKm yoksa -> aralık modu
-    // Aksi halde -> değer modu
-    final hasRange = s.paceSecondsPerKmMin != null || s.paceSecondsPerKmMax != null;
-    final hasSingle = s.customPaceSecondsPerKm != null;
-    return hasRange && !hasSingle;
-  }
-
   String? _getSuggestedPaceForSegment(WorkoutSegmentEntity segment) {
     final vdot = _userVdot;
     if (vdot == null || vdot <= 0) return null;
@@ -1056,42 +1045,8 @@ class _StepRowState extends ConsumerState<_StepRow> {
                 children: [
                   Expanded(
                     child: _buildPaceModeButton(
-                      label: 'Pace',
-                      isSelected: s.useVdotForPace != true && !_isPaceRangeMode(),
-                      onTap: () {
-                        // Focus'u kaldır ve scroll pozisyonunu koru
-                        FocusScope.of(context).unfocus();
-                        // VDOT veya Aralık modundan Manuel Değer moduna geç
-                        final min = s.paceSecondsPerKmMin ?? s.customPaceSecondsPerKm;
-                        widget.onChanged(WorkoutStepEditState(
-                          stepType: 'segment',
-                          segment: WorkoutSegmentEntity(
-                            segmentType: s.segmentType,
-                            targetType: s.targetType,
-                            target: s.target,
-                            durationSeconds: s.durationSeconds,
-                            distanceMeters: s.distanceMeters,
-                            paceSecondsPerKm: s.paceSecondsPerKm,
-                            paceSecondsPerKmMin: null,
-                            paceSecondsPerKmMax: null,
-                            customPaceSecondsPerKm: min,
-                            useVdotForPace: false,
-                            heartRateBpmMin: s.heartRateBpmMin,
-                            heartRateBpmMax: s.heartRateBpmMax,
-                            cadenceMin: s.cadenceMin,
-                            cadenceMax: s.cadenceMax,
-                            powerWattsMin: s.powerWattsMin,
-                            powerWattsMax: s.powerWattsMax,
-                          ),
-                          isExpanded: widget.step.isExpanded,
-                        ));
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildPaceModeButton(
                       label: 'Pace Aralığı',
-                      isSelected: s.useVdotForPace != true && _isPaceRangeMode(),
+                      isSelected: s.useVdotForPace != true,
                       onTap: () {
                         // Focus'u kaldır ve scroll pozisyonunu koru
                         FocusScope.of(context).unfocus();
@@ -1190,63 +1145,7 @@ class _StepRowState extends ConsumerState<_StepRow> {
                   ],
                 ),
               )
-            else if (!_isPaceRangeMode())
-              // Tek değer modu
-              GestureDetector(
-                onTap: () {
-                  FocusScope.of(context).unfocus();
-                  _showPacePicker(
-                    s.customPaceSecondsPerKm ?? _StepRowState._parsePaceStringToSeconds(_getDefaultPaceFromSuggestion(s)),
-                    (sec) {
-                      FocusScope.of(context).unfocus();
-                      widget.onChanged(WorkoutStepEditState(
-                        stepType: 'segment',
-                        segment: WorkoutSegmentEntity(
-                          segmentType: s.segmentType,
-                          targetType: s.targetType,
-                          target: s.target,
-                          durationSeconds: s.durationSeconds,
-                          distanceMeters: s.distanceMeters,
-                          paceSecondsPerKm: s.paceSecondsPerKm,
-                          paceSecondsPerKmMin: null,
-                          paceSecondsPerKmMax: null,
-                          customPaceSecondsPerKm: sec,
-                          useVdotForPace: false,
-                          heartRateBpmMin: s.heartRateBpmMin,
-                          heartRateBpmMax: s.heartRateBpmMax,
-                          cadenceMin: s.cadenceMin,
-                          cadenceMax: s.cadenceMax,
-                          powerWattsMin: s.powerWattsMin,
-                          powerWattsMax: s.powerWattsMax,
-                        ),
-                        isExpanded: widget.step.isExpanded,
-                      ));
-                    },
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.neutral100,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.neutral200),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        s.customPaceSecondsPerKm != null
-                            ? _formatPaceInput(s.customPaceSecondsPerKm!)
-                            : _getDefaultPaceFromSuggestion(s),
-                        style: AppTypography.bodyMedium,
-                      ),
-                      Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
-                    ],
-                  ),
-                ),
-              )
             else
-              // Aralık modu
               Row(
                 children: [
                   Expanded(
@@ -2449,36 +2348,8 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> {
                   children: [
                     Expanded(
                       child: _buildPaceModeButton(
-                        label: 'Pace',
-                        isSelected: s.useVdotForPace != true && !_isPaceRangeMode(),
-                        onTap: () {
-                          FocusScope.of(context).unfocus();
-                          final min = s.paceSecondsPerKmMin ?? s.customPaceSecondsPerKm;
-                          widget.onChanged(WorkoutSegmentEntity(
-                            segmentType: s.segmentType,
-                            targetType: s.targetType,
-                            target: s.target,
-                            durationSeconds: s.durationSeconds,
-                            distanceMeters: s.distanceMeters,
-                            paceSecondsPerKm: s.paceSecondsPerKm,
-                            paceSecondsPerKmMin: null,
-                            paceSecondsPerKmMax: null,
-                            customPaceSecondsPerKm: min,
-                            useVdotForPace: false,
-                            heartRateBpmMin: s.heartRateBpmMin,
-                            heartRateBpmMax: s.heartRateBpmMax,
-                            cadenceMin: s.cadenceMin,
-                            cadenceMax: s.cadenceMax,
-                            powerWattsMin: s.powerWattsMin,
-                            powerWattsMax: s.powerWattsMax,
-                          ));
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: _buildPaceModeButton(
                         label: 'Pace Aralığı',
-                        isSelected: s.useVdotForPace != true && _isPaceRangeMode(),
+                        isSelected: s.useVdotForPace != true,
                         onTap: () {
                           FocusScope.of(context).unfocus();
                           int? centerPace = s.customPaceSecondsPerKm ?? s.paceSecondsPerKm;
@@ -2557,56 +2428,6 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> {
                         ),
                       ),
                     ],
-                  ),
-                )
-              else if (!_isPaceRangeMode())
-                GestureDetector(
-                  onTap: () {
-                    FocusScope.of(context).unfocus();
-                    _showPacePicker(
-                      s.customPaceSecondsPerKm ?? _StepRowState._parsePaceStringToSeconds(_getDefaultPaceFromSuggestion(s)),
-                      (sec) {
-                        FocusScope.of(context).unfocus();
-                        widget.onChanged(WorkoutSegmentEntity(
-                          segmentType: s.segmentType,
-                          targetType: s.targetType,
-                          target: s.target,
-                          durationSeconds: s.durationSeconds,
-                          distanceMeters: s.distanceMeters,
-                          paceSecondsPerKm: s.paceSecondsPerKm,
-                          paceSecondsPerKmMin: null,
-                          paceSecondsPerKmMax: null,
-                          customPaceSecondsPerKm: sec,
-                          useVdotForPace: false,
-                          heartRateBpmMin: s.heartRateBpmMin,
-                          heartRateBpmMax: s.heartRateBpmMax,
-                          cadenceMin: s.cadenceMin,
-                          cadenceMax: s.cadenceMax,
-                          powerWattsMin: s.powerWattsMin,
-                          powerWattsMax: s.powerWattsMax,
-                        ));
-                      },
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                    decoration: BoxDecoration(
-                      color: AppColors.neutral100,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.neutral200),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          s.customPaceSecondsPerKm != null
-                              ? _formatPaceInput(s.customPaceSecondsPerKm!)
-                              : _getDefaultPaceFromSuggestion(s),
-                          style: AppTypography.bodyMedium,
-                        ),
-                        Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
-                      ],
-                    ),
                   ),
                 )
               else
@@ -2723,13 +2544,6 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> {
           ],
         ),
       );
-  }
-
-  bool _isPaceRangeMode() {
-    final s = widget.segment;
-    final hasRange = s.paceSecondsPerKmMin != null || s.paceSecondsPerKmMax != null;
-    final hasSingle = s.customPaceSecondsPerKm != null;
-    return hasRange && !hasSingle;
   }
 
   String? _getSuggestedPaceForSegment(WorkoutSegmentEntity segment) {

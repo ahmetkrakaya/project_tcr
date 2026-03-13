@@ -221,6 +221,9 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           );
                         }
                         break;
+                      case 'send_notification':
+                        _showSendNotificationConfirmation(context, ref);
+                        break;
                       case 'save_template':
                         _showSaveAsTemplateDialog(context, ref, event);
                         break;
@@ -237,6 +240,16 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           Icon(Icons.edit_outlined),
                           SizedBox(width: 8),
                           Text('Düzenle'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'send_notification',
+                      child: Row(
+                        children: [
+                          Icon(Icons.notifications_active_outlined, color: AppColors.secondary),
+                          SizedBox(width: 8),
+                          Text('Bildirim Gönder', style: TextStyle(color: AppColors.secondary)),
                         ],
                       ),
                     ),
@@ -989,6 +1002,51 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               }
             },
             child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSendNotificationConfirmation(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Bildirim Gönder'),
+        content: const Text(
+          'Etkinlikle ilgili herkese bildirim gönderilecek. Devam etmek istiyor musunuz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                final dataSource = ref.read(eventDataSourceProvider);
+                await dataSource.sendManualEventNotification(widget.eventId);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Bildirim başarıyla gönderildi'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Bildirim gönderilemedi: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Gönder'),
           ),
         ],
       ),

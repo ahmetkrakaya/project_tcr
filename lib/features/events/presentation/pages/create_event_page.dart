@@ -1504,6 +1504,13 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         }
       }
 
+      // Restricted etkinlik: görünür kullanıcıları kaydet
+      if (_isRestrictedEvent && _selectedVisibleUserIds.isNotEmpty) {
+        await dataSource.saveEventVisibleUsers(createdEventId, _selectedVisibleUserIds);
+      } else if (!_isRestrictedEvent) {
+        await dataSource.saveEventVisibleUsers(createdEventId, []);
+      }
+
       // Grup programlarını kaydet (sadece antrenman etkinliklerinde; yarışta yok)
       if (_showGroupPrograms && (_groupPrograms.isNotEmpty || _memberPrograms.isNotEmpty)) {
         final groupDataSource = ref.read(groupDataSourceProvider);

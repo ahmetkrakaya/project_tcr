@@ -16,6 +16,17 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round">
+        <!-- Health Connect izin ekranı için ACTION_SHOW_PERMISSIONS_RATIONALE -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>
+            </intent-filter>
+        </activity-alias>
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -100,6 +111,10 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+    <!-- Health Connect - antrenman programı senkronizasyonu için -->
+    <uses-permission android:name="android.permission.health.WRITE_PLANNED_EXERCISE"/>
+    <uses-permission android:name="android.permission.health.READ_PLANNED_EXERCISE"/>
+
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
@@ -110,5 +125,7 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Health Connect uygulamasının kurulu olup olmadığını kontrol etmek için -->
+        <package android:name="com.google.android.apps.healthdata"/>
     </queries>
 </manifest>

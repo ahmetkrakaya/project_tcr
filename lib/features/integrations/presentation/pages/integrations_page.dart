@@ -10,6 +10,8 @@ import '../../../../core/theme/app_typography.dart';
 import '../../apple_watch/apple_watch_provider.dart';
 import '../../apple_watch/apple_watch_workout_sync_service.dart';
 import '../../garmin/garmin_provider.dart';
+import '../../health_connect/health_connect_provider.dart';
+import '../../health_connect/health_connect_workout_sync_service.dart';
 import '../providers/strava_provider.dart';
 
 /// Integrations Page - Harici servis bağlantıları
@@ -50,6 +52,10 @@ class IntegrationsPage extends ConsumerWidget {
               if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) ...[
                 const SizedBox(height: 16),
                 _buildAppleWatchSection(context, ref),
+              ],
+              if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) ...[
+                const SizedBox(height: 16),
+                _buildHealthConnectSection(context, ref),
               ],
               const SizedBox(height: 16),
               _buildGarminSection(context, ref),
@@ -492,6 +498,254 @@ class IntegrationsPage extends ConsumerWidget {
   }
 
 
+
+  Widget _buildHealthConnectSection(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(healthConnectIntegrationProvider);
+    final notifier = ref.read(healthConnectIntegrationProvider.notifier);
+    final syncService = ref.read(healthConnectWorkoutSyncServiceProvider);
+
+    final isSupported = state.isSupported;
+    final auth = state.authorizationStatus;
+    final isConnected = isSupported && auth == 'authorized';
+    final isSyncing = state.isSyncing;
+
+    String statusText;
+    Color statusColor;
+    if (!isSupported) {
+      statusText = 'Desteklenmiyor';
+      statusColor = AppColors.neutral500;
+    } else if (isConnected) {
+      statusText = 'Bağlı';
+      statusColor = AppColors.success;
+    } else {
+      statusText = 'Bağlı Değil';
+      statusColor = AppColors.neutral500;
+    }
+
+    Color borderColor;
+    if (!isSupported) {
+      borderColor = AppColors.neutral200;
+    } else if (isConnected) {
+      borderColor = AppColors.success.withValues(alpha: 0.3);
+    } else {
+      borderColor = AppColors.warning.withValues(alpha: 0.35);
+    }
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: borderColor),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3DDC84)
+                        .withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.android,
+                    size: 26,
+                    color: const Color(0xFF3DDC84),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Health Connect',
+                            style: AppTypography.titleMedium
+                                .copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            statusText,
+                            style: AppTypography.labelSmall.copyWith(
+                              color: statusColor,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Antrenmanları Android fitness uygulamalarına gönder',
+                        style: AppTypography.bodySmall
+                            .copyWith(color: AppColors.neutral500),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isSupported)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        onPressed: !isConnected || isSyncing
+                            ? null
+                            : () async {
+                                await notifier.setSyncing(true);
+                                try {
+                                  await syncService.syncNext7Days();
+                                  await notifier.setLastSyncNow();
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Health Connect senkronizasyonu tamamlandı',
+                                        ),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Senkronizasyon hatası: $e',
+                                        ),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                } finally {
+                                  await notifier.setSyncing(false);
+                                }
+                              },
+                        icon: isSyncing
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.sync),
+                        tooltip: 'Şimdi Senkronla',
+                      ),
+                      IconButton(
+                        onPressed: () async {
+                          if (isConnected) {
+                            await _showHealthConnectDisconnectInfoDialog(
+                                context);
+                          } else {
+                            await notifier.connectAndAuthorize();
+                            await notifier.refreshPlatformState();
+                          }
+                        },
+                        icon: Icon(
+                          isConnected ? Icons.link_off : Icons.link,
+                          color: isConnected ? AppColors.error : null,
+                        ),
+                        tooltip: isConnected
+                            ? 'Bağlantıyı Kaldır (Ayarlar üzerinden)'
+                            : 'Bağla / Yetki Ver',
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!isSupported) ...[
+              Text(
+                'Bu özellik Health Connect uygulamasını gerektirir. '
+                'Health Connect\'i yükleyip güncelleyin.',
+                style: AppTypography.bodySmall
+                    .copyWith(color: AppColors.neutral600),
+              ),
+            ] else ...[
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                'Bu bağlantı Google Health Connect API\'sini kullanır ve '
+                'oluşturduğunuz antrenman programlarını Android fitness '
+                'uygulamalarına (Samsung Health, Pixel Fit vb.) planlı '
+                'antrenman olarak aktarır.',
+                style: AppTypography.bodySmall
+                    .copyWith(color: AppColors.neutral600),
+              ),
+              const SizedBox(height: 8),
+              _buildInfoRow(
+                'Son Senkronizasyon',
+                _formatHealthConnectLastSync(state.lastSyncAt),
+                Icons.schedule,
+              ),
+              if (state.error != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: AppColors.error, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          state.error!,
+                          style: AppTypography.bodySmall
+                              .copyWith(color: AppColors.error),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: notifier.clearError,
+                        icon: const Icon(Icons.close, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatHealthConnectLastSync(DateTime? dt) {
+    if (dt == null) return 'Henüz senkronize edilmedi';
+    return '${dt.day}.${dt.month}.${dt.year}';
+  }
+
+  Future<void> _showHealthConnectDisconnectInfoDialog(
+      BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Health Connect Bağlantısı'),
+        content: const Text(
+          'Health Connect izinleri sistem tarafından yönetilir ve '
+          'uygulama içinden doğrudan kaldırılamaz.\n\n'
+          'İzni kaldırmak için Ayarlar > Uygulamalar > Health Connect '
+          'bölümünden TCR için izinleri düzenleyebilirsiniz.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildGarminSection(BuildContext context, WidgetRef ref) {
     final garminState = ref.watch(garminNotifierProvider);

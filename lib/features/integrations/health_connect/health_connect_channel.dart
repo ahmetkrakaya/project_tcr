@@ -1,30 +1,24 @@
-import 'dart:async';
-
 import 'package:flutter/services.dart';
 
 import '../../../core/utils/vdot_calculator.dart';
 import '../../workout/domain/entities/workout_entity.dart'
     show WorkoutDefinitionEntity, WorkoutSegmentEntity, WorkoutStepEntity;
 
-/// iOS WorkoutKit köprüsü için platform kanalı.
-class AppleWatchWorkoutKitChannel {
-  AppleWatchWorkoutKitChannel._();
+/// Android Health Connect MethodChannel köprüsü.
+class HealthConnectChannel {
+  HealthConnectChannel._();
 
-  static const _channel = MethodChannel('tcr/apple_watch_workoutkit');
+  static const _channel = MethodChannel('tcr/health_connect_workout');
 
   static Future<bool> isSupported() async {
-    final v = await _channel.invokeMethod<bool>('isSupported');
-    return v ?? false;
+    try {
+      final v = await _channel.invokeMethod<bool>('isSupported');
+      return v ?? false;
+    } on PlatformException {
+      return false;
+    }
   }
 
-  /// iOS tarafında WorkoutScheduler authorization ister.
-  ///
-  /// Dönen değerler:
-  /// - `authorized`
-  /// - `denied`
-  /// - `notDetermined`
-  /// - `restricted`
-  /// - `notSupported`
   static Future<String> requestAuthorization() async {
     final v = await _channel.invokeMethod<String>('requestAuthorization');
     return v ?? 'unknown';
@@ -35,11 +29,9 @@ class AppleWatchWorkoutKitChannel {
     return v ?? 'unknown';
   }
 
-  /// Planlı antrenmanları Apple Watch Workout uygulamasına schedule eder.
-  ///
-  /// `payloads` iOS tarafında `WorkoutPlan(.custom(...))` olarak oluşturulup schedule edilir.
+  /// Planlı antrenmanları Health Connect'e yazar.
   static Future<void> syncScheduledWorkouts({
-    required List<AppleWatchScheduledWorkoutPayload> payloads,
+    required List<HealthConnectWorkoutPayload> payloads,
   }) async {
     await _channel.invokeMethod<void>(
       'syncScheduledWorkouts',
@@ -50,21 +42,18 @@ class AppleWatchWorkoutKitChannel {
   }
 }
 
-/// iOS tarafına gidecek minimum payload.
-class AppleWatchScheduledWorkoutPayload {
+/// Android'e gönderilecek payload (Apple Watch formatıyla uyumlu).
+class HealthConnectWorkoutPayload {
   final String id;
   final String title;
   final DateTime scheduledAt;
   final WorkoutDefinitionEntity definition;
   final String? trainingTypeName;
-  /// VDOT segmentlerinde pace çözümlemek için (ısınma/ana/soğuma tempo saate gitsin).
   final double? userVdot;
-  /// Eşik temposuna göre minimum sapma (saniye).
   final int? thresholdOffsetMinSeconds;
-  /// Eşik temposuna göre maksimum sapma (saniye).
   final int? thresholdOffsetMaxSeconds;
 
-  const AppleWatchScheduledWorkoutPayload({
+  const HealthConnectWorkoutPayload({
     required this.id,
     required this.title,
     required this.scheduledAt,
@@ -80,7 +69,6 @@ class AppleWatchScheduledWorkoutPayload {
       'id': id,
       'title': title,
       'scheduledAt': scheduledAt.toIso8601String(),
-      'scheduledAtMs': scheduledAt.millisecondsSinceEpoch,
       'trainingTypeName': trainingTypeName,
       'definition': _definitionToJson(definition),
     };
@@ -102,7 +90,6 @@ class AppleWatchScheduledWorkoutPayload {
   }
 
   Map<String, dynamic> _segmentToJson(WorkoutSegmentEntity s) {
-    // Isınma/Ana/Soğuma için pace: önce mevcut değer, yoksa VDOT+offset ile çözümle
     int? resolvedPaceMin;
     int? resolvedPaceMax;
 
@@ -119,7 +106,8 @@ class AppleWatchScheduledWorkoutPayload {
       }
     }
 
-    final fallbackMin = s.paceSecondsPerKmMin ?? s.customPaceSecondsPerKm ?? s.paceSecondsPerKm;
+    final fallbackMin =
+        s.paceSecondsPerKmMin ?? s.customPaceSecondsPerKm ?? s.paceSecondsPerKm;
     final fallbackMax = s.paceSecondsPerKmMax ?? fallbackMin;
     final paceMinToSend = resolvedPaceMin ?? fallbackMin;
     final paceMaxToSend = resolvedPaceMax ?? fallbackMax;
@@ -132,7 +120,7 @@ class AppleWatchScheduledWorkoutPayload {
       'distanceMeters': s.distanceMeters,
       'useVdotForPace': s.useVdotForPace,
       'customPaceSecondsPerKm': s.customPaceSecondsPerKm,
-      'paceSecondsPerKm': paceMinToSend, // Hızlı pace (geriye uyumluluk)
+      'paceSecondsPerKm': paceMinToSend,
       'paceSecondsPerKmMin': paceMinToSend,
       'paceSecondsPerKmMax': paceMaxToSend,
       'heartRateBpmMin': s.heartRateBpmMin,

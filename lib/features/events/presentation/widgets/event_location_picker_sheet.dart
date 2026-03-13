@@ -104,7 +104,7 @@ class _EventLocationPickerSheetState extends State<EventLocationPickerSheet> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
-                'Haritada buluşma noktasına dokunun. İsteğe bağlı olarak mekan adı yazın (örn. kafe adı).',
+                'Haritada dokunarak veya arama yaparak konum seçin. İsteğe bağlı olarak mekan adı yazın.',
                 style: AppTypography.bodySmall.copyWith(
                   color: AppColors.neutral500,
                 ),
@@ -132,6 +132,11 @@ class _EventLocationPickerSheetState extends State<EventLocationPickerSheet> {
                     _lat = lat;
                     _lng = lng;
                   });
+                },
+                onPlaceNameResolved: (placeName) {
+                  if (_nameController.text.trim().isEmpty) {
+                    _nameController.text = placeName;
+                  }
                 },
               ),
             ),
