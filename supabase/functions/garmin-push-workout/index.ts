@@ -392,6 +392,7 @@ function mapTarget(seg: TcrSegment, vdotCtx: VdotContext): any {
   let effectivePace = seg.custom_pace_seconds_per_km ?? seg.pace_seconds_per_km ?? seg.pace_seconds_per_km_min;
   let paceMaxSec = seg.pace_seconds_per_km_max;
 
+  // Segment'te VDOT modu açıksa VDOT'tan hesapla
   if (seg.target === "pace" && seg.use_vdot_for_pace === true && vdotCtx.userVdot && vdotCtx.userVdot > 0) {
     const range = getVdotPaceRange(vdotCtx.userVdot, seg.segment_type, vdotCtx.offsetMin, vdotCtx.offsetMax);
     if (range) {
@@ -400,7 +401,17 @@ function mapTarget(seg: TcrSegment, vdotCtx: VdotContext): any {
     }
   }
 
-  if (seg.target === "pace" && effectivePace && effectivePace > 0) {
+  // Fallback: segment'te VDOT modu açık değilse bile,
+  // training type offset'leri + kullanıcı VDOT'u varsa pace hesapla.
+  if (!effectivePace && vdotCtx.userVdot && vdotCtx.userVdot > 0 && (vdotCtx.offsetMin != null || vdotCtx.offsetMax != null)) {
+    const range = getVdotPaceRange(vdotCtx.userVdot, seg.segment_type, vdotCtx.offsetMin, vdotCtx.offsetMax);
+    if (range) {
+      effectivePace = range.paceMinSec;
+      paceMaxSec = range.paceMaxSec;
+    }
+  }
+
+  if (effectivePace && effectivePace > 0 && (seg.target === "pace" || seg.use_vdot_for_pace === true || (vdotCtx.offsetMin != null && vdotCtx.userVdot))) {
     const speedMsHigh = 1000.0 / effectivePace;
     const speedMsLow = 1000.0 / (paceMaxSec ?? effectivePace);
     return {
@@ -535,7 +546,38 @@ function convertTcrToGarmin(
   };
 }
 
+// ---------- Definition Hash (değişiklik tespiti için) ----------
+
+async function hashDefinition(def: any): Promise<string> {
+  const text = JSON.stringify(def);
+  const data = new TextEncoder().encode(text);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+}
+
 // ---------- Garmin API Calls ----------
+
+async function deleteGarminWorkout(accessToken: string, workoutId: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${GARMIN_WORKOUT_URL}/${workoutId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn(`Delete workout ${workoutId} failed: ${res.status}`, errText);
+      return false;
+    }
+
+    console.log(`Deleted old Garmin workout ${workoutId}`);
+    return true;
+  } catch (e) {
+    console.warn(`Delete workout ${workoutId} error:`, e);
+    return false;
+  }
+}
 
 async function createGarminWorkout(accessToken: string, workoutJson: any): Promise<number | null> {
   const res = await fetch(GARMIN_WORKOUT_URL, {
@@ -581,6 +623,45 @@ async function createGarminSchedule(
 
   const data = await res.json();
   return data.scheduleId ?? null;
+}
+
+// ---------- Expired Workout Cleanup ----------
+
+async function cleanupExpiredWorkouts(
+  supabase: ReturnType<typeof createClient>,
+  accessToken: string,
+  userId: string,
+): Promise<number> {
+  const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+
+  const { data: expiredWorkouts } = await supabase
+    .from("garmin_sent_workouts")
+    .select("id, garmin_workout_id, scheduled_date, workout_name")
+    .eq("user_id", userId)
+    .lt("scheduled_date", cutoffDate);
+
+  let cleaned = 0;
+  for (const expired of (expiredWorkouts ?? [])) {
+    if (expired.garmin_workout_id) {
+      const deleted = await deleteGarminWorkout(accessToken, expired.garmin_workout_id);
+      if (deleted) {
+        console.log(`Cleaned up expired workout "${expired.workout_name}" (${expired.scheduled_date})`);
+      }
+    }
+    await supabase
+      .from("garmin_sent_workouts")
+      .delete()
+      .eq("id", expired.id);
+    cleaned++;
+  }
+
+  if (cleaned > 0) {
+    console.log(`Cleaned ${cleaned} expired workouts for user ${userId}`);
+  }
+
+  return cleaned;
 }
 
 // ---------- Main Handler ----------
@@ -649,7 +730,7 @@ serve(async (req: Request) => {
 async function syncUserWorkouts(
   supabase: ReturnType<typeof createClient>,
   userId: string
-): Promise<{ sent: number; skipped: number }> {
+): Promise<{ sent: number; skipped: number; updated: number; cleaned: number }> {
   // 1. Integration bilgilerini al
   const { data: integration } = await supabase
     .from("user_integrations")
@@ -660,7 +741,7 @@ async function syncUserWorkouts(
     .single();
 
   if (!integration) {
-    return { sent: 0, skipped: 0 };
+    return { sent: 0, skipped: 0, updated: 0, cleaned: 0 };
   }
 
   // 2. Token yenile (gerekirse)
@@ -682,7 +763,8 @@ async function syncUserWorkouts(
 
   const groupIds = (memberships ?? []).map((m: any) => m.group_id);
   if (groupIds.length === 0) {
-    return { sent: 0, skipped: 0 };
+    const cleaned = await cleanupExpiredWorkouts(supabase, accessToken, userId);
+    return { sent: 0, skipped: 0, updated: 0, cleaned };
   }
 
   // 4. Gelecek 7 günün training etkinliklerini al
@@ -701,7 +783,8 @@ async function syncUserWorkouts(
     .order("start_time", { ascending: true });
 
   if (!events || events.length === 0) {
-    return { sent: 0, skipped: 0 };
+    const cleaned = await cleanupExpiredWorkouts(supabase, accessToken, userId);
+    return { sent: 0, skipped: 0, updated: 0, cleaned };
   }
 
   // 5. Event group programs (workout definition'ları)
@@ -714,18 +797,22 @@ async function syncUserWorkouts(
     .not("workout_definition", "is", null);
 
   if (!programs || programs.length === 0) {
-    return { sent: 0, skipped: 0 };
+    const cleaned = await cleanupExpiredWorkouts(supabase, accessToken, userId);
+    return { sent: 0, skipped: 0, updated: 0, cleaned };
   }
 
-  // 6. Zaten gönderilmiş olanları filtrele
+  // 6. Zaten gönderilmiş olanları al (hash karşılaştırması için)
   const { data: sentWorkouts } = await supabase
     .from("garmin_sent_workouts")
-    .select("event_id, program_id")
+    .select("event_id, program_id, garmin_workout_id, definition_hash")
     .eq("user_id", userId)
     .in("event_id", eventIds);
 
-  const sentKeys = new Set(
-    (sentWorkouts ?? []).map((s: any) => `${s.event_id}:${s.program_id}`)
+  const sentMap = new Map<string, { garmin_workout_id: number | null; definition_hash: string | null }>(
+    (sentWorkouts ?? []).map((s: any) => [
+      `${s.event_id}:${s.program_id}`,
+      { garmin_workout_id: s.garmin_workout_id, definition_hash: s.definition_hash },
+    ])
   );
 
   // 7. Training type bilgilerini al (offset dahil)
@@ -751,16 +838,11 @@ async function syncUserWorkouts(
 
   let sent = 0;
   let skipped = 0;
+  let updated = 0;
 
   for (const program of programs) {
     const key = `${program.event_id}:${program.id}`;
-    if (sentKeys.has(key)) {
-      skipped++;
-      continue;
-    }
-
-    const event = eventsById[program.event_id];
-    if (!event) continue;
+    const existing = sentMap.get(key);
 
     const rawDef = program.workout_definition;
     let definition: TcrWorkoutDefinition;
@@ -773,6 +855,24 @@ async function syncUserWorkouts(
       continue;
     }
     if (definition.steps.length === 0) continue;
+
+    const currentHash = await hashDefinition(rawDef);
+
+    if (existing) {
+      if (existing.definition_hash === currentHash) {
+        skipped++;
+        continue;
+      }
+      // Definition değişmiş → eski workout'u Garmin'den sil
+      if (existing.garmin_workout_id) {
+        console.log(`Definition changed for program ${program.id}, deleting old Garmin workout ${existing.garmin_workout_id}`);
+        await deleteGarminWorkout(accessToken, existing.garmin_workout_id);
+      }
+      updated++;
+    }
+
+    const event = eventsById[program.event_id];
+    if (!event) continue;
 
     const ttInfo = program.training_type_id ? trainingTypes[program.training_type_id] : null;
     const eventDate = new Date(event.start_time);
@@ -806,7 +906,6 @@ async function syncUserWorkouts(
     const scheduleDateStr = eventDate.toISOString().split("T")[0];
     const scheduleId = await createGarminSchedule(accessToken, workoutId, scheduleDateStr);
 
-    // Takip tablosuna kaydet
     await supabase.from("garmin_sent_workouts").upsert(
       {
         user_id: userId,
@@ -816,12 +915,16 @@ async function syncUserWorkouts(
         garmin_schedule_id: scheduleId,
         scheduled_date: scheduleDateStr,
         workout_name: workoutName,
+        definition_hash: currentHash,
       },
       { onConflict: "user_id,event_id,program_id" }
     );
 
     sent++;
   }
+
+  // 8. 1 haftadan eski workout'ları Garmin'den temizle
+  const cleaned = await cleanupExpiredWorkouts(supabase, accessToken, userId);
 
   // last_sync_at güncelle
   await supabase
@@ -830,7 +933,7 @@ async function syncUserWorkouts(
     .eq("user_id", userId)
     .eq("provider", "garmin");
 
-  return { sent, skipped };
+  return { sent, skipped, updated, cleaned };
 }
 
 async function handleSinglePush(
@@ -941,6 +1044,19 @@ async function handleSinglePush(
 
   const singleDescription = buildGarminDescription(singleLapInfo);
 
+  // Daha önce gönderilmiş bir workout varsa Garmin'den sil
+  const { data: existingSent } = await supabase
+    .from("garmin_sent_workouts")
+    .select("garmin_workout_id")
+    .eq("user_id", user_id)
+    .eq("event_id", event_id)
+    .eq("program_id", program_id)
+    .single();
+
+  if (existingSent?.garmin_workout_id) {
+    await deleteGarminWorkout(accessToken, existingSent.garmin_workout_id);
+  }
+
   const garminJson = convertTcrToGarmin(singleDef, workoutName, singleDescription, singleVdotCtx);
   const workoutId = await createGarminWorkout(accessToken, garminJson);
 
@@ -954,6 +1070,8 @@ async function handleSinglePush(
   const scheduleDateStr = eventDate.toISOString().split("T")[0];
   const scheduleId = await createGarminSchedule(accessToken, workoutId, scheduleDateStr);
 
+  const singleDefHash = await hashDefinition(program.workout_definition);
+
   await supabase.from("garmin_sent_workouts").upsert(
     {
       user_id,
@@ -963,6 +1081,7 @@ async function handleSinglePush(
       garmin_schedule_id: scheduleId,
       scheduled_date: scheduleDateStr,
       workout_name: workoutName,
+      definition_hash: singleDefHash,
     },
     { onConflict: "user_id,event_id,program_id" }
   );
@@ -972,6 +1091,7 @@ async function handleSinglePush(
       success: true,
       garmin_workout_id: workoutId,
       garmin_schedule_id: scheduleId,
+      replaced_old_workout: existingSent?.garmin_workout_id ?? null,
     }),
     {
       status: 200,

@@ -30,6 +30,10 @@ class UserGroupProgramViewer extends ConsumerWidget {
     final memberProgramsAsync = ref.watch(userEventMemberProgramsProvider(eventId));
     final eventAsync = ref.watch(eventByIdProvider(eventId));
     final userVdot = ref.watch(userVdotProvider);
+    final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
+    final allProgramsAsync = isAdminOrCoach
+        ? ref.watch(eventGroupProgramsProvider(eventId))
+        : null;
 
     return eventAsync.when(
       data: (event) {
@@ -40,6 +44,12 @@ class UserGroupProgramViewer extends ConsumerWidget {
             return memberProgramsAsync.when(
               data: (memberPrograms) {
                 if (programs.isEmpty && memberPrograms.isEmpty) {
+                  if (isAdminOrCoach && allProgramsAsync != null) {
+                    final allPrograms = allProgramsAsync.valueOrNull ?? [];
+                    if (allPrograms.isNotEmpty) {
+                      return _buildAdminOnlyButton(context, ref, allPrograms, event);
+                    }
+                  }
                   return const SizedBox.shrink();
                 }
 
@@ -67,18 +77,22 @@ class UserGroupProgramViewer extends ConsumerWidget {
                   )),
                 ];
 
+                final allGroupPrograms = isAdminOrCoach
+                    ? (allProgramsAsync?.valueOrNull ?? [])
+                    : <EventGroupProgramEntity>[];
+
                 final trackLengthKmNoRoute = event.laneConfig?.trackLengthKm;
                 if (event.routeId == null) {
-                  return _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty);
+                  return _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms);
                 }
                 final routeAsync = ref.watch(routeByIdProvider(event.routeId!));
                 return routeAsync.when(
                   data: (route) {
                     final trackLengthKm = event.laneConfig?.trackLengthKm ?? route.totalDistance;
-                    return _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKm, memberPrograms.isNotEmpty);
+                    return _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKm, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms);
                   },
-                  loading: () => _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty),
-                  error: (_, __) => _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty),
+                  loading: () => _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms),
+                  error: (_, __) => _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms),
                 );
               },
               loading: () => _buildGroupProgramsFallback(context, ref, programs, userVdot, event),
@@ -107,8 +121,9 @@ class UserGroupProgramViewer extends ConsumerWidget {
     double? userVdot,
     EventEntity event,
     double? trackLengthKm,
-    bool hasPersonalProgram,
-  ) {
+    bool hasPersonalProgram, {
+    List<EventGroupProgramEntity> allGroupPrograms = const [],
+  }) {
     if (programs.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -122,10 +137,14 @@ class UserGroupProgramViewer extends ConsumerWidget {
               color: hasPersonalProgram ? AppColors.secondary : AppColors.primary,
             ),
             const SizedBox(width: 8),
-            Text(
-              hasPersonalProgram ? 'Kişisel Programın' : 'Senin Programın',
-              style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
+            Expanded(
+              child: Text(
+                hasPersonalProgram ? 'Kişisel Programın' : 'Senin Programın',
+                style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
+              ),
             ),
+            if (allGroupPrograms.isNotEmpty)
+              _buildAllProgramsButton(context, allGroupPrograms, event),
           ],
         ),
         const SizedBox(height: 12),
@@ -528,6 +547,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
     int? offsetMin,
     int? offsetMax,
     double? trackLengthKm,
+    bool isAdminView = false,
   }) {
     // Segmentleri kategorilere ayır: Isınma en üstte, Soğuma en altta
     final warmupSteps = <WorkoutStepEntity>[];
@@ -562,7 +582,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
         final s = step.segment!;
         final dur = s.durationSeconds != null ? _formatDuration(s.durationSeconds!) : null;
         final dist = s.distanceMeters != null ? '${(s.distanceMeters! / 1000).toStringAsFixed(1)} km' : null;
-        final pace = _segmentPaceDisplay(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
+        final pace = _segmentPaceDisplay(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax, isAdminView: isAdminView);
 
         final parts = <String>[s.segmentType.displayName];
         if (dur != null) parts.add(dur);
@@ -632,7 +652,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
           if (e.isSegment && e.segment != null) {
             final seg = e.segment!;
             final dur = seg.durationSeconds != null ? _formatDuration(seg.durationSeconds!) : null;
-            final paceStr = _segmentPaceDisplay(seg, userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
+            final paceStr = _segmentPaceDisplay(seg, userVdot, offsetMin: offsetMin, offsetMax: offsetMax, isAdminView: isAdminView);
             final parts = <String>[];
             if (dur != null) parts.add(dur);
             if (paceStr != null) parts.add('$paceStr pace');
@@ -733,28 +753,34 @@ class UserGroupProgramViewer extends ConsumerWidget {
   }
 
   /// Bir segment için gösterilecek pace metni (VDOT veya manuel). Isınma/tekrar içi aynı mantık.
+  /// [isAdminView] true ise VDOT bazlı pace yerine "VDOT Pace Değeri" metni döner.
   String? _segmentPaceDisplay(
     dynamic s,
     double? userVdot, {
     int? offsetMin,
     int? offsetMax,
+    bool isAdminView = false,
   }) {
-    // Manuel pace hedefi varsa tek değer göster
     if (s.target == WorkoutTarget.pace) {
-      if (s.useVdotForPace == true && userVdot != null && userVdot > 0) {
-        final paceStr = VdotCalculator.getPaceForSegmentType(
-          userVdot,
-          s.segmentType.name,
-          offsetMin,
-          offsetMax,
-        );
-        if (paceStr != null) return paceStr;
+      if (s.useVdotForPace == true) {
+        if (isAdminView) return 'VDOT Pace Değeri';
+        if (userVdot != null && userVdot > 0) {
+          final paceStr = VdotCalculator.getPaceForSegmentType(
+            userVdot,
+            s.segmentType.name,
+            offsetMin,
+            offsetMax,
+          );
+          if (paceStr != null) return paceStr;
+        }
       } else {
         final effectivePace = s.customPaceSecondsPerKm ?? s.paceSecondsPerKm ?? s.paceSecondsPerKmMin;
         if (effectivePace != null) return VdotCalculator.formatPace(effectivePace);
       }
     }
-    // Target pace olmasa bile VDOT+offset varsa önerilen pace aralığını göster
+    if (isAdminView && (offsetMin != null || offsetMax != null)) {
+      return 'VDOT Pace Değeri';
+    }
     if (userVdot != null && userVdot > 0 && (offsetMin != null || offsetMax != null)) {
       final paceStr = VdotCalculator.getPaceForSegmentType(
         userVdot,
@@ -788,4 +814,283 @@ class UserGroupProgramViewer extends ConsumerWidget {
     }
   }
 
+  // ==================== Admin/Koç: Tüm Grup Programları ====================
+
+  Widget _buildAllProgramsButton(
+    BuildContext context,
+    List<EventGroupProgramEntity> allPrograms,
+    EventEntity event,
+  ) {
+    return Material(
+      color: AppColors.primary.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => _showAllGroupProgramsSheet(context, allPrograms, event),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.groups, size: 18, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Tüm Programlar',
+                style: AppTypography.labelSmall.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminOnlyButton(
+    BuildContext context,
+    WidgetRef ref,
+    List<EventGroupProgramEntity> allPrograms,
+    EventEntity event,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.fitness_center, size: 20, color: AppColors.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Antrenman Programları',
+                style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            _buildAllProgramsButton(context, allPrograms, event),
+          ],
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  void _showAllGroupProgramsSheet(
+    BuildContext context,
+    List<EventGroupProgramEntity> allPrograms,
+    EventEntity event,
+  ) {
+    final grouped = <String, List<EventGroupProgramEntity>>{};
+    for (final p in allPrograms) {
+      final key = p.groupName ?? 'Grup';
+      grouped.putIfAbsent(key, () => []).add(p);
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        builder: (_, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.groups, color: AppColors.primary, size: 24),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Tüm Grup Programları',
+                      style: AppTypography.titleLarge.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    for (final entry in grouped.entries) ...[
+                      _buildAdminGroupSection(entry.key, entry.value, event),
+                      const SizedBox(height: 20),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminGroupSection(
+    String groupName,
+    List<EventGroupProgramEntity> programs,
+    EventEntity event,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final program in programs)
+          _buildAdminProgramCard(program, event),
+      ],
+    );
+  }
+
+  Widget _buildAdminProgramCard(EventGroupProgramEntity program, EventEntity event) {
+    final trainingColor = _parseColor(program.trainingTypeColor ?? '#6366F1');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: trainingColor.withValues(alpha: 0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            decoration: BoxDecoration(color: AppColors.neutral200),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: trainingColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    program.groupName ?? 'Grup',
+                    style: AppTypography.labelMedium.copyWith(
+                      color: trainingColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (program.workoutDefinition != null && !program.workoutDefinition!.isEmpty) ...[
+                  Text(
+                    'Program',
+                    style: AppTypography.labelSmall.copyWith(
+                      color: AppColors.neutral500,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  ..._buildStructuredWorkoutSummary(
+                    program.workoutDefinition!,
+                    null,
+                    offsetMin: program.thresholdOffsetMinSeconds,
+                    offsetMax: program.thresholdOffsetMaxSeconds,
+                    isAdminView: true,
+                  ),
+                ] else
+                  Text(
+                    program.programContent,
+                    style: AppTypography.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
+                  ),
+                if (program.trainingTypeName != null) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: trainingColor.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: trainingColor.withValues(alpha: 0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.fitness_center, size: 18, color: trainingColor),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                program.trainingTypeName!,
+                                style: AppTypography.titleSmall.copyWith(
+                                  color: trainingColor,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (program.trainingTypeDescription != null &&
+                            program.trainingTypeDescription!.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            program.trainingTypeDescription!,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.neutral600,
+                              height: 1.45,
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

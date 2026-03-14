@@ -64,14 +64,23 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(isAdminProvider);
 
+    int joinRequestCount = 0;
+    int pendingUserCount = 0;
+    if (isAdmin) {
+      joinRequestCount =
+          ref.watch(allPendingJoinRequestsProvider).valueOrNull?.length ?? 0;
+      pendingUserCount =
+          ref.watch(pendingUsersProvider).valueOrNull?.length ?? 0;
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gruplar ve Üyeler'),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'Gruplar'),
-            Tab(text: 'Üyeler'),
+          tabs: [
+            _BadgeTab(label: 'Gruplar', count: joinRequestCount),
+            _BadgeTab(label: 'Üyeler', count: pendingUserCount),
           ],
         ),
         actions: [
@@ -276,21 +285,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                   );
                 }
 
-                if (filteredUsers.isNotEmpty) {
-                  items.add(_UserListItem.header(
-                    icon: Icons.people,
-                    title: 'Aktif Üyeler',
-                    count: filteredUsers.length,
-                    totalCount: searchQuery.isNotEmpty ? users.length : null,
-                    iconColor: AppColors.success,
-                  ));
-                  items.addAll(filteredUsers.map((u) => _UserListItem.user(u, false)));
-                }
-
                 if (filteredPendingUsers.isNotEmpty) {
-                  if (filteredUsers.isNotEmpty) {
-                    items.add(_UserListItem.spacer());
-                  }
                   final pendingData = pendingUsersAsync?.value ?? [];
                   items.add(_UserListItem.header(
                     icon: Icons.pending_actions,
@@ -300,6 +295,20 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                     iconColor: AppColors.warning,
                   ));
                   items.addAll(filteredPendingUsers.map((u) => _UserListItem.user(u, true)));
+                }
+
+                if (filteredUsers.isNotEmpty) {
+                  if (filteredPendingUsers.isNotEmpty) {
+                    items.add(_UserListItem.spacer());
+                  }
+                  items.add(_UserListItem.header(
+                    icon: Icons.people,
+                    title: 'Aktif Üyeler',
+                    count: filteredUsers.length,
+                    totalCount: searchQuery.isNotEmpty ? users.length : null,
+                    iconColor: AppColors.success,
+                  ));
+                  items.addAll(filteredUsers.map((u) => _UserListItem.user(u, false)));
                 }
 
                 return ListView.builder(
@@ -1457,6 +1466,34 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BadgeTab extends StatelessWidget {
+  final String label;
+  final int count;
+
+  const _BadgeTab({required this.label, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tab(
+      child: count > 0
+          ? Badge(
+              label: Text(
+                count.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              backgroundColor: AppColors.warning,
+              offset: const Offset(16, -4),
+              child: Text(label),
+            )
+          : Text(label),
     );
   }
 }

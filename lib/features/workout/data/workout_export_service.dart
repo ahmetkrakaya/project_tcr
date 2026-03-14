@@ -43,9 +43,11 @@ class WorkoutExportService {
     int? offsetMin,
     int? offsetMax,
   }) {
-    if (s.target != WorkoutTarget.pace) return null;
-
-    if (s.useVdotForPace == true && userVdot != null && userVdot > 0) {
+    // Segment VDOT modu açıksa ve target pace ise VDOT'tan hesapla
+    if (s.target == WorkoutTarget.pace &&
+        s.useVdotForPace == true &&
+        userVdot != null &&
+        userVdot > 0) {
       final paceRange = VdotCalculator.getPaceRangeForSegmentType(
         userVdot,
         s.segmentType.name,
@@ -53,14 +55,30 @@ class WorkoutExportService {
         offsetMax,
       );
       if (paceRange != null) return (paceRange.$1, paceRange.$2);
-      return null;
     }
 
-    // Manuel: aralık varsa aralığı, yoksa tek değeri kullan
-    final paceMin = s.paceSecondsPerKmMin ?? s.customPaceSecondsPerKm ?? s.paceSecondsPerKm;
-    final paceMax = s.paceSecondsPerKmMax ?? paceMin;
-    if (paceMin == null) return null;
-    return (paceMin, paceMax!);
+    // Manuel pace (target == pace ise)
+    if (s.target == WorkoutTarget.pace) {
+      final paceMin = s.paceSecondsPerKmMin ?? s.customPaceSecondsPerKm ?? s.paceSecondsPerKm;
+      final paceMax = s.paceSecondsPerKmMax ?? paceMin;
+      if (paceMin != null) return (paceMin, paceMax!);
+    }
+
+    // Fallback: segment'te pace hedefi olmasa bile,
+    // training type offset'leri + kullanıcı VDOT'u varsa pace hesapla.
+    if (userVdot != null &&
+        userVdot > 0 &&
+        (offsetMin != null || offsetMax != null)) {
+      final paceRange = VdotCalculator.getPaceRangeForSegmentType(
+        userVdot,
+        s.segmentType.name,
+        offsetMin,
+        offsetMax,
+      );
+      if (paceRange != null) return (paceRange.$1, paceRange.$2);
+    }
+
+    return null;
   }
 
   /// FIT dosyası oluşturur (Garmin vb.)
@@ -107,7 +125,7 @@ class WorkoutExportService {
       }
 
       final paceRange = _getEffectivePaceRange(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
-      if (s.target == WorkoutTarget.pace && paceRange != null && paceRange.$1 > 0) {
+      if (paceRange != null && paceRange.$1 > 0) {
         stepMsg.targetType = WorkoutStepTarget.speed;
         stepMsg.customTargetSpeedLow = 1000.0 / paceRange.$2;
         stepMsg.customTargetSpeedHigh = 1000.0 / paceRange.$1;
@@ -171,7 +189,7 @@ class WorkoutExportService {
       }
 
       final paceRange = _getEffectivePaceRange(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
-      if (s.target == WorkoutTarget.pace && paceRange != null && paceRange.$1 > 0) {
+      if (paceRange != null && paceRange.$1 > 0) {
         final speedLow = 1000.0 / paceRange.$2;
         final speedHigh = 1000.0 / paceRange.$1;
         buffer.writeln('        <Target>');

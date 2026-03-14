@@ -106,6 +106,24 @@ class HealthConnectWorkoutPayload {
       }
     }
 
+    // Fallback: segment'te useVdotForPace açık değilse bile,
+    // training type offset'leri + kullanıcı VDOT'u varsa pace hesapla.
+    if (resolvedPaceMin == null &&
+        userVdot != null &&
+        userVdot! > 0 &&
+        (thresholdOffsetMinSeconds != null || thresholdOffsetMaxSeconds != null)) {
+      final paceRange = VdotCalculator.getPaceRangeForSegmentType(
+        userVdot!,
+        s.segmentType.name,
+        thresholdOffsetMinSeconds,
+        thresholdOffsetMaxSeconds,
+      );
+      if (paceRange != null) {
+        resolvedPaceMin = paceRange.$1;
+        resolvedPaceMax = paceRange.$2;
+      }
+    }
+
     final fallbackMin =
         s.paceSecondsPerKmMin ?? s.customPaceSecondsPerKm ?? s.paceSecondsPerKm;
     final fallbackMax = s.paceSecondsPerKmMax ?? fallbackMin;

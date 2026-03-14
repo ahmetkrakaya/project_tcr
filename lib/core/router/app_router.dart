@@ -52,6 +52,7 @@ import '../../features/tools/presentation/pages/pace_calculator_page.dart';
 import '../../features/integrations/presentation/pages/integrations_page.dart';
 import '../../features/integrations/presentation/pages/strava_activity_list_page.dart';
 import '../../features/auth/presentation/providers/auth_notifier.dart';
+import '../../features/members_groups/presentation/providers/group_provider.dart';
 import '../../features/notifications/presentation/providers/notification_provider.dart';
 import '../../features/posts/presentation/pages/create_post_page.dart';
 import '../../features/posts/presentation/pages/post_detail_page.dart';
@@ -607,7 +608,16 @@ class _MainBottomNavigationState extends ConsumerState<MainBottomNavigation>
     final currentLocation = GoRouterState.of(context).matchedLocation;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
+    final isAdmin = ref.watch(isAdminProvider);
+    int groupsBadgeCount = 0;
+    if (isAdmin) {
+      final pendingUsers = ref.watch(pendingUsersProvider).valueOrNull;
+      final joinRequests = ref.watch(allPendingJoinRequestsProvider).valueOrNull;
+      groupsBadgeCount =
+          (pendingUsers?.length ?? 0) + (joinRequests?.length ?? 0);
+    }
+
     int currentIndex = 0;
     if (currentLocation.startsWith('/events')) {
       currentIndex = 1;
@@ -735,11 +745,13 @@ class _MainBottomNavigationState extends ConsumerState<MainBottomNavigation>
                                   transitionBuilder: (child, animation) {
                                     return ScaleTransition(scale: animation, child: child);
                                   },
-                                  child: Icon(
-                                    isSelected ? item.selectedIcon : item.icon,
-                                    key: ValueKey(isSelected ? 'selected_$index' : 'unselected_$index'),
-                                    color: isSelected ? selectedColor : unselectedColor,
-                                    size: 24,
+                                  child: _buildNavIcon(
+                                    index: index,
+                                    isSelected: isSelected,
+                                    item: item,
+                                    selectedColor: selectedColor,
+                                    unselectedColor: unselectedColor,
+                                    badgeCount: index == 3 ? groupsBadgeCount : 0,
                                   ),
                                 ),
                                 const SizedBox(height: 3),
@@ -768,6 +780,37 @@ class _MainBottomNavigationState extends ConsumerState<MainBottomNavigation>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildNavIcon({
+    required int index,
+    required bool isSelected,
+    required ({IconData icon, String label, IconData selectedIcon}) item,
+    required Color selectedColor,
+    required Color unselectedColor,
+    required int badgeCount,
+  }) {
+    final icon = Icon(
+      isSelected ? item.selectedIcon : item.icon,
+      key: ValueKey(isSelected ? 'selected_$index' : 'unselected_$index'),
+      color: isSelected ? selectedColor : unselectedColor,
+      size: 24,
+    );
+
+    if (badgeCount <= 0) return icon;
+
+    return Badge(
+      label: Text(
+        badgeCount.toString(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      backgroundColor: AppColors.warning,
+      child: icon,
     );
   }
 }

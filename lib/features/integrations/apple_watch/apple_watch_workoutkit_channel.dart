@@ -102,11 +102,28 @@ class AppleWatchScheduledWorkoutPayload {
   }
 
   Map<String, dynamic> _segmentToJson(WorkoutSegmentEntity s) {
-    // Isınma/Ana/Soğuma için pace: önce mevcut değer, yoksa VDOT+offset ile çözümle
     int? resolvedPaceMin;
     int? resolvedPaceMax;
 
     if (s.useVdotForPace == true && userVdot != null && userVdot! > 0) {
+      final paceRange = VdotCalculator.getPaceRangeForSegmentType(
+        userVdot!,
+        s.segmentType.name,
+        thresholdOffsetMinSeconds,
+        thresholdOffsetMaxSeconds,
+      );
+      if (paceRange != null) {
+        resolvedPaceMin = paceRange.$1;
+        resolvedPaceMax = paceRange.$2;
+      }
+    }
+
+    // Fallback: segment'te useVdotForPace açık değilse bile,
+    // training type offset'leri + kullanıcı VDOT'u varsa pace hesapla.
+    if (resolvedPaceMin == null &&
+        userVdot != null &&
+        userVdot! > 0 &&
+        (thresholdOffsetMinSeconds != null || thresholdOffsetMaxSeconds != null)) {
       final paceRange = VdotCalculator.getPaceRangeForSegmentType(
         userVdot!,
         s.segmentType.name,
