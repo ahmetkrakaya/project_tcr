@@ -74,6 +74,21 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
 
   String? get _currentUserId => _supabase.auth.currentUser?.id;
 
+  Future<bool> _isCurrentUserAdmin() async {
+    final userId = _currentUserId;
+    if (userId == null) return false;
+    try {
+      final response = await _supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .eq('role', 'super_admin');
+      return (response as List<dynamic>).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Future<List<ChatRoomModel>> getUserChatRooms() async {
     try {
@@ -288,7 +303,11 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       // Kullanıcının odaya üye olduğunu kontrol et
       final isMember = await isUserMember(roomId);
       if (!isMember) {
-        throw ServerException(message: 'Bu odaya mesaj gönderme yetkiniz yok.');
+        // Adminler (super_admin) üye olmasa da mesaj gönderebilsin
+        final isAdmin = await _isCurrentUserAdmin();
+        if (!isAdmin) {
+          throw ServerException(message: 'Bu odaya mesaj gönderme yetkiniz yok.');
+        }
       }
 
       final response = await _supabase

@@ -38,6 +38,8 @@ class EventModel {
   final DateTime? recurrenceEndDate;
   final bool isRecurrenceException;
   final String visibility;
+  /// Bu etkinlikte mevcut kullanıcı katılımcı gibi aksiyon alabilir mi? (RSVP, carpool vb.)
+  final bool canUserParticipate;
 
   const EventModel({
     required this.id,
@@ -76,17 +78,21 @@ class EventModel {
     this.recurrenceEndDate,
     this.isRecurrenceException = false,
     this.visibility = 'public',
+    this.canUserParticipate = true,
   });
 
   factory EventModel.fromJson(Map<String, dynamic> json, {bool? isParticipating}) {
     // Training type bilgilerini nested object'ten al
     final trainingTypeData = json['training_types'] as Map<String, dynamic>?;
     
+    final eventTypeValue = json['event_type'] as String? ?? 'training';
+    final visibilityValue = json['visibility'] as String? ?? 'public';
+
     return EventModel(
       id: json['id'] as String,
       title: json['title'] as String,
       description: json['description'] as String?,
-      eventType: json['event_type'] as String? ?? 'training',
+      eventType: eventTypeValue,
       status: json['status'] as String? ?? 'draft',
       startTime: DateTime.parse(json['start_time'] as String),
       endTime: json['end_time'] != null ? DateTime.parse(json['end_time'] as String) : null,
@@ -124,7 +130,8 @@ class EventModel {
           ? DateTime.parse(json['recurrence_end_date'] as String)
           : null,
       isRecurrenceException: json['is_recurrence_exception'] as bool? ?? false,
-      visibility: json['visibility'] as String? ?? 'public',
+      visibility: visibilityValue,
+      canUserParticipate: json['can_user_participate'] as bool? ?? true,
     );
   }
 
@@ -198,7 +205,7 @@ class EventModel {
       parentEventId: parentEventId,
       recurrenceEndDate: recurrenceEndDate,
       isRecurrenceException: isRecurrenceException,
-      // EventEntity şu an visibility alanı içermiyor; gerekirse buraya eklenebilir.
+      canUserParticipate: canUserParticipate,
     );
   }
 }

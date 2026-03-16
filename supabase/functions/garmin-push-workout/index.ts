@@ -801,6 +801,18 @@ async function syncUserWorkouts(
     return { sent: 0, skipped: 0, updated: 0, cleaned };
   }
 
+  // 5b. Kullanıcının gerçekten katıldığı (RSVP status = going) etkinlikleri filtrele
+  const { data: participations } = await supabase
+    .from("event_participants")
+    .select("event_id")
+    .in("event_id", eventIds)
+    .eq("user_id", userId)
+    .eq("status", "going");
+
+  const participatingEventIds = new Set<string>(
+    (participations ?? []).map((p: any) => p.event_id as string),
+  );
+
   // 6. Zaten gönderilmiş olanları al (hash karşılaştırması için)
   const { data: sentWorkouts } = await supabase
     .from("garmin_sent_workouts")
@@ -843,6 +855,12 @@ async function syncUserWorkouts(
   for (const program of programs) {
     const key = `${program.event_id}:${program.id}`;
     const existing = sentMap.get(key);
+
+    // Kullanıcı bu etkinliğe katılmıyorsa (RSVP yok veya going değilse) programı atla
+    if (!participatingEventIds.has(program.event_id)) {
+      skipped++;
+      continue;
+    }
 
     const rawDef = program.workout_definition;
     let definition: TcrWorkoutDefinition;

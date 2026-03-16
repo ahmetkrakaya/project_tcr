@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/models/chat_model.dart';
+import '../../../auth/presentation/providers/auth_notifier.dart';
 
 /// Supabase client provider
 final _supabaseProvider = Provider<SupabaseClient>((ref) {
@@ -429,6 +430,10 @@ final canWriteInEventChatProvider = FutureProvider.family<bool, String>((ref, ev
     return false;
   }
 
-  // Kullanıcı üye mi kontrol et
+  // Adminler (super_admin) üye olmasa da yazabilsin
+  final isAdmin = ref.watch(isAdminProvider);
+  if (isAdmin) return true;
+
+  // Diğer kullanıcılar için: üye olma zorunluluğu devam eder
   return dataSource.isUserMember(room.id);
 });

@@ -282,7 +282,7 @@ async function saveActivityToDatabase(supabase: any, userId: string, activity: a
     best_pace_seconds: bestPaceSeconds,
     average_heart_rate: activity.average_heartrate ? Math.round(activity.average_heartrate) : null,
     max_heart_rate: activity.max_heartrate ? Math.round(activity.max_heartrate) : null,
-    average_cadence,
+    average_cadence: averageCadence,
     route_polyline: activity.map?.polyline || null,
     calories_burned: activity.calories ? Math.round(activity.calories) : null,
     is_public: true,
@@ -354,7 +354,8 @@ function mapStravaTypeToActivityType(stravaType: string): string {
     'Walk': 'walking',
     'Hike': 'hiking',
     'Swim': 'swimming',
-    'Workout': 'workout',
+    // DB enum'da "workout" yoksa hata vermesin diye "other" olarak işaretliyoruz.
+    'Workout': 'other',
     'VirtualRide': 'cycling',
     'VirtualRun': 'running',
   };

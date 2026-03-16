@@ -145,6 +145,35 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
 
   String? get _currentUserId => _supabase.auth.currentUser?.id;
 
+  bool _isAdminReadonlyForEvent({
+    required Map<String, dynamic> eventJson,
+    required bool isAdmin,
+    required List<String> userGroupIds,
+    required Map<String, List<String>> eventGroupsMap,
+  }) {
+    if (!isAdmin) return false;
+
+    final eventType = eventJson['event_type'] as String?;
+    if (eventType != 'training' && eventType != 'race') return false;
+
+    // Restricted etkinliklerde admin'e ek hak yok; readonly hesabı da uygulanmaz.
+    final visibility = eventJson['visibility'] as String?;
+    if (visibility == 'restricted') return false;
+
+    // Normal katılımcı gibi görebilme koşulu:
+    // - training: grubuyla eşleşiyorsa veya event'in grup programı yoksa
+    // - race: mevcut sistemde zaten herkes görebildiği için readonly'a düşürmeyiz
+    if (eventType == 'race') return false;
+
+    final eventId = eventJson['id'] as String;
+    final eventGroupIds = eventGroupsMap[eventId] ?? const <String>[];
+    if (eventGroupIds.isEmpty) return false;
+
+    final isInEventGroups =
+        userGroupIds.any((groupId) => eventGroupIds.contains(groupId));
+    return !isInEventGroups;
+  }
+
   @override
   Future<List<EventModel>> getUpcomingEvents({int limit = 20, int offset = 0}) async {
     try {
@@ -165,9 +194,16 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       // Grup + görünürlük bazlı filtreleme (antrenman + restricted etkinlikler için)
       // Önce kullanıcının gruplarını, görünür event'lerini ve tüm event'lerin grup programlarını toplu al
       final eventIds = data.map((e) => e['id'] as String).toList();
-      final userGroupIds = await _getUserGroupIds();
-      final eventGroupsMap = await _getAllEventGroupIds(eventIds);
-      final visibleEventIds = await _getVisibleEventIdsForUser(eventIds);
+      final results = await Future.wait([
+        _getUserGroupIds(),
+        _getAllEventGroupIds(eventIds),
+        _getVisibleEventIdsForUser(eventIds),
+        _isCurrentUserAdmin(),
+      ]);
+      final userGroupIds = results[0] as List<String>;
+      final eventGroupsMap = results[1] as Map<String, List<String>>;
+      final visibleEventIds = results[2] as Set<String>;
+      final isAdmin = results[3] as bool;
       
       // Memory'de filtreleme yap
       final filteredEventsData = <dynamic>[];
@@ -177,6 +213,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           userGroupIds,
           eventGroupsMap,
           visibleEventIds,
+          isAdmin: isAdmin,
         );
         if (canSee) {
           filteredEventsData.add(json);
@@ -195,9 +232,20 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
         final eventId = json['id'] as String;
         final participantCount = participantCounts[eventId] ?? 0;
         final isParticipating = userParticipatingStatuses[eventId] ?? false;
+
+        final adminReadonly = _isAdminReadonlyForEvent(
+          eventJson: json,
+          isAdmin: isAdmin,
+          userGroupIds: userGroupIds,
+          eventGroupsMap: eventGroupsMap,
+        );
         
         return EventModel.fromJson(
-          {...json as Map<String, dynamic>, 'participant_count': participantCount},
+          {
+            ...json,
+            'participant_count': participantCount,
+            'can_user_participate': !adminReadonly,
+          },
           isParticipating: isParticipating,
         );
       }).toList();
@@ -257,9 +305,16 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       
       // Grup + görünürlük bazlı filtreleme
       final eventIds = allEventsData.map((e) => e['id'] as String).toList();
-      final userGroupIds = await _getUserGroupIds();
-      final eventGroupsMap = await _getAllEventGroupIds(eventIds);
-      final visibleEventIds = await _getVisibleEventIdsForUser(eventIds);
+      final filterResults = await Future.wait([
+        _getUserGroupIds(),
+        _getAllEventGroupIds(eventIds),
+        _getVisibleEventIdsForUser(eventIds),
+        _isCurrentUserAdmin(),
+      ]);
+      final userGroupIds = filterResults[0] as List<String>;
+      final eventGroupsMap = filterResults[1] as Map<String, List<String>>;
+      final visibleEventIds = filterResults[2] as Set<String>;
+      final isAdmin = filterResults[3] as bool;
       
       // Memory'de filtreleme yap
       final filteredEventsData = <dynamic>[];
@@ -269,6 +324,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           userGroupIds,
           eventGroupsMap,
           visibleEventIds,
+          isAdmin: isAdmin,
         );
         if (canSee) {
           filteredEventsData.add(json);
@@ -287,9 +343,20 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
         final eventId = json['id'] as String;
         final participantCount = participantCounts[eventId] ?? 0;
         final isParticipating = userParticipatingStatuses[eventId] ?? false;
+
+        final adminReadonly = _isAdminReadonlyForEvent(
+          eventJson: json,
+          isAdmin: isAdmin,
+          userGroupIds: userGroupIds,
+          eventGroupsMap: eventGroupsMap,
+        );
         
         return EventModel.fromJson(
-          {...json as Map<String, dynamic>, 'participant_count': participantCount},
+          {
+            ...json,
+            'participant_count': participantCount,
+            'can_user_participate': !adminReadonly,
+          },
           isParticipating: isParticipating,
         );
       }).toList();
@@ -332,9 +399,16 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       
       // Grup + görünürlük bazlı filtreleme
       final eventIds = data.map((e) => e['id'] as String).toList();
-      final userGroupIds = await _getUserGroupIds();
-      final eventGroupsMap = await _getAllEventGroupIds(eventIds);
-      final visibleEventIds = await _getVisibleEventIdsForUser(eventIds);
+      final filterResults = await Future.wait([
+        _getUserGroupIds(),
+        _getAllEventGroupIds(eventIds),
+        _getVisibleEventIdsForUser(eventIds),
+        _isCurrentUserAdmin(),
+      ]);
+      final userGroupIds = filterResults[0] as List<String>;
+      final eventGroupsMap = filterResults[1] as Map<String, List<String>>;
+      final visibleEventIds = filterResults[2] as Set<String>;
+      final isAdmin = filterResults[3] as bool;
       
       // Memory'de filtreleme yap
       final filteredEventsData = <dynamic>[];
@@ -344,6 +418,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           userGroupIds,
           eventGroupsMap,
           visibleEventIds,
+          isAdmin: isAdmin,
         );
         if (canSee) {
           filteredEventsData.add(json);
@@ -362,9 +437,20 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
         final eventId = json['id'] as String;
         final participantCount = participantCounts[eventId] ?? 0;
         final isParticipating = userParticipatingStatuses[eventId] ?? false;
+
+        final adminReadonly = _isAdminReadonlyForEvent(
+          eventJson: json,
+          isAdmin: isAdmin,
+          userGroupIds: userGroupIds,
+          eventGroupsMap: eventGroupsMap,
+        );
         
         return EventModel.fromJson(
-          {...json as Map<String, dynamic>, 'participant_count': participantCount},
+          {
+            ...json,
+            'participant_count': participantCount,
+            'can_user_participate': !adminReadonly,
+          },
           isParticipating: isParticipating,
         );
       }).toList();
@@ -386,6 +472,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
 
       // Görünürlük kontrolü (admin/coach ve oluşturucu her zaman görebilir)
       final isCreator = response['created_by'] == _currentUserId;
+      final isAdminOnly = await _isCurrentUserAdmin();
       if (!isCreator) {
         final isAdmin = await _isCurrentUserAdminOrCoach();
         if (!isAdmin) {
@@ -397,6 +484,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
             userGroupIds,
             eventGroupsMap,
             visibleEventIds,
+            isAdmin: isAdminOnly,
           );
           if (!canSee) {
             throw ServerException(message: 'Bu etkinliğe erişim yetkiniz yok');
@@ -407,8 +495,22 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       final participantCount = await _getParticipantCount(id);
       final isParticipating = await _isUserParticipating(id);
 
+      // canUserParticipate: admin kendi grubu dahil değilken training için readonly
+      final userGroupIds = await _getUserGroupIds();
+      final eventGroupsMap = await _getAllEventGroupIds([id]);
+      final adminReadonly = _isAdminReadonlyForEvent(
+        eventJson: response,
+        isAdmin: isAdminOnly,
+        userGroupIds: userGroupIds,
+        eventGroupsMap: eventGroupsMap,
+      );
+
       return EventModel.fromJson(
-        {...response, 'participant_count': participantCount},
+        {
+          ...response,
+          'participant_count': participantCount,
+          'can_user_participate': !adminReadonly,
+        },
         isParticipating: isParticipating,
       );
     } on PostgrestException catch (e) {
@@ -778,6 +880,21 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
     }
   }
 
+  Future<bool> _isCurrentUserAdmin() async {
+    final userId = _currentUserId;
+    if (userId == null) return false;
+    try {
+      final response = await _supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .eq('role', 'super_admin');
+      return (response as List<dynamic>).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Kullanıcının gruplarını getir (cache'lenmiş)
   List<String>? _cachedUserGroupIds;
   String? _cachedUserId;
@@ -859,22 +976,29 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
     }
   }
 
-  /// Antrenman türündeki bir event'i kullanıcı görebilir mi? (Memory'de filtreleme)
+  /// Bir event'i kullanıcı görebilir mi? (Memory'de filtreleme)
   bool _canUserSeeEvent(
     Map<String, dynamic> eventJson,
     List<String> userGroupIds,
     Map<String, List<String>> eventGroupsMap,
-    Set<String> visibleEventIdsForUser,
-  ) {
+    Set<String> visibleEventIdsForUser, {
+    bool isAdmin = false,
+  }) {
     final eventType = eventJson['event_type'] as String?;
     final eventId = eventJson['id'] as String;
 
     // Özel (restricted) etkinlikler: sadece event_visible_users içinde olanlar
+    // Admin olsa dahi, restricted listesinde değilse göremez
     final visibility = eventJson['visibility'] as String?;
     if (visibility == 'restricted') {
       return visibleEventIdsForUser.contains(eventId) ||
           (eventJson['created_by'] != null &&
               eventJson['created_by'] == _currentUserId);
+    }
+
+    // Admin ise antrenman ve yarış etkinliklerini grubunda olmasa da görebilir
+    if (isAdmin && (eventType == 'training' || eventType == 'race')) {
+      return true;
     }
     
     // Antrenman türü değilse herkes görebilir
@@ -891,7 +1015,6 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
     }
 
     // Event'in grup programı varsa, kullanıcının gruplarını kontrol et
-    // Kullanıcının gruplarından biri event'in gruplarında mı?
     return userGroupIds.any((groupId) => eventGroupIds.contains(groupId));
   }
 

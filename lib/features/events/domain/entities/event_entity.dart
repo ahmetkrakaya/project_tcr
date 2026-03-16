@@ -134,6 +134,8 @@ class EventEntity {
   final DateTime? recurrenceEndDate;
   /// Sadece bu tekrar düzenlendi; sonraki oluşturulurken şablon kullanılmaz
   final bool isRecurrenceException;
+  /// Kullanıcı bu etkinlikte katılımcı aksiyonları alabilir mi? (RSVP, carpool vb.)
+  final bool canUserParticipate;
 
   const EventEntity({
     required this.id,
@@ -171,6 +173,7 @@ class EventEntity {
     this.parentEventId,
     this.recurrenceEndDate,
     this.isRecurrenceException = false,
+    this.canUserParticipate = true,
   });
 
   /// Tekrarlayan seriye ait mi (kökte veya child)

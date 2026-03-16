@@ -156,6 +156,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.onboarding,
         builder: (context, state) => const OnboardingPage(),
       ),
+
+      // Activity Detail (Root-level, works from anywhere)
+      // Keep bottom navigation by wrapping with MainShell
+      GoRoute(
+        path: '/activity/:activityId',
+        name: RouteNames.activityDetail,
+        builder: (context, state) {
+          final activityId = state.pathParameters['activityId']!;
+          return MainShell(child: ActivityDetailPage(activityId: activityId));
+        },
+      ),
       
       // Main Shell Route with Bottom Navigation
       ShellRoute(
@@ -169,10 +180,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'activity/:activityId',
-                name: RouteNames.activityDetail,
-                builder: (context, state) {
-                  final activityId = state.pathParameters['activityId']!;
-                  return ActivityDetailPage(activityId: activityId);
+                redirect: (context, state) {
+                  final activityId = state.pathParameters['activityId'];
+                  return activityId == null ? '/home' : '/activity/$activityId';
                 },
               ),
               GoRoute(
@@ -627,6 +637,9 @@ class _MainBottomNavigationState extends ConsumerState<MainBottomNavigation>
       currentIndex = 3;
     } else if (currentLocation.startsWith('/donations')) {
       currentIndex = 4;
+    } else if (currentLocation.startsWith('/activity')) {
+      // Activity detail lives outside the shell but should visually map to Home tab
+      currentIndex = 0;
     }
 
     // Index değiştiğinde animasyonu tetikle

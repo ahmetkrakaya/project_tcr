@@ -412,10 +412,13 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                     const SizedBox(height: 24),
                   ],
 
-                  // Chat Section (Sadece katılımcılar için)
-                  if (event.isUserParticipating)
+                  // Chat Section
+                  // Normal kullanıcılar: sadece katılımcıysa görür
+                  // Admin: katılımcı olmasa da görebilir (sorumlu olduğu içerikleri denetleyebilsin)
+                  if (event.isUserParticipating || isAdminOrCoach)
                     _buildChatSection(context, widget.eventId, event),
-                  if (event.isUserParticipating) const SizedBox(height: 24),
+                  if (event.isUserParticipating || isAdminOrCoach)
+                    const SizedBox(height: 24),
 
                   // Participants Section (sadece Ekip / toplu antrenmanda)
                   if (!_isIndividualParticipation(event)) ...[
@@ -442,6 +445,10 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                 ],
               ),
             ),
+          ),
+          // Alt bardaki katılım butonlarının üstünde kalması için ekstra alt boşluk
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 120),
           ),
         ],
       ),
@@ -740,19 +747,23 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   ) {
     final isLoading = rsvpState.isLoading;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: SafeArea(
+    return SafeArea(
+      top: false,
+      left: false,
+      right: false,
+      minimum: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
         child: (() {
           // Etkinlik bitmişse hiçbir buton gösterme
           final isEventFinished = event.startTime.add(const Duration(hours: 2)).isBefore(DateTime.now());
@@ -760,61 +771,94 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             return const SizedBox.shrink();
           }
           
-          return event.isUserParticipating
-              ? Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.successContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.check_circle,
-                              color: AppColors.success,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Katılıyorsunuz',
-                              style: AppTypography.labelLarge.copyWith(
-                                color: AppColors.success,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+          // Katılım aksiyonları sadece kullanıcının bu etkinlikte katılımcı olmasına izin veriliyorsa gösterilir
+          if (!event.canUserParticipate) {
+            return const SizedBox.shrink();
+          }
+
+          // Kullanıcı halihazırda "Katılıyorum" dediyse, durumu göster ve
+          // ayrıca "Katılmıyorum" seçeneği sun.
+          if (event.isUserParticipating) {
+            return Row(
+              children: [
+                AppButton(
+                  text: 'Katılmıyorum',
+                  variant: AppButtonVariant.danger,
+                  isLoading: isLoading,
+                  onPressed: () {
+                    ref.read(rsvpProvider.notifier).rsvp(
+                          widget.eventId,
+                          RsvpStatus.notGoing,
+                        );
+                  },
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
                     ),
-                    const SizedBox(width: 12),
-                    AppButton(
-                      text: 'İptal',
-                      variant: AppButtonVariant.outlined,
-                      isLoading: isLoading,
-                      onPressed: () {
-                        ref.read(rsvpProvider.notifier).cancelRsvp(widget.eventId);
-                      },
+                    decoration: BoxDecoration(
+                      color: AppColors.successContainer,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ],
-                )
-              : AppButton(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.check_circle,
+                          color: AppColors.success,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Katılıyorsunuz',
+                          style: AppTypography.labelLarge.copyWith(
+                            color: AppColors.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          // Kullanıcı hiçbir seçim yapmamış ya da "Katılmıyorum" demişse,
+          // iki seçenek aynı anda gösterilir.
+          return Row(
+            children: [
+              Expanded(
+                child: AppButton(
                   text: 'Katılıyorum',
                   icon: Icons.check,
                   isLoading: isLoading,
-                  isFullWidth: true,
                   onPressed: () {
                     ref.read(rsvpProvider.notifier).rsvp(
-                      widget.eventId,
-                      RsvpStatus.going,
-                    );
+                          widget.eventId,
+                          RsvpStatus.going,
+                        );
                   },
-                );
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AppButton(
+                  text: 'Katılmıyorum',
+                  variant: AppButtonVariant.danger,
+                  isLoading: isLoading,
+                  onPressed: () {
+                    ref.read(rsvpProvider.notifier).rsvp(
+                          widget.eventId,
+                          RsvpStatus.notGoing,
+                        );
+                  },
+                ),
+              ),
+            ],
+          );
         })(),
       ),
     );

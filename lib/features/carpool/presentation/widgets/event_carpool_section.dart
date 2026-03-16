@@ -28,13 +28,17 @@ class EventCarpoolSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final eventAsync = ref.watch(eventByIdProvider(eventId));
     
-    // Geçmiş etkinliklerde hiçbir şey gösterme ve sorgu yapma
+    // Geçmiş etkinliklerde veya katılım aksiyonuna izin verilmeyen etkinliklerde hiçbir şey gösterme
     final isPastEvent = eventAsync.maybeWhen(
       data: (event) => event.isPast,
       orElse: () => false,
     );
+    final isParticipationAllowed = eventAsync.maybeWhen(
+      data: (event) => event.canUserParticipate,
+      orElse: () => true,
+    );
     
-    if (isPastEvent) {
+    if (isPastEvent || !isParticipationAllowed) {
       return const SizedBox.shrink();
     }
     
