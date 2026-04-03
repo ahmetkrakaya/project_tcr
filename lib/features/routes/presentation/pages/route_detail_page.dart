@@ -19,8 +19,13 @@ import '../widgets/elevation_chart.dart';
 /// Rota Detay Sayfası
 class RouteDetailPage extends ConsumerStatefulWidget {
   final String routeId;
+  final int? variantIndex;
 
-  const RouteDetailPage({super.key, required this.routeId});
+  const RouteDetailPage({
+    super.key,
+    required this.routeId,
+    this.variantIndex,
+  });
 
   @override
   ConsumerState<RouteDetailPage> createState() => _RouteDetailPageState();
@@ -30,11 +35,13 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _is3DMode = false;
+  late int _selectedVariantIndex;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _selectedVariantIndex = widget.variantIndex ?? 0;
   }
 
   @override
@@ -46,7 +53,10 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
   @override
   Widget build(BuildContext context) {
     final routeAsync = ref.watch(routeByIdProvider(widget.routeId));
-    final coordinatesAsync = ref.watch(routeCoordinatesProvider(widget.routeId));
+    final coordinatesAsync = ref.watch(routeCoordinatesProvider((
+      routeId: widget.routeId,
+      variantIndex: _selectedVariantIndex,
+    )));
     final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
 
     return routeAsync.when(
@@ -81,7 +91,61 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
     AsyncValue<List<RouteCoordinate>> coordinatesAsync,
     bool isAdminOrCoach,
   ) {
-    final hasGpx = route.gpxData != null && route.gpxData!.trim().isNotEmpty;
+    final safeVariantIndex = _selectedVariantIndex.clamp(
+      0,
+      (route.gpxVariants.length - 1).clamp(0, 999999),
+    );
+    final selectedVariant = route.gpxVariants.isNotEmpty && route.gpxVariants.length > safeVariantIndex
+        ? route.gpxVariants[safeVariantIndex]
+        : null;
+
+    final selectedGpxData = selectedVariant?.gpxData ?? route.gpxData;
+    final selectedElevationProfile = selectedVariant?.elevationProfile ?? route.elevationProfile;
+    final selectedTotalDistance = selectedVariant?.totalDistance ?? route.totalDistance;
+    final selectedElevationGain = selectedVariant?.elevationGain ?? route.elevationGain;
+    final computedTotalDistance = selectedTotalDistance ??
+        (selectedElevationProfile != null && selectedElevationProfile.isNotEmpty
+            ? selectedElevationProfile.last.distance
+            : null);
+
+    // `gpx_variants` içindeki özet alanlar null kalırsa (parse eksikliği vb.),
+    // elevation_profile üzerinden yaklaşık gain/loss/min/max hesaplayalım.
+    double? computedElevationGain = selectedElevationGain;
+    double? computedElevationLoss = selectedVariant?.elevationLoss ?? route.elevationLoss;
+    double? computedMaxElevation = selectedVariant?.maxElevation ?? route.maxElevation;
+
+    if ((selectedElevationProfile != null && selectedElevationProfile.isNotEmpty) &&
+        (selectedElevationGain == null ||
+            selectedVariant?.elevationLoss == null ||
+            selectedVariant?.maxElevation == null)) {
+      double gain = 0;
+      double loss = 0;
+
+      double? maxEle;
+      double? minEle;
+
+      for (int i = 0; i < selectedElevationProfile.length; i++) {
+        final e = selectedElevationProfile[i].elevation;
+        maxEle = maxEle == null ? e : (e > maxEle ? e : maxEle);
+        minEle = minEle == null ? e : (e < minEle ? e : minEle);
+
+        if (i > 0) {
+          final prev = selectedElevationProfile[i - 1].elevation;
+          final diff = e - prev;
+          if (diff > 0) {
+            gain += diff;
+          } else if (diff < 0) {
+            loss += diff.abs();
+          }
+        }
+      }
+
+      computedElevationGain = selectedElevationGain ?? gain;
+      computedElevationLoss = (selectedVariant?.elevationLoss ?? route.elevationLoss) ?? loss;
+      computedMaxElevation = (selectedVariant?.maxElevation ?? route.maxElevation) ?? (maxEle ?? 0);
+    }
+
+    final hasGpx = selectedGpxData != null && selectedGpxData.trim().isNotEmpty;
 
     return Scaffold(
       body: CustomScrollView(
@@ -140,6 +204,73 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
 
           // Harita, yükseklik profili: sadece GPX varsa göster
           if (hasGpx)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: route.gpxVariants.length > 1
+                    ? Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.tertiaryContainer.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.tertiary.withValues(alpha: 0.35)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Mesafe',
+                                    style: AppTypography.labelMedium.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.neutral700,
+                                    ),
+                                  ),
+                                ),
+                                DropdownButtonHideUnderline(
+                                  child: DropdownButton<int>(
+                                    value: safeVariantIndex,
+                                    isDense: true,
+                                    onChanged: (value) {
+                                      if (value == null) return;
+                                      setState(() => _selectedVariantIndex = value);
+                                    },
+                                    items: List.generate(route.gpxVariants.length, (i) {
+                                      final v = route.gpxVariants[i];
+                                      return DropdownMenuItem<int>(
+                                        value: i,
+                                        child: Text(v.label, style: AppTypography.labelSmall),
+                                      );
+                                    }),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${route.gpxVariants.length} farklı rota seçeneği',
+                              style: AppTypography.labelSmall.copyWith(
+                                color: AppColors.neutral600,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Seçili Rota: ${selectedVariant?.label ?? route.gpxVariants[safeVariantIndex].label} • '
+                              '${(selectedVariant?.formattedDistance ?? route.gpxVariants[safeVariantIndex].formattedDistance)}',
+                              style: AppTypography.labelMedium.copyWith(
+                                color: AppColors.neutral800,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
             SliverToBoxAdapter(
               child: Column(
                 children: [
@@ -217,12 +348,12 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                   ),
 
                   // Elevation Chart
-                  if (route.elevationProfile != null && route.elevationProfile!.isNotEmpty) ...[
+                  if (selectedElevationProfile != null && selectedElevationProfile.isNotEmpty) ...[
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: ElevationChart(
-                        elevationProfile: route.elevationProfile!,
-                        totalDistance: route.totalDistance ?? 0,
+                        elevationProfile: selectedElevationProfile,
+                        totalDistance: computedTotalDistance ?? 0,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -239,7 +370,13 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (hasGpx) ...[
-                    _buildStatsGrid(route),
+                    _buildStatsGrid(
+                      route,
+                      selectedTotalDistance: computedTotalDistance,
+                      selectedElevationGain: computedElevationGain,
+                      selectedElevationLoss: computedElevationLoss,
+                      selectedMaxElevation: computedMaxElevation,
+                    ),
                     const SizedBox(height: 24),
                   ],
                   _buildRouteInfo(route),
@@ -292,7 +429,13 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
     );
   }
 
-  Widget _buildStatsGrid(RouteEntity route) {
+  Widget _buildStatsGrid(
+    RouteEntity route, {
+    required double? selectedTotalDistance,
+    required double? selectedElevationGain,
+    required double? selectedElevationLoss,
+    required double? selectedMaxElevation,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -318,14 +461,18 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
               Expanded(child: _buildStatCard(
                 icon: Icons.straighten,
                 iconColor: AppColors.primary,
-                value: route.formattedDistance,
+                value: selectedTotalDistance == null
+                    ? '-'
+                    : '${selectedTotalDistance.toStringAsFixed(1)} km',
                 label: 'Toplam Mesafe',
               )),
               const SizedBox(width: 12),
               Expanded(child: _buildStatCard(
                 icon: Icons.trending_up,
                 iconColor: AppColors.success,
-                value: route.formattedElevationGain,
+                value: selectedElevationGain == null
+                    ? '-'
+                    : '${selectedElevationGain.toInt()} m',
                 label: 'Tırmanış',
               )),
             ],
@@ -336,8 +483,8 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
               Expanded(child: _buildStatCard(
                 icon: Icons.trending_down,
                 iconColor: AppColors.error,
-                value: route.elevationLoss != null 
-                    ? '${route.elevationLoss!.toInt()} m' 
+                value: selectedElevationLoss != null
+                    ? '${selectedElevationLoss.toInt()} m'
                     : '-',
                 label: 'İniş',
               )),
@@ -345,8 +492,8 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
               Expanded(child: _buildStatCard(
                 icon: Icons.landscape,
                 iconColor: AppColors.secondary,
-                value: route.maxElevation != null 
-                    ? '${route.maxElevation!.toInt()} m' 
+                value: selectedMaxElevation != null
+                    ? '${selectedMaxElevation.toInt()} m'
                     : '-',
                 label: 'Maksimum Yükseklik',
               )),
@@ -618,14 +765,23 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
   ) {
     coordinatesAsync.whenData((coordinates) {
       if (coordinates.isEmpty) return;
-      
+
+      final safeVariantIndex = _selectedVariantIndex.clamp(
+        0,
+        (route.gpxVariants.length - 1).clamp(0, 999999),
+      );
+      final selectedVariant = route.gpxVariants.isNotEmpty &&
+              route.gpxVariants.length > safeVariantIndex
+          ? route.gpxVariants[safeVariantIndex]
+          : null;
+
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => _FullscreenMapPage(
             coordinates: coordinates,
-            elevationProfile: route.elevationProfile,
-            totalDistance: route.totalDistance,
+            elevationProfile: selectedVariant?.elevationProfile ?? route.elevationProfile,
+            totalDistance: selectedVariant?.totalDistance ?? route.totalDistance,
             initialIs3D: _is3DMode,
           ),
         ),

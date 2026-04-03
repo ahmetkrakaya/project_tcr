@@ -34,6 +34,63 @@ abstract class NotificationRemoteDataSource {
 
   /// Realtime aboneliğini iptal et
   void unsubscribeFromNewNotifications();
+
+  /// Aktif antrenman gruplarını getir (admin bildirim hedefleme için)
+  Future<List<AdminTrainingGroup>> getActiveTrainingGroups();
+
+  /// Admin manuel bildirim gönderimi (anlık veya planlı)
+  Future<void> createAdminNotification({
+    required String title,
+    required String body,
+    required AdminNotificationAudience audience,
+    DateTime? scheduleAt,
+    String? routeTarget,
+  });
+}
+
+class AdminTrainingGroup {
+  final String id;
+  final String name;
+
+  const AdminTrainingGroup({
+    required this.id,
+    required this.name,
+  });
+}
+
+class AdminNotificationAudience {
+  final bool everyone;
+  final bool admins;
+  final bool coaches;
+  final bool members;
+  final List<String> groupIds;
+  final bool? stravaConnected;
+  final bool? garminConnected;
+  final bool vdotMissing;
+
+  const AdminNotificationAudience({
+    required this.everyone,
+    required this.admins,
+    required this.coaches,
+    required this.members,
+    required this.groupIds,
+    this.stravaConnected,
+    this.garminConnected,
+    required this.vdotMissing,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'everyone': everyone,
+      'admins': admins,
+      'coaches': coaches,
+      'members': members,
+      'group_ids': groupIds,
+      'strava_connected': stravaConnected,
+      'garmin_connected': garminConnected,
+      'vdot_missing': vdotMissing,
+    };
+  }
 }
 
 class NotificationRemoteDataSourceImpl implements NotificationRemoteDataSource {
@@ -242,5 +299,59 @@ class NotificationRemoteDataSourceImpl implements NotificationRemoteDataSource {
   void unsubscribeFromNewNotifications() {
     _notificationsChannel?.unsubscribe();
     _notificationsChannel = null;
+  }
+
+  @override
+  Future<List<AdminTrainingGroup>> getActiveTrainingGroups() async {
+    if (_currentUserId == null) {
+      throw ServerException(message: 'Oturum açılmamış', code: 'UNAUTHORIZED');
+    }
+    try {
+      final response = await _supabase
+          .from('training_groups')
+          .select('id,name')
+          .eq('is_active', true)
+          .order('name', ascending: true);
+      final data = response as List<dynamic>;
+      return data
+          .map((row) => AdminTrainingGroup(
+                id: row['id'] as String,
+                name: row['name'] as String? ?? 'Grup',
+              ))
+          .toList();
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Gruplar alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<void> createAdminNotification({
+    required String title,
+    required String body,
+    required AdminNotificationAudience audience,
+    DateTime? scheduleAt,
+    String? routeTarget,
+  }) async {
+    if (_currentUserId == null) {
+      throw ServerException(message: 'Oturum açılmamış', code: 'UNAUTHORIZED');
+    }
+    try {
+      await _supabase.rpc(
+        'admin_create_manual_notification',
+        params: {
+          'p_title': title,
+          'p_body': body,
+          'p_audience': audience.toJson(),
+          'p_schedule_at': scheduleAt?.toUtc().toIso8601String(),
+          'p_route_target': routeTarget,
+        },
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Bildirim gönderilemedi: $e');
+    }
   }
 }

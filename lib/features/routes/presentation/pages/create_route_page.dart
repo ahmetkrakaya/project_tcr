@@ -1,4 +1,6 @@
 import 'dart:io' if (dart.library.html) 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -11,6 +13,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../domain/entities/route_entity.dart';
+import '../../data/datasources/route_remote_datasource.dart';
 import '../providers/route_provider.dart';
 import '../widgets/route_location_picker.dart';
 
@@ -25,6 +28,23 @@ class CreateRoutePage extends ConsumerStatefulWidget {
   ConsumerState<CreateRoutePage> createState() => _CreateRoutePageState();
 }
 
+class _GpxVariantDraft {
+  String label;
+  String? fileName;
+  String? gpxContent;
+  Uint8List? gpxBytes;
+  bool isValid;
+  String? error;
+
+  _GpxVariantDraft({
+    required this.label,
+    this.fileName,
+    this.gpxContent,
+    this.gpxBytes,
+    this.isValid = false,
+  });
+}
+
 class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -33,12 +53,11 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
 
   double? _locationLat;
   double? _locationLng;
-  String? _gpxContent;
-  String? _gpxFileName;
+
+  final List<_GpxVariantDraft> _gpxVariants = [];
   TerrainType _selectedTerrainType = TerrainType.asphalt;
+  bool _isRace = false;
   int _difficultyLevel = 1;
-  bool _isGpxValid = false;
-  String? _gpxError;
   bool _editInitialized = false;
   bool _editResetDone = false;
 
@@ -60,11 +79,35 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
     _locationLng = route.locationLng;
     _selectedTerrainType = route.terrainType;
     _difficultyLevel = route.difficultyLevel;
-    if (route.gpxData != null && route.gpxData!.isNotEmpty) {
-      _gpxContent = route.gpxData;
-      _gpxFileName = 'Mevcut rota verisi';
-      _isGpxValid = true;
+    _isRace = route.isRace;
+
+    _gpxVariants.clear();
+    final variants = route.gpxVariants;
+    if (variants.isNotEmpty) {
+      for (final v in variants) {
+        final content = v.gpxData;
+        _gpxVariants.add(_GpxVariantDraft(
+          label: v.label,
+          fileName: 'Mevcut rota verisi',
+          gpxContent: content,
+          gpxBytes: content != null && content.isNotEmpty
+              ? Uint8List.fromList(utf8.encode(content))
+              : null,
+          isValid: content != null && content.isNotEmpty,
+        ));
+      }
+    } else if (route.gpxData != null && route.gpxData!.isNotEmpty) {
+      // Geriye dönük güvenlik
+      final content = route.gpxData!;
+      _gpxVariants.add(_GpxVariantDraft(
+        label: 'Default',
+        fileName: 'Mevcut rota verisi',
+        gpxContent: content,
+        gpxBytes: Uint8List.fromList(utf8.encode(content)),
+        isValid: true,
+      ));
     }
+
     _editInitialized = true;
   }
 
@@ -200,7 +243,11 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
             _buildTerrainTypeSelector(),
             const SizedBox(height: 24),
 
-            // 5. Zorluk Seviyesi
+            // 5. Yarış Rotası / Normal Rota
+            _buildRouteCategorySelector(),
+            const SizedBox(height: 24),
+
+            // 6. Zorluk Seviyesi
             _buildDifficultySelector(),
           ],
         ),
@@ -209,119 +256,184 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
   }
 
   Widget _buildGpxPicker() {
-    final hasFile = _gpxFileName != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'GPX Dosyası (opsiyonel)',
+          'GPX Varyantları (opsiyonel)',
           style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: _pickGpxFile,
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: _isGpxValid
-                    ? AppColors.success.withValues(alpha: 0.08)
-                    : _gpxError != null
-                        ? AppColors.error.withValues(alpha: 0.08)
-                        : AppColors.neutral100,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _isGpxValid
-                      ? AppColors.success
-                      : _gpxError != null
-                          ? AppColors.error
-                          : AppColors.neutral300,
-                  width: 1.5,
+
+        if (_gpxVariants.isEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.neutral100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.neutral200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.route_outlined, color: AppColors.neutral500),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Farklı mesafeler için birden fazla GPX ekleyebilirsiniz.',
+                    style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral600),
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _isGpxValid
-                        ? Icons.check_circle
-                        : _gpxError != null
-                            ? Icons.error_outline
-                            : Icons.upload_file,
-                    color: _isGpxValid
-                        ? AppColors.success
-                        : _gpxError != null
-                            ? AppColors.error
-                            : AppColors.neutral500,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      hasFile
-                          ? _gpxFileName!
-                          : 'GPX dosyası eklemek için dokunun',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: _isGpxValid
-                            ? AppColors.success
-                            : _gpxError != null
-                                ? AppColors.error
-                                : AppColors.neutral600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (!hasFile)
-                        IconButton(
-                          tooltip: 'GPX Dosyası Seç',
-                          icon: const Icon(Icons.upload_file),
-                          color: AppColors.primary,
-                          onPressed: _pickGpxFile,
-                        ),
-                      if (hasFile) ...[
-                        IconButton(
-                          tooltip: 'Değiştir',
-                          icon: const Icon(Icons.edit_document),
-                          color: AppColors.primary,
-                          onPressed: _pickGpxFile,
-                        ),
-                        IconButton(
-                          tooltip: 'Kaldır',
-                          icon: const Icon(Icons.clear),
-                          color: AppColors.neutral500,
-                          onPressed: () {
-                            setState(() {
-                              _gpxContent = null;
-                              _gpxFileName = null;
-                              _isGpxValid = false;
-                              _gpxError = null;
-                            });
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
+                IconButton(
+                  tooltip: 'Mesafe ekle',
+                  icon: const Icon(Icons.add_circle_outline),
+                  color: AppColors.primary,
+                  onPressed: () {
+                    setState(() {
+                      final nextIndex = _gpxVariants.length + 1;
+                      _gpxVariants.add(_GpxVariantDraft(
+                        label: nextIndex == 1 ? 'Default' : 'Variant $nextIndex',
+                      ));
+                    });
+                  },
+                ),
+              ],
             ),
           ),
-        ),
-        if (_gpxError != null) ...[
-          const SizedBox(height: 6),
-          Text(
-            _gpxError!,
-            style: AppTypography.labelSmall.copyWith(color: AppColors.error),
-          ),
         ] else ...[
-          const SizedBox(height: 6),
-          Text(
-            'İsteğe bağlı. Desteklenen format: .gpx',
-            style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500),
+          Column(
+            children: [
+              ...List.generate(_gpxVariants.length, (i) {
+                final v = _gpxVariants[i];
+                final hasFile = v.gpxContent != null && v.gpxContent!.isNotEmpty;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: v.isValid
+                          ? AppColors.success.withValues(alpha: 0.08)
+                          : v.error != null
+                              ? AppColors.error.withValues(alpha: 0.08)
+                              : AppColors.neutral100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: v.isValid
+                            ? AppColors.success
+                            : v.error != null
+                                ? AppColors.error
+                                : AppColors.neutral300,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              v.isValid
+                                  ? Icons.check_circle
+                                  : v.error != null
+                                      ? Icons.error_outline
+                                      : Icons.upload_file,
+                              color: v.isValid
+                                  ? AppColors.success
+                                  : v.error != null
+                                      ? AppColors.error
+                                      : AppColors.neutral500,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                initialValue: v.label,
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  labelText: 'Etiket (örn. 21K)',
+                                ),
+                                onChanged: (val) {
+                                  v.label = val;
+                                },
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Varyantı kaldır',
+                              icon: const Icon(Icons.delete_outline),
+                              color: AppColors.neutral500,
+                              onPressed: () {
+                                setState(() {
+                                  _gpxVariants.removeAt(i);
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        InkWell(
+                          onTap: () => _pickGpxFileForVariant(i),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.neutral300),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  hasFile ? Icons.edit_document : Icons.upload_file,
+                                  color: AppColors.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  hasFile ? (v.fileName ?? 'GPX yüklendi') : 'GPX seçin',
+                                  style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral700),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        if (v.error != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            v.error!,
+                            style: AppTypography.labelSmall.copyWith(color: AppColors.error),
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'İsteğe bağlı. Desteklenen format: .gpx',
+                            style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      final nextIndex = _gpxVariants.length + 1;
+                      _gpxVariants.add(_GpxVariantDraft(
+                        label: 'Variant $nextIndex',
+                      ));
+                    });
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Varyant Ekle'),
+                ),
+              ),
+            ],
           ),
         ],
       ],
@@ -496,6 +608,86 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
     );
   }
 
+  Widget _buildRouteCategorySelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Kategori',
+          style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _isRace = true),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: _isRace
+                        ? AppColors.primary.withValues(alpha: 0.1)
+                        : AppColors.neutral100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _isRace ? AppColors.primary : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.emoji_events, size: 26),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Yarış Rotası',
+                        style: AppTypography.labelMedium.copyWith(
+                          color: _isRace ? AppColors.primary : AppColors.neutral600,
+                          fontWeight: _isRace ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _isRace = false),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: !_isRace
+                        ? AppColors.primary.withValues(alpha: 0.1)
+                        : AppColors.neutral100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: !_isRace ? AppColors.primary : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.map_outlined, size: 26),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Normal Rota',
+                        style: AppTypography.labelMedium.copyWith(
+                          color: !_isRace ? AppColors.primary : AppColors.neutral600,
+                          fontWeight: !_isRace ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildDifficultySelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -559,7 +751,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
     );
   }
 
-  Future<void> _pickGpxFile() async {
+  Future<void> _pickGpxFileForVariant(int index) async {
     try {
       // FileType.any kullanıyoruz çünkü Android'de .gpx desteklenmiyor
       final result = await FilePicker.platform.pickFiles(
@@ -574,42 +766,49 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
         // Manuel olarak .gpx veya .xml uzantısını kontrol et
         if (!fileName.endsWith('.gpx') && !fileName.endsWith('.xml')) {
           setState(() {
-            _gpxFileName = pickedFile.name;
-            _isGpxValid = false;
-            _gpxError = 'Lütfen .gpx veya .xml dosyası seçin';
+            _gpxVariants[index].fileName = pickedFile.name;
+            _gpxVariants[index].isValid = false;
+            _gpxVariants[index].error = 'Lütfen .gpx veya .xml dosyası seçin';
           });
           return;
         }
 
-        String content;
-        
+        String? content;
+        Uint8List? bytes;
+
         // Önce bytes'tan okumayı dene (web ve mobil için güvenilir)
         if (pickedFile.bytes != null) {
-          content = String.fromCharCodes(pickedFile.bytes!);
+          bytes = pickedFile.bytes!;
+          content = String.fromCharCodes(bytes);
         } else if (!kIsWeb && pickedFile.path != null) {
-          // Mobilde path varsa dosyadan oku
           final file = File(pickedFile.path!);
-          content = await file.readAsString();
-        } else {
+          bytes = await file.readAsBytes();
+          content = String.fromCharCodes(bytes);
+        }
+
+        if (content == null || content.isEmpty || bytes == null) {
           setState(() {
-            _gpxFileName = pickedFile.name;
-            _isGpxValid = false;
-            _gpxError = 'Dosya içeriği okunamadı';
+            _gpxVariants[index].fileName = pickedFile.name;
+            _gpxVariants[index].isValid = false;
+            _gpxVariants[index].error = 'Dosya içeriği okunamadı';
           });
           return;
         }
 
+        final gpxText = content;
+
         // Validate GPX content
-        if (content.contains('<gpx') && content.contains('</gpx>')) {
+        if (gpxText.contains('<gpx') && gpxText.contains('</gpx>')) {
           setState(() {
-            _gpxContent = content;
-            _gpxFileName = pickedFile.name;
-            _isGpxValid = true;
-            _gpxError = null;
+            _gpxVariants[index].gpxContent = gpxText;
+            _gpxVariants[index].gpxBytes = bytes;
+            _gpxVariants[index].fileName = pickedFile.name;
+            _gpxVariants[index].isValid = true;
+            _gpxVariants[index].error = null;
 
             // Auto-fill name from GPX if available
             if (_nameController.text.isEmpty) {
-              final nameMatch = RegExp(r'<name>(.*?)</name>').firstMatch(content);
+              final nameMatch = RegExp(r'<name>(.*?)</name>').firstMatch(gpxText);
               if (nameMatch != null && nameMatch.group(1) != null) {
                 _nameController.text = nameMatch.group(1)!;
               }
@@ -617,16 +816,18 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
           });
         } else {
           setState(() {
-            _gpxFileName = pickedFile.name;
-            _isGpxValid = false;
-            _gpxError = 'Geçersiz GPX formatı. Dosya <gpx> etiketi içermiyor.';
+            _gpxVariants[index].fileName = pickedFile.name;
+            _gpxVariants[index].isValid = false;
+            _gpxVariants[index].gpxContent = null;
+            _gpxVariants[index].gpxBytes = null;
+            _gpxVariants[index].error = 'Geçersiz GPX formatı. Dosya <gpx> etiketi içermiyor.';
           });
         }
       }
     } catch (e) {
       setState(() {
-        _isGpxValid = false;
-        _gpxError = 'Dosya seçilemedi: $e';
+        _gpxVariants[index].isValid = false;
+        _gpxVariants[index].error = 'Dosya seçilemedi: $e';
       });
     }
   }
@@ -641,31 +842,46 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
         ? _descriptionController.text.trim()
         : null;
     final terrainType = _selectedTerrainType.name;
-    // GPX opsiyonel: geçerli GPX varsa gönder, yoksa null
-    final gpxContent = _isGpxValid && _gpxContent != null && _gpxContent!.isNotEmpty
-        ? _gpxContent
-        : null;
+    final isRace = _isRace;
+
+    // GPX opsiyonel: yalnızca dosyası seçilmiş/valid olan varyantları kaydet.
+    final validVariants = _gpxVariants
+        .where((v) =>
+            v.isValid &&
+            v.gpxContent != null &&
+            v.gpxContent!.isNotEmpty &&
+            v.gpxBytes != null)
+        .map((v) => RouteGpxVariantInput(
+              label: v.label.trim().isNotEmpty ? v.label.trim() : 'Default',
+              gpxContent: v.gpxContent!,
+              gpxBytes: v.gpxBytes!,
+            ))
+        .toList();
 
     if (_isEditMode) {
-      await notifier.updateRoute(
+      await notifier.updateRouteWithGpxVariants(
         routeId: widget.routeId!,
         name: name,
+        variants: validVariants,
         locationLat: _locationLat!,
         locationLng: _locationLng!,
         description: description,
         terrainType: terrainType,
+        isRace: isRace,
         difficultyLevel: _difficultyLevel,
-        gpxContent: gpxContent,
+        locationName: null,
       );
     } else {
-      await notifier.createFromGpxContent(
+      await notifier.createFromGpxVariants(
         name: name,
-        gpxContent: gpxContent,
+        variants: validVariants,
         locationLat: _locationLat!,
         locationLng: _locationLng!,
         description: description,
         terrainType: terrainType,
+        isRace: isRace,
         difficultyLevel: _difficultyLevel,
+        locationName: null,
       );
     }
   }

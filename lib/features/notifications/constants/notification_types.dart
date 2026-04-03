@@ -16,6 +16,7 @@ class NotificationTypes {
   static const String orderStatusChanged = 'order_status_changed';
   static const String newMemberPending = 'new_member_pending';
   static const String birthdayReminder = 'birthday_reminder';
+  static const String adminManual = 'admin_manual';
 
   static const List<String> all = [
     eventCreated,
@@ -30,6 +31,7 @@ class NotificationTypes {
     orderStatusChanged,
     newMemberPending,
     birthdayReminder,
+    adminManual,
   ];
 
   static String label(String type) {
@@ -58,6 +60,8 @@ class NotificationTypes {
         return 'Yeni üye başvurusu';
       case birthdayReminder:
         return 'Doğum günü hatırlatma';
+      case adminManual:
+        return 'Yönetici bildirimi';
       default:
         return type;
     }

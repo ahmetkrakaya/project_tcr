@@ -58,6 +58,7 @@ void navigateFromNotification(GoRouter router, RemoteMessage message) {
   final postId = data['post_id'] as String?;
   final listingId = data['listing_id'] as String?;
   final roomId = data['room_id'] as String?;
+  final target = data['target'] as String?;
 
   // Etkinlik oluşturuldu/güncellendi, ortak araç başvurusu/yanıtı → etkinlik detay
   if (eventId != null &&
@@ -99,6 +100,25 @@ void navigateFromNotification(GoRouter router, RemoteMessage message) {
   if (type == 'new_member_pending') {
     router.goNamed(RouteNames.groups);
     return;
+  }
+  // Admin manuel bildirimler: generic target bazlı yönlendirme
+  if (type == NotificationTypes.adminManual && target != null) {
+    if (target == 'integrations') {
+      router.goNamed(RouteNames.integrations);
+      return;
+    }
+    if (target == 'pace_calculator') {
+      router.goNamed(RouteNames.paceCalculator);
+      return;
+    }
+    if (target == 'groups') {
+      router.goNamed(RouteNames.groups);
+      return;
+    }
+    if (target == 'notifications') {
+      router.goNamed(RouteNames.notifications);
+      return;
+    }
   }
   // Fallback: room_id ile genel chat room
   if (roomId != null) {

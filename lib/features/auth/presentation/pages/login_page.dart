@@ -105,6 +105,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         final path = takePendingDeepLinkPath();
         if (path != null && mounted) context.go(path);
       }
+      // Şifre sıfırlama linki işlendiyse reset-password sayfasına yönlendir
+      if (next is AuthNeedsPasswordReset && mounted) {
+        context.go('/reset-password');
+      }
     });
 
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;

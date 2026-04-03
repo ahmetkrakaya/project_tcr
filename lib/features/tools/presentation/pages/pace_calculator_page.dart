@@ -32,9 +32,13 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
   final _hoursController = TextEditingController();
   final _minutesController = TextEditingController();
   final _secondsController = TextEditingController();
+  final _raceHoursFocus = FocusNode();
+  final _raceMinutesFocus = FocusNode();
+  final _raceSecondsFocus = FocusNode();
 
   // Cooper Test
   final _cooperDistanceController = TextEditingController();
+  final _cooperFocus = FocusNode();
 
   double? _calculatedVdot;
   bool _isSaving = false;
@@ -44,6 +48,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
   // Lane Calculator
   int _selectedLane = 1;
   final _lapsController = TextEditingController(text: '1');
+  final _lapsFocus = FocusNode();
   String _selectedTrainingType = 'Interval'; // Pist antrenmanı için seçili tür
   
   // Pist antrenmanı türleri ve VO2max yüzdeleri
@@ -55,21 +60,67 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
     'Repetition': 1.05,
   };
 
+  void _onNumericFocusChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_onNumericFocusChanged);
+    for (final n in [
+      _raceHoursFocus,
+      _raceMinutesFocus,
+      _raceSecondsFocus,
+      _cooperFocus,
+      _lapsFocus,
+    ]) {
+      n.addListener(_onNumericFocusChanged);
+    }
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onNumericFocusChanged);
     _tabController.dispose();
+    for (final n in [
+      _raceHoursFocus,
+      _raceMinutesFocus,
+      _raceSecondsFocus,
+      _cooperFocus,
+      _lapsFocus,
+    ]) {
+      n.removeListener(_onNumericFocusChanged);
+      n.dispose();
+    }
     _hoursController.dispose();
     _minutesController.dispose();
     _secondsController.dispose();
     _cooperDistanceController.dispose();
     _lapsController.dispose();
     super.dispose();
+  }
+
+  /// Rakamsal klavyede “Bitti” olmadığı için: klavye üstü kapatma (diğer sayfalarla aynı desen).
+  bool _shouldShowKeyboardDismissFab() {
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    if (inset <= 0) return false;
+    final tab = _tabController.index;
+    if (tab == 0) {
+      if (_vdotCalcMethod == 'race') {
+        return _raceHoursFocus.hasFocus ||
+            _raceMinutesFocus.hasFocus ||
+            _raceSecondsFocus.hasFocus;
+      }
+      return _cooperFocus.hasFocus;
+    }
+    if (tab == 1) return _lapsFocus.hasFocus;
+    return false;
+  }
+
+  void _dismissPaceCalculatorKeyboard() {
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   void _calculateVdotFromRace() {
@@ -147,11 +198,44 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          _buildVdotCalculator(currentVdot),
-          _buildLaneCalculator(),
+          TabBarView(
+            controller: _tabController,
+            children: [
+              _buildVdotCalculator(currentVdot),
+              _buildLaneCalculator(),
+            ],
+          ),
+          if (_shouldShowKeyboardDismissFab())
+            Positioned(
+              // Scaffold resizeToAvoidBottomInset: gövde zaten klavyenin üstünde biter;
+              // viewInsets.bottom tekrar eklenirse buton klavyeden çok yukarı çıkar.
+              bottom: 16,
+              right: 20,
+              child: Material(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(20),
+                elevation: 8,
+                shadowColor: AppColors.primary.withValues(alpha: 0.5),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: _dismissPaceCalculatorKeyboard,
+                  child: const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Center(
+                      child: Icon(
+                        Icons.keyboard_hide,
+                        size: 24,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -464,6 +548,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
               Expanded(
                 child: AppTextField(
                   controller: _hoursController,
+                  focusNode: _raceHoursFocus,
                   hint: 'Saat',
                   keyboardType: TextInputType.number,
                   onChanged: (_) => _calculateVdotFromRace(),
@@ -476,6 +561,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
               Expanded(
                 child: AppTextField(
                   controller: _minutesController,
+                  focusNode: _raceMinutesFocus,
                   hint: 'Dakika',
                   keyboardType: TextInputType.number,
                   onChanged: (_) => _calculateVdotFromRace(),
@@ -488,6 +574,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
               Expanded(
                 child: AppTextField(
                   controller: _secondsController,
+                  focusNode: _raceSecondsFocus,
                   hint: 'Saniye',
                   keyboardType: TextInputType.number,
                   onChanged: (_) => _calculateVdotFromRace(),
@@ -528,6 +615,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
               Expanded(
                 child: AppTextField(
                   controller: _cooperDistanceController,
+                  focusNode: _cooperFocus,
                   hint: 'Mesafe (metre)',
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => _calculateVdotFromCooper(),
@@ -669,6 +757,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
 
           AppTextField(
             controller: _lapsController,
+            focusNode: _lapsFocus,
             label: 'Tur Sayısı',
             hint: '1',
             keyboardType: TextInputType.number,

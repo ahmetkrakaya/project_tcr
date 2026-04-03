@@ -551,6 +551,20 @@ class ProfilePage extends ConsumerWidget {
       
       // Bağlantılar - Sadece kendisi görebilir
       menuItems.add(_buildIntegrationsMenuItem(context, ref));
+
+      // Bildirim Oluştur - Sadece admin
+      if (viewingUserIsAdmin) {
+        menuItems.add(
+          _buildMenuItem(
+            context,
+            icon: Icons.notifications_active_outlined,
+            title: 'Bildirim Oluştur',
+            subtitle: 'Hedef kitle seçip manuel bildirim gönder',
+            iconColor: AppColors.warning,
+            onTap: () => context.pushNamed(RouteNames.adminCreateNotification),
+          ),
+        );
+      }
       
       menuItems.add(const Divider(height: 32));
     } else {

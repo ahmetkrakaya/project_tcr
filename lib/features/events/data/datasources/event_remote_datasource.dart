@@ -1,4 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:typed_data';
+import 'dart:convert';
 
 import '../../../../core/errors/exceptions.dart';
 import '../models/event_model.dart';
@@ -40,7 +42,12 @@ abstract class EventRemoteDataSource {
   Future<void> saveEventVisibleUsers(String eventId, List<String> userIds);
 
   /// Etkinliğe katıl (RSVP)
-  Future<void> rsvpToEvent(String eventId, String status, {String? note});
+  Future<void> rsvpToEvent(
+    String eventId,
+    String status, {
+    String? note,
+    String? raceVariantLabel,
+  });
 
   /// RSVP iptal et
   Future<void> cancelRsvp(String eventId);
@@ -135,6 +142,22 @@ abstract class EventRemoteDataSource {
     required DateTime endDate,
     String? groupId,
   });
+
+  /// Aylık program şablonunu (.xlsx) indir
+  Future<Uint8List> downloadMonthlyProgramTemplate();
+
+  /// Aylık .xlsx program import et
+  Future<Map<String, dynamic>> importMonthlyProgram({
+    required String monthKey,
+    required String fileName,
+    required Uint8List fileBytes,
+  });
+
+  /// Tarihe göre aylık plan satırlarını getir (admin)
+  Future<List<Map<String, dynamic>>> getMonthlyProgramsByDate(DateTime date);
+
+  /// Belirli bir ay içindeki tüm aylık plan satırları (admin takvim görünümü)
+  Future<List<Map<String, dynamic>>> getMonthlyProgramsForMonth(int year, int month);
 }
 
 /// Event Remote Data Source Implementation
@@ -223,15 +246,16 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       // Filtrelenmiş event ID'lerini topla
       final filteredEventIds = filteredEventsData.map((e) => e['id'] as String).toList();
       
-      // Toplu sorgular: participant count ve kullanıcı katılım durumları
+      // Toplu sorgular: participant count ve kullanıcı RSVP durumları
       final participantCounts = await _getAllParticipantCounts(filteredEventIds);
-      final userParticipatingStatuses = await _getAllUserParticipatingStatuses(filteredEventIds);
+      final userRsvpStatuses = await _getAllUserRsvpStatuses(filteredEventIds);
       
       // Event modellerini oluştur
       return filteredEventsData.map((json) {
         final eventId = json['id'] as String;
         final participantCount = participantCounts[eventId] ?? 0;
-        final isParticipating = userParticipatingStatuses[eventId] ?? false;
+        final userRsvpStatus = userRsvpStatuses[eventId];
+        final isParticipating = userRsvpStatus == 'going';
 
         final adminReadonly = _isAdminReadonlyForEvent(
           eventJson: json,
@@ -247,6 +271,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
             'can_user_participate': !adminReadonly,
           },
           isParticipating: isParticipating,
+          currentUserRsvpStatus: userRsvpStatus,
         );
       }).toList();
     } on PostgrestException catch (e) {
@@ -334,15 +359,16 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       // Filtrelenmiş event ID'lerini topla
       final filteredEventIds = filteredEventsData.map((e) => e['id'] as String).toList();
       
-      // Toplu sorgular: participant count ve kullanıcı katılım durumları
+      // Toplu sorgular: participant count ve kullanıcı RSVP durumları
       final participantCounts = await _getAllParticipantCounts(filteredEventIds);
-      final userParticipatingStatuses = await _getAllUserParticipatingStatuses(filteredEventIds);
+      final userRsvpStatuses = await _getAllUserRsvpStatuses(filteredEventIds);
       
       // Event modellerini oluştur ve sırala (pinlenenler önce, sonra start_time'a göre)
       final eventModels = filteredEventsData.map((json) {
         final eventId = json['id'] as String;
         final participantCount = participantCounts[eventId] ?? 0;
-        final isParticipating = userParticipatingStatuses[eventId] ?? false;
+        final userRsvpStatus = userRsvpStatuses[eventId];
+        final isParticipating = userRsvpStatus == 'going';
 
         final adminReadonly = _isAdminReadonlyForEvent(
           eventJson: json,
@@ -358,6 +384,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
             'can_user_participate': !adminReadonly,
           },
           isParticipating: isParticipating,
+          currentUserRsvpStatus: userRsvpStatus,
         );
       }).toList();
       
@@ -428,15 +455,16 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       // Filtrelenmiş event ID'lerini topla
       final filteredEventIds = filteredEventsData.map((e) => e['id'] as String).toList();
       
-      // Toplu sorgular: participant count ve kullanıcı katılım durumları
+      // Toplu sorgular: participant count ve kullanıcı RSVP durumları
       final participantCounts = await _getAllParticipantCounts(filteredEventIds);
-      final userParticipatingStatuses = await _getAllUserParticipatingStatuses(filteredEventIds);
+      final userRsvpStatuses = await _getAllUserRsvpStatuses(filteredEventIds);
       
       // Event modellerini oluştur
       return filteredEventsData.map((json) {
         final eventId = json['id'] as String;
         final participantCount = participantCounts[eventId] ?? 0;
-        final isParticipating = userParticipatingStatuses[eventId] ?? false;
+        final userRsvpStatus = userRsvpStatuses[eventId];
+        final isParticipating = userRsvpStatus == 'going';
 
         final adminReadonly = _isAdminReadonlyForEvent(
           eventJson: json,
@@ -452,6 +480,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
             'can_user_participate': !adminReadonly,
           },
           isParticipating: isParticipating,
+          currentUserRsvpStatus: userRsvpStatus,
         );
       }).toList();
     } on PostgrestException catch (e) {
@@ -493,7 +522,8 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       }
 
       final participantCount = await _getParticipantCount(id);
-      final isParticipating = await _isUserParticipating(id);
+      final userRsvpStatus = await _getUserRsvpStatus(id);
+      final isParticipating = userRsvpStatus == 'going';
 
       // canUserParticipate: admin kendi grubu dahil değilken training için readonly
       final userGroupIds = await _getUserGroupIds();
@@ -512,6 +542,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           'can_user_participate': !adminReadonly,
         },
         isParticipating: isParticipating,
+        currentUserRsvpStatus: userRsvpStatus,
       );
     } on PostgrestException catch (e) {
       throw ServerException(message: e.message, code: e.code);
@@ -639,7 +670,12 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
   }
 
   @override
-  Future<void> rsvpToEvent(String eventId, String status, {String? note}) async {
+  Future<void> rsvpToEvent(
+    String eventId,
+    String status, {
+    String? note,
+    String? raceVariantLabel,
+  }) async {
     try {
       final userId = _currentUserId;
       if (userId == null) throw ServerException(message: 'Kullanıcı giriş yapmamış');
@@ -650,6 +686,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           'user_id': userId,
           'status': status,
           'note': note,
+          'race_variant_label': raceVariantLabel,
           'responded_at': DateTime.now().toIso8601String(),
         },
         onConflict: 'event_id,user_id',
@@ -786,22 +823,21 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
     }
   }
 
-  Future<bool> _isUserParticipating(String eventId) async {
+  Future<String?> _getUserRsvpStatus(String eventId) async {
     final userId = _currentUserId;
-    if (userId == null) return false;
+    if (userId == null) return null;
 
     try {
       final response = await _supabase
           .from('event_participants')
-          .select()
+          .select('status')
           .eq('event_id', eventId)
           .eq('user_id', userId)
-          .eq('status', 'going')
           .maybeSingle();
-      
-      return response != null;
+
+      return response?['status'] as String?;
     } catch (e) {
-      return false;
+      return null;
     }
   }
 
@@ -835,33 +871,31 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
   }
 
   /// Tüm event'ler için kullanıcının katılım durumlarını toplu olarak getir
-  Future<Map<String, bool>> _getAllUserParticipatingStatuses(List<String> eventIds) async {
+  Future<Map<String, String?>> _getAllUserRsvpStatuses(List<String> eventIds) async {
     final userId = _currentUserId;
     if (userId == null || eventIds.isEmpty) {
-      return {for (final eventId in eventIds) eventId: false};
+      return {for (final eventId in eventIds) eventId: null};
     }
 
     try {
       final response = await _supabase
           .from('event_participants')
-          .select('event_id')
+          .select('event_id, status')
           .inFilter('event_id', eventIds)
-          .eq('user_id', userId)
-          .eq('status', 'going');
-      
-      final Set<String> participatingEventIds = {};
+          .eq('user_id', userId);
+
+      final Map<String, String?> statusesByEventId = {};
       for (final item in response as List<dynamic>) {
-        participatingEventIds.add(item['event_id'] as String);
+        statusesByEventId[item['event_id'] as String] = item['status'] as String?;
       }
-      
-      // Tüm event'ler için durum map'i oluştur
+
       return {
         for (final eventId in eventIds)
-          eventId: participatingEventIds.contains(eventId)
+          eventId: statusesByEventId[eventId]
       };
     } catch (e) {
-      // Hata durumunda tüm event'ler için false döndür
-      return {for (final eventId in eventIds) eventId: false};
+      // Hata durumunda tüm event'ler için null döndür
+      return {for (final eventId in eventIds) eventId: null};
     }
   }
 
@@ -2001,6 +2035,140 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
       throw ServerException(message: 'Kullanıcı raporu alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<Uint8List> downloadMonthlyProgramTemplate() async {
+    try {
+      final response = await _supabase.functions.invoke(
+        'monthly-program-template',
+      );
+      final data = response.data;
+      if (data is Uint8List) return data;
+      if (data is List<int>) return Uint8List.fromList(data);
+      if (data is Map<String, dynamic>) {
+        final base64 = data['file_base64'] as String?;
+        if (base64 != null && base64.isNotEmpty) {
+          return base64Decode(base64);
+        }
+      }
+      if (data is Map) {
+        final map = Map<String, dynamic>.from(data);
+        final base64 = map['file_base64'] as String?;
+        if (base64 != null && base64.isNotEmpty) {
+          return base64Decode(base64);
+        }
+      }
+      throw ServerException(message: 'Şablon indirilemedi');
+    } catch (e) {
+      throw ServerException(message: 'Şablon indirilemedi: $e');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> importMonthlyProgram({
+    required String monthKey,
+    required String fileName,
+    required Uint8List fileBytes,
+  }) async {
+    try {
+      final response = await _supabase.functions.invoke(
+        'monthly-program-import',
+        body: {
+          'month_key': monthKey,
+          'file_name': fileName,
+          'file_bytes': fileBytes.toList(),
+        },
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return Map<String, dynamic>.from(data);
+      throw ServerException(message: 'Import yanıtı okunamadı');
+    } catch (e) {
+      throw ServerException(message: 'Aylık program import hatası: $e');
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getMonthlyProgramsByDate(DateTime date) async {
+    try {
+      final keyDate = DateTime(date.year, date.month, date.day)
+          .toIso8601String()
+          .split('T')
+          .first;
+      final response = await _supabase
+          .from('monthly_program_entries')
+          .select('''
+            id,
+            plan_date,
+            scope_type,
+            training_group_id,
+            user_id,
+            training_type_id,
+            program_content,
+            workout_definition,
+            sort_order,
+            training_groups(name),
+            users(email, first_name, last_name),
+            training_types(display_name)
+          ''')
+          .eq('plan_date', keyDate)
+          .order('sort_order', ascending: true);
+      final rows = (response as List<dynamic>)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      return rows;
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Aylık plan alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getMonthlyProgramsForMonth(int year, int month) async {
+    try {
+      final start = DateTime(year, month, 1);
+      final end = DateTime(year, month + 1, 0);
+      String ymd(DateTime d) =>
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      final response = await _supabase
+          .from('monthly_program_entries')
+          .select('''
+            id,
+            plan_date,
+            scope_type,
+            training_group_id,
+            user_id,
+            training_type_id,
+            program_content,
+            workout_definition,
+            sort_order,
+            training_groups(name),
+            users(email, first_name, last_name),
+            training_types(display_name)
+          ''')
+          .gte('plan_date', ymd(start))
+          .lte('plan_date', ymd(end))
+          .order('plan_date', ascending: true);
+      final rows = (response as List<dynamic>)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      rows.sort((a, b) {
+        final da = '${a['plan_date'] ?? ''}';
+        final db = '${b['plan_date'] ?? ''}';
+        final c = da.compareTo(db);
+        if (c != 0) return c;
+        return (a['sort_order'] as int? ?? 0).compareTo(b['sort_order'] as int? ?? 0);
+      });
+      return rows;
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Aylık plan listesi alınamadı: $e');
     }
   }
 }

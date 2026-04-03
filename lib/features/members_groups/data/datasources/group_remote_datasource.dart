@@ -195,6 +195,22 @@ class GroupRemoteDataSource {
         .delete()
         .eq('group_id', groupId)
         .eq('user_id', _currentUserId!);
+
+    // Performans grubundan ayrılınca tekrar katılım için yeniden onay gereksin:
+    // (group_id,user_id) unique olduğu için eski approved kaydı kalırsa yeni talep açılamaz.
+    final groupRow = await _supabase
+        .from('training_groups')
+        .select('group_type')
+        .eq('id', groupId)
+        .maybeSingle();
+    final groupType = groupRow?['group_type'] as String? ?? 'normal';
+    if (groupType == 'performance') {
+      await _supabase
+          .from('group_join_requests')
+          .delete()
+          .eq('group_id', groupId)
+          .eq('user_id', _currentUserId!);
+    }
   }
 
   /// Belirli bir kullanıcının üye olduğu grubun ID'si (yoksa null).
@@ -215,31 +231,48 @@ class GroupRemoteDataSource {
       throw Exception('Kullanıcı giriş yapmamış');
     }
 
-    // Mevcut bekleyen talep var mı kontrol et
+    // Aynı kullanıcı+grup için daha önce talep var mı?
     final existing = await _supabase
         .from('group_join_requests')
-        .select('id')
+        .select('id, status')
         .eq('group_id', groupId)
         .eq('user_id', _currentUserId!)
-        .eq('status', 'pending')
         .maybeSingle();
 
     if (existing != null) {
-      throw Exception('Bu grup için zaten bekleyen bir talebiniz var');
+      final status = (existing['status'] as String?) ?? 'pending';
+      if (status == 'pending') {
+        // İstek zaten gönderilmiş: idempotent davran, hata verme.
+        return;
+      }
+      if (status == 'approved') {
+        // Talep daha önce onaylanmış olabilir ama kullanıcı gruptan çıkmışsa
+        // yeniden katılım için tekrar onay gereksin: pending'e çek.
+        await _supabase
+            .from('group_join_requests')
+            .update({'status': 'pending', 'requested_at': DateTime.now().toIso8601String()})
+            .eq('id', existing['id'] as String);
+        return;
+      }
+      // rejected/diğer: aşağıda yeniden pending'e çekilecek
     }
 
-    // Reddedilen talebi sil (yeniden başvurabilmek için)
-    await _supabase
-        .from('group_join_requests')
-        .delete()
-        .eq('group_id', groupId)
-        .eq('user_id', _currentUserId!)
-        .eq('status', 'rejected');
-
-    await _supabase.from('group_join_requests').insert({
-      'group_id': groupId,
-      'user_id': _currentUserId,
-    });
+    // Unique constraint (group_id,user_id) olduğu için insert yerine upsert kullan.
+    // Böylece mevcut kayıt rejected ise yeniden pending olur; varsa duplicate key hatası düşmez.
+    try {
+      await _supabase.from('group_join_requests').upsert(
+        {
+          'group_id': groupId,
+          'user_id': _currentUserId,
+          'status': 'pending',
+        },
+        onConflict: 'group_id,user_id',
+      );
+    } on PostgrestException catch (e) {
+      // 23505: duplicate key -> zaten talep vardır; idempotent davran.
+      if (e.code == '23505') return;
+      rethrow;
+    }
   }
 
   /// Grubun katılım taleplerini getir (admin)
@@ -598,6 +631,8 @@ class GroupRemoteDataSource {
     String groupId,
     List<EventMemberProgramModel> programs,
   ) async {
+    const placeholderProgramContent = 'Kişiye özel program';
+
     // Önce bu grubun mevcut programlarını sil
     await _supabase
         .from('event_member_programs')
@@ -605,7 +640,25 @@ class GroupRemoteDataSource {
         .eq('event_id', eventId)
         .eq('training_group_id', groupId);
 
-    if (programs.isEmpty) return [];
+    if (programs.isEmpty) {
+      // Performans grubu bu etkinlikten kaldırıldıysa, placeholder group-program kaydını da temizle
+      final existing = await _supabase
+          .from('event_group_programs')
+          .select('id, program_content')
+          .eq('event_id', eventId)
+          .eq('training_group_id', groupId)
+          .maybeSingle();
+
+      if (existing != null &&
+          (existing['program_content'] as String?) == placeholderProgramContent) {
+        await _supabase
+            .from('event_group_programs')
+            .delete()
+            .eq('id', existing['id'] as String);
+      }
+
+      return [];
+    }
 
     final dataList = programs.asMap().entries.map((entry) {
       final program = entry.value;
@@ -620,6 +673,24 @@ class GroupRemoteDataSource {
         .from('event_member_programs')
         .insert(dataList)
         .select('*, users(first_name, last_name, avatar_url), training_groups(name, color), routes(name)');
+
+    // Bu performans grubunun etkinliğe "dahil" olduğunu göstermek için event_group_programs'a placeholder kayıt ekle.
+    // Not: Mevcut (admin tarafından) gerçek bir grup programı varsa üzerine yazmamak için önce var mı kontrol ederiz.
+    final existingGroupProgram = await _supabase
+        .from('event_group_programs')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('training_group_id', groupId)
+        .maybeSingle();
+
+    if (existingGroupProgram == null) {
+      await _supabase.from('event_group_programs').insert({
+        'event_id': eventId,
+        'training_group_id': groupId,
+        'program_content': placeholderProgramContent,
+        'order_index': 0,
+      });
+    }
 
     return (response as List)
         .map((json) => EventMemberProgramModel.fromJson(json as Map<String, dynamic>))
@@ -651,6 +722,50 @@ class GroupRemoteDataSource {
 
     return (response as List)
         .map((json) => UserModel.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Herhangi bir gruba üye olmayan (aktif) kullanıcıları getir
+  Future<List<UserModel>> getUsersWithoutGroup() async {
+    // Supabase left-join + null filtresi bazen ilişki/alias tarafında
+    // beklenildiği gibi davranmayabiliyor. Bu yüzden iki adımda ilerliyoruz:
+    // 1) Aktif tüm kullanıcıları çek
+    // 2) group_members içindeki tüm user_id'leri alıp filtrele
+    final activeUsersResponse = await _supabase
+        .from('users')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', ascending: false);
+
+    final activeUsers = (activeUsersResponse as List)
+        .map((json) => UserModel.fromJson(json as Map<String, dynamic>))
+        .toList();
+
+    if (activeUsers.isEmpty) return [];
+
+    // Sadece aktif gruplar üzerinden üyelik kontrolü yap
+    final activeGroupIdsResponse = await _supabase
+        .from('training_groups')
+        .select('id')
+        .eq('is_active', true);
+
+    final activeGroupIds = (activeGroupIdsResponse as List)
+        .map((row) => row['id'] as String)
+        .toList();
+
+    // Aktif grup yoksa herkes "gruba dahil olmayan" kabul edilir.
+    if (activeGroupIds.isEmpty) return activeUsers;
+
+    final memberIdsResponse = await _supabase
+        .from('group_members')
+        .select('user_id')
+        .inFilter('group_id', activeGroupIds);
+    final memberIds = (memberIdsResponse as List)
+        .map((row) => row['user_id'] as String)
+        .toSet();
+
+    return activeUsers
+        .where((u) => !memberIds.contains(u.id))
         .toList();
   }
 

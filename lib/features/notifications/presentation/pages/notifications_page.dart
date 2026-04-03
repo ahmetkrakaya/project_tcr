@@ -9,6 +9,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../data/models/notification_model.dart';
+import '../../constants/notification_types.dart';
 import '../providers/notification_provider.dart';
 
 /// Bildirimler sayfası
@@ -95,6 +96,26 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     if (type == 'order_status_changed') {
       context.goNamed(RouteNames.myOrders);
       return;
+    }
+    // Admin manuel bildirim -> target bazlı yönlendirme
+    if (type == NotificationTypes.adminManual && data['target'] != null) {
+      final target = data['target'] as String;
+      if (target == 'integrations') {
+        context.goNamed(RouteNames.integrations);
+        return;
+      }
+      if (target == 'pace_calculator') {
+        context.goNamed(RouteNames.paceCalculator);
+        return;
+      }
+      if (target == 'groups') {
+        context.goNamed(RouteNames.groups);
+        return;
+      }
+      if (target == 'notifications') {
+        context.goNamed(RouteNames.notifications);
+        return;
+      }
     }
     // Fallback: room_id ile genel chat room (diğer sohbet bildirimleri)
     if (data['room_id'] != null) {

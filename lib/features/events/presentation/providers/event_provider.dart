@@ -70,6 +70,13 @@ final eventDataSourceProvider = Provider<EventRemoteDataSource>((ref) {
   return EventRemoteDataSourceImpl(ref.watch(_supabaseProvider));
 });
 
+/// Admin — Etkinlikler sayfasında seçili ayın aylık plan satırları (antrenman takvim görünümü)
+final adminMonthlyProgramsForMonthProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, DateTime>((ref, monthFirst) async {
+  final ds = ref.watch(eventDataSourceProvider);
+  return ds.getMonthlyProgramsForMonth(monthFirst.year, monthFirst.month);
+});
+
 /// Event results repository provider
 final eventResultsRepositoryProvider = Provider<EventResultsRepository>((ref) {
   final supabase = ref.watch(_supabaseProvider);
@@ -226,16 +233,33 @@ class RsvpNotifier extends StateNotifier<AsyncValue<void>> {
 
   RsvpNotifier(this._dataSource, this._ref) : super(const AsyncValue.data(null));
 
-  Future<void> rsvp(String eventId, RsvpStatus status, {String? note}) async {
+  Future<void> rsvp(
+    String eventId,
+    RsvpStatus status, {
+    String? note,
+    String? raceVariantLabel,
+  }) async {
     state = const AsyncValue.loading();
     try {
-      await _dataSource.rsvpToEvent(eventId, status.toDbString(), note: note);
-      state = const AsyncValue.data(null);
-      // Refresh related providers
+      await _dataSource.rsvpToEvent(
+        eventId,
+        status.toDbString(),
+        note: note,
+        raceVariantLabel: raceVariantLabel,
+      );
+      // Refresh related providers and wait critical ones.
       _ref.invalidate(eventByIdProvider(eventId));
       _ref.invalidate(eventParticipantsProvider(eventId));
       _ref.invalidate(currentUserEventsProvider);
       _ref.invalidate(upcomingEventsProvider);
+
+      // Alt bardaki yükleme, ekran verisi gerçekten güncellenene kadar sürsün.
+      await Future.wait([
+        _ref.read(eventByIdProvider(eventId).future),
+        _ref.read(eventParticipantsProvider(eventId).future),
+      ]);
+
+      state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -245,12 +269,18 @@ class RsvpNotifier extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     try {
       await _dataSource.cancelRsvp(eventId);
-      state = const AsyncValue.data(null);
-      // Refresh related providers
+      // Refresh related providers and wait critical ones.
       _ref.invalidate(eventByIdProvider(eventId));
       _ref.invalidate(eventParticipantsProvider(eventId));
       _ref.invalidate(currentUserEventsProvider);
       _ref.invalidate(upcomingEventsProvider);
+
+      await Future.wait([
+        _ref.read(eventByIdProvider(eventId).future),
+        _ref.read(eventParticipantsProvider(eventId).future),
+      ]);
+
+      state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -280,6 +310,7 @@ class EventInfoBlocksNotifier extends StateNotifier<AsyncValue<List<EventInfoBlo
   final PostRemoteDataSource _postDataSource;
   final Ref _ref;
   final String eventId;
+  int _localBlockIdCounter = 0;
 
   EventInfoBlocksNotifier(this._eventDataSource, this._postDataSource, this._ref, this.eventId)
       : super(const AsyncValue.loading()) {
@@ -306,8 +337,10 @@ class EventInfoBlocksNotifier extends StateNotifier<AsyncValue<List<EventInfoBlo
   void addBlock(EventInfoBlockType type, String content, {String? subContent, String? color}) {
     final currentBlocks = state.valueOrNull ?? [];
     final newOrderIndex = currentBlocks.length;
+    final localId = 'local_${DateTime.now().microsecondsSinceEpoch}_${_localBlockIdCounter++}';
     final entity = EventInfoBlockEntity(
-      id: '', // Kaydetmede sunucu atayacak
+      // Yerelde benzersiz id gerekir; ReorderableListView key çakışmasını önler.
+      id: localId,
       eventId: eventId,
       type: type,
       content: content,

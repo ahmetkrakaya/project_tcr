@@ -12,11 +12,22 @@ import '../../domain/entities/route_entity.dart';
 import '../providers/route_provider.dart';
 
 /// Rotalar Listesi Sayfası
-class RoutesPage extends ConsumerWidget {
+enum RouteListFilter { all, race, normal }
+
+/// Rotalar Listesi Sayfası
+class RoutesPage extends ConsumerStatefulWidget {
   const RoutesPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RoutesPage> createState() => _RoutesPageState();
+}
+
+class _RoutesPageState extends ConsumerState<RoutesPage> {
+  RouteListFilter _filter = RouteListFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final routesAsync = ref.watch(allRoutesProvider);
     final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
 
@@ -33,6 +44,17 @@ class RoutesPage extends ConsumerWidget {
       ),
       body: routesAsync.when(
         data: (routes) {
+          final filteredRoutes = routes.where((r) {
+            switch (_filter) {
+              case RouteListFilter.race:
+                return r.isRace;
+              case RouteListFilter.normal:
+                return !r.isRace;
+              case RouteListFilter.all:
+                return true;
+            }
+          }).toList();
+
           if (routes.isEmpty) {
             return EmptyStateWidget(
               icon: Icons.route,
@@ -52,11 +74,46 @@ class RoutesPage extends ConsumerWidget {
               ref.invalidate(allRoutesProvider);
             },
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: routes.length,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              itemCount: filteredRoutes.length + 1,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                final route = routes[index];
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: SegmentedButton<RouteListFilter>(
+                            segments: const [
+                              ButtonSegment(
+                                value: RouteListFilter.all,
+                                label: Text('Hepsi'),
+                                icon: Icon(Icons.list),
+                              ),
+                              ButtonSegment(
+                                value: RouteListFilter.race,
+                                label: Text('Yarış'),
+                                icon: Icon(Icons.emoji_events),
+                              ),
+                              ButtonSegment(
+                                value: RouteListFilter.normal,
+                                label: Text('Normal'),
+                                icon: Icon(Icons.map_outlined),
+                              ),
+                            ],
+                            selected: {_filter},
+                            onSelectionChanged: (Set<RouteListFilter> sel) {
+                              setState(() => _filter = sel.first);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final route = filteredRoutes[index - 1];
                 return _RouteListTile(
                   route: route,
                   onTap: () => context.pushNamed(
@@ -136,7 +193,7 @@ class _RouteListTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${route.terrainType.displayName} · ${route.formattedDistance} · ${route.formattedElevationGain}',
+                      '${route.isRace ? 'Yarış' : 'Normal'} · ${route.terrainType.displayName} · ${route.formattedDistance} · ${route.formattedElevationGain}',
                       style: AppTypography.labelSmall.copyWith(
                         color: AppColors.neutral500,
                       ),

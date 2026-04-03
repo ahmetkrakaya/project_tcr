@@ -108,6 +108,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = const AuthLoading();
     final result = await _repository.getCurrentUser();
     
+    // passwordRecovery event listener bu arada state'i AuthNeedsPasswordReset
+    // yapmış olabilir; onu ezmeyelim.
+    if (state is AuthNeedsPasswordReset) return;
+    
     if (result.user != null) {
       state = AuthAuthenticated(result.user!);
     } else {

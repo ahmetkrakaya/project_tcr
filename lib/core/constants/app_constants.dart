@@ -192,6 +192,7 @@ class RouteNames {
   // Events
   static const String eventDetail = 'event-detail';
   static const String createEvent = 'create-event';
+  static const String adminMonthlyProgramUpload = 'admin-monthly-program-upload';
   static const String editEvent = 'edit-event';
   static const String eventReport = 'event-report';
   static const String eventReportDetail = 'event-report-detail';
@@ -211,6 +212,8 @@ class RouteNames {
   static const String createGroup = 'create-group';
   static const String editGroup = 'edit-group';
   static const String upcomingBirthdays = 'upcoming-birthdays';
+  static const String vdotThresholdList = 'vdot-threshold-list';
+  static const String unassignedMembers = 'unassigned-members';
 
   // Chat
   static const String chatRoom = 'chat-room';
@@ -227,6 +230,7 @@ class RouteNames {
   static const String integrations = 'integrations';
   static const String stravaActivityList = 'strava-activity-list';
   static const String statistics = 'statistics';
+  static const String adminCreateNotification = 'admin-create-notification';
 
   // Activity
   static const String activityDetail = 'activity-detail';

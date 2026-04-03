@@ -3,6 +3,8 @@ class RouteEntity {
   final String id;
   final String name;
   final String? description;
+  /// Yarış rotası mı (örn. Runtalya) yoksa normal parkur mu?
+  final bool isRace;
   final String? gpxData; // Raw GPX XML
   final String? gpxFileUrl; // Supabase Storage URL
   final double? totalDistance; // Kilometre
@@ -13,6 +15,11 @@ class RouteEntity {
   final List<ElevationPoint>? elevationProfile;
   final RouteLocation? startLocation;
   final RouteLocation? endLocation;
+  /// Opsiyonel çoklu GPX varyantları (örn. 21K/10K)
+  ///
+  /// Geriye dönük uyumluluk için:
+  /// - `gpx_variants` yoksa model tarafında tek bir "default" varyant üretilecektir.
+  final List<RouteGpxVariantEntity> gpxVariants;
   /// Haritadan seçilen rota konumu (lat/lng)
   final double? locationLat;
   final double? locationLng;
@@ -27,6 +34,7 @@ class RouteEntity {
     required this.id,
     required this.name,
     this.description,
+    this.isRace = false,
     this.gpxData,
     this.gpxFileUrl,
     this.totalDistance,
@@ -37,6 +45,7 @@ class RouteEntity {
     this.elevationProfile,
     this.startLocation,
     this.endLocation,
+    this.gpxVariants = const [],
     this.locationLat,
     this.locationLng,
     this.locationName,
@@ -149,6 +158,46 @@ class RouteLocation {
       'lng': lng,
       'name': name,
     };
+  }
+}
+
+/// GPX varyantı (tek bir rota içinde birden fazla mesafe/variant)
+class RouteGpxVariantEntity {
+  final String label; // Örn: "21K", "10K"
+  final String? gpxData;
+  final String? gpxFileUrl;
+
+  final double? totalDistance; // Kilometre
+  final double? elevationGain;
+  final double? elevationLoss;
+  final double? maxElevation;
+  final double? minElevation;
+  final List<ElevationPoint>? elevationProfile;
+  final RouteLocation? startLocation;
+  final RouteLocation? endLocation;
+
+  const RouteGpxVariantEntity({
+    required this.label,
+    this.gpxData,
+    this.gpxFileUrl,
+    this.totalDistance,
+    this.elevationGain,
+    this.elevationLoss,
+    this.maxElevation,
+    this.minElevation,
+    this.elevationProfile,
+    this.startLocation,
+    this.endLocation,
+  });
+
+  String get formattedDistance {
+    if (totalDistance == null) return '-';
+    return '${totalDistance!.toStringAsFixed(1)} km';
+  }
+
+  String get formattedElevationGain {
+    if (elevationGain == null) return '-';
+    return '${elevationGain!.toInt()} m';
   }
 }
 

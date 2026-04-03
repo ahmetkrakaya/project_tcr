@@ -100,6 +100,8 @@ class EventEntity {
   final double? locationLat;
   final double? locationLng;
   final String? routeId;
+  /// Yarış etkinliklerinde açılan resmi kategoriler (örn. 5K, 10K, 21K)
+  final List<String>? raceVariantLabels;
   final String? trainingGroupId;
   final String? trainingTypeId;
   final String? trainingTypeName;
@@ -116,6 +118,8 @@ class EventEntity {
   final DateTime createdAt;
   final int participantCount;
   final bool isUserParticipating;
+  /// Mevcut kullanıcının RSVP durumu (going/not_going/maybe), yoksa null.
+  final RsvpStatus? currentUserRsvpStatus;
   /// team: toplu antrenman (Katılıyorum/RSVP); individual: isteğe bağlı bireysel (katılım kaydı yok). null = team sayılır.
   final String? participationType;
   /// Pist rotada pace bazlı kulvar ataması (track ise dolu olabilir)
@@ -150,6 +154,7 @@ class EventEntity {
     this.locationLat,
     this.locationLng,
     this.routeId,
+    this.raceVariantLabels,
     this.trainingGroupId,
     this.trainingTypeId,
     this.trainingTypeName,
@@ -164,6 +169,7 @@ class EventEntity {
     required this.createdAt,
     this.participantCount = 0,
     this.isUserParticipating = false,
+    this.currentUserRsvpStatus,
     this.participationType,
     this.laneConfig,
     this.isPinned = false,
@@ -330,6 +336,8 @@ class EventParticipantEntity {
   final DateTime respondedAt;
   final bool checkedIn;
   final DateTime? checkedInAt;
+  /// Yarış etkinliklerinde kullanıcının seçtiği kategori etiketi (örn. 10K)
+  final String? raceVariantLabel;
 
   const EventParticipantEntity({
     required this.id,
@@ -342,6 +350,7 @@ class EventParticipantEntity {
     required this.respondedAt,
     this.checkedIn = false,
     this.checkedInAt,
+    this.raceVariantLabel,
   });
 }
 

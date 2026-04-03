@@ -207,3 +207,45 @@ class NotificationSettingsNotifier extends StateNotifier<AsyncValue<Map<String, 
     }
   }
 }
+
+final adminNotificationGroupsProvider =
+    FutureProvider<List<AdminTrainingGroup>>((ref) async {
+  final dataSource = ref.watch(notificationDataSourceProvider);
+  return dataSource.getActiveTrainingGroups();
+});
+
+final adminNotificationSenderProvider =
+    StateNotifierProvider<AdminNotificationSenderNotifier, AsyncValue<void>>((ref) {
+  final dataSource = ref.watch(notificationDataSourceProvider);
+  return AdminNotificationSenderNotifier(dataSource);
+});
+
+class AdminNotificationSenderNotifier extends StateNotifier<AsyncValue<void>> {
+  final NotificationRemoteDataSource _dataSource;
+
+  AdminNotificationSenderNotifier(this._dataSource)
+      : super(const AsyncValue.data(null));
+
+  Future<void> send({
+    required String title,
+    required String body,
+    required AdminNotificationAudience audience,
+    DateTime? scheduleAt,
+    String? routeTarget,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.createAdminNotification(
+        title: title,
+        body: body,
+        audience: audience,
+        scheduleAt: scheduleAt,
+        routeTarget: routeTarget,
+      );
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+}

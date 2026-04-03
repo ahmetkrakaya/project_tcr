@@ -90,6 +90,9 @@ class GroupMembershipNotifier extends StateNotifier<AsyncValue<void>> {
       _ref.invalidate(userGroupsProvider);
       _ref.invalidate(groupByIdProvider(groupId));
       _ref.invalidate(groupMembersProvider(groupId));
+      // Kullanıcının grup üyeliği değişti: etkinlik programları da yeniden hesaplanmalı.
+      _ref.invalidate(userEventGroupProgramsProvider);
+      _ref.invalidate(userEventMemberProgramsProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       rethrow;
@@ -107,6 +110,9 @@ class GroupMembershipNotifier extends StateNotifier<AsyncValue<void>> {
       _ref.invalidate(userGroupsProvider);
       _ref.invalidate(groupByIdProvider(groupId));
       _ref.invalidate(groupMembersProvider(groupId));
+      // Kullanıcının grup üyeliği değişti: etkinlik programları da yeniden hesaplanmalı.
+      _ref.invalidate(userEventGroupProgramsProvider);
+      _ref.invalidate(userEventMemberProgramsProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -466,6 +472,7 @@ class MemberTransferNotifier extends StateNotifier<AsyncValue<void>> {
         _ref.invalidate(groupByIdProvider(fromGroupId));
         _ref.invalidate(groupMembersProvider(fromGroupId));
       }
+      _ref.invalidate(unassignedUsersProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       rethrow;
@@ -646,6 +653,61 @@ final pendingUsersProvider = FutureProvider<List<UserEntity>>((ref) async {
     return a.fullName.compareTo(b.fullName);
   });
   
+  return users;
+});
+
+/// Herhangi bir gruba üye olmayan (aktif) kullanıcılar provider (sadece admin kullanımında)
+final unassignedUsersProvider = FutureProvider<List<UserEntity>>((ref) async {
+  final dataSource = ref.watch(groupDataSourceProvider);
+  final supabase = ref.watch(_supabaseProvider);
+  final models = await dataSource.getUsersWithoutGroup();
+
+  if (models.isEmpty) {
+    return [];
+  }
+
+  // Tüm kullanıcı ID'lerini al
+  final userIds = models.map((m) => m.id).toList();
+
+  // Tek sorgu ile tüm rolleri al
+  final rolesResponse = await supabase
+      .from('user_roles')
+      .select('user_id, role')
+      .inFilter('user_id', userIds);
+
+  // Rolleri user_id'ye göre grupla
+  final rolesMap = <String, List<String>>{};
+  for (final roleData in rolesResponse as List) {
+    final userId = roleData['user_id'] as String;
+    final role = roleData['role'] as String;
+    rolesMap.putIfAbsent(userId, () => []).add(role);
+  }
+
+  // Kullanıcıları oluştur ve rolleri eşleştir
+  final users = <UserEntity>[];
+  for (final model in models) {
+    final roleList = rolesMap[model.id] ?? ['member'];
+    users.add(model.toEntity(roles: roleList));
+  }
+
+  // Rol bazında sıralama: super_admin > coach > member
+  users.sort((a, b) {
+    int getRolePriority(UserEntity user) {
+      if (user.isAdmin) return 0;
+      if (user.isCoach) return 1;
+      return 2;
+    }
+
+    final priorityA = getRolePriority(a);
+    final priorityB = getRolePriority(b);
+
+    if (priorityA != priorityB) {
+      return priorityA.compareTo(priorityB);
+    }
+
+    return a.fullName.compareTo(b.fullName);
+  });
+
   return users;
 });
 

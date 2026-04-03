@@ -205,7 +205,11 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                     final router = GoRouter.of(context);
                     switch (value) {
                       case 'edit':
-                        if (event.isPartOfRecurringSeries) {
+                        final hasActiveRecurrence =
+                            event.isRecurring &&
+                            event.recurrenceRule != null &&
+                            event.recurrenceRule!.isNotEmpty;
+                        if (hasActiveRecurrence) {
                           final scope = await _showRecurringEditScopeDialog(context);
                           if (scope != null && context.mounted) {
                             router.pushNamed(
@@ -447,19 +451,29 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             ),
           ),
           // Alt bardaki katılım butonlarının üstünde kalması için ekstra alt boşluk
-          const SliverToBoxAdapter(
-            child: SizedBox(height: 120),
-          ),
+          if (_shouldShowParticipationBottomBar(event))
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 120),
+            ),
         ],
       ),
-      bottomSheet: _isIndividualParticipation(event)
-          ? null
-          : _buildBottomBar(context, ref, event, rsvpState),
+      bottomSheet: _shouldShowParticipationBottomBar(event)
+          ? _buildBottomBar(context, ref, event, rsvpState)
+          : null,
     );
   }
 
   bool _isIndividualParticipation(EventEntity event) =>
       event.participationType == 'individual';
+
+  bool _shouldShowParticipationBottomBar(EventEntity event) {
+    if (_isIndividualParticipation(event)) return false;
+    final isEventFinished = event.startTime
+        .add(const Duration(hours: 2))
+        .isBefore(DateTime.now());
+    if (isEventFinished) return false;
+    return event.canUserParticipate;
+  }
 
   Widget _buildInfoRow({
     required IconData icon,
@@ -746,6 +760,11 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     AsyncValue<void> rsvpState,
   ) {
     final isLoading = rsvpState.isLoading;
+    final userRsvpStatus = event.currentUserRsvpStatus;
+
+    if (!_shouldShowParticipationBottomBar(event)) {
+      return const SizedBox.shrink();
+    }
 
     return SafeArea(
       top: false,
@@ -765,20 +784,35 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
           ],
         ),
         child: (() {
-          // Etkinlik bitmişse hiçbir buton gösterme
-          final isEventFinished = event.startTime.add(const Duration(hours: 2)).isBefore(DateTime.now());
-          if (isEventFinished) {
-            return const SizedBox.shrink();
-          }
-          
-          // Katılım aksiyonları sadece kullanıcının bu etkinlikte katılımcı olmasına izin veriliyorsa gösterilir
-          if (!event.canUserParticipate) {
-            return const SizedBox.shrink();
+          if (isLoading) {
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Katılım durumu güncelleniyor...',
+                    style: AppTypography.labelLarge.copyWith(
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            );
           }
 
-          // Kullanıcı halihazırda "Katılıyorum" dediyse, durumu göster ve
-          // ayrıca "Katılmıyorum" seçeneği sun.
-          if (event.isUserParticipating) {
+          if (userRsvpStatus == RsvpStatus.going) {
             return Row(
               children: [
                 AppButton(
@@ -826,25 +860,68 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             );
           }
 
-          // Kullanıcı hiçbir seçim yapmamış ya da "Katılmıyorum" demişse,
-          // iki seçenek aynı anda gösterilir.
+          if (userRsvpStatus == RsvpStatus.notGoing) {
+            return Row(
+              children: [
+                AppButton(
+                  text: 'Katılıyorum',
+                  icon: Icons.check,
+                  isLoading: isLoading,
+                  onPressed: () async {
+                    await _handleJoinPressed(context, ref, event);
+                  },
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.neutral100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.cancel_outlined,
+                          color: AppColors.neutral600,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Katılmıyorsunuz',
+                          style: AppTypography.labelLarge.copyWith(
+                            color: AppColors.neutral700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          // Varsayılan durum: kullanıcı henüz seçim yapmamış.
           return Row(
             children: [
               Expanded(
+                flex: 3,
                 child: AppButton(
                   text: 'Katılıyorum',
                   icon: Icons.check,
                   isLoading: isLoading,
-                  onPressed: () {
-                    ref.read(rsvpProvider.notifier).rsvp(
-                          widget.eventId,
-                          RsvpStatus.going,
-                        );
+                  onPressed: () async {
+                    await _handleJoinPressed(context, ref, event);
                   },
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
+                flex: 2,
                 child: AppButton(
                   text: 'Katılmıyorum',
                   variant: AppButtonVariant.danger,
@@ -864,6 +941,124 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     );
   }
 
+  Future<void> _handleJoinPressed(
+    BuildContext context,
+    WidgetRef ref,
+    EventEntity event,
+  ) async {
+    // Sadece yarış event'lerinde kategori (mesafe) seçimi zorunlu.
+    if (event.eventType == EventType.race) {
+      final labelsFromEvent = event.raceVariantLabels;
+      final labels = (labelsFromEvent != null && labelsFromEvent.isNotEmpty)
+          ? labelsFromEvent
+          : await _resolveRaceVariantLabelsFromRoute(ref, event);
+
+      if (labels.isNotEmpty) {
+        final pickedLabel = await _showRaceVariantLabelDialog(
+          context,
+          labels,
+        );
+        if (pickedLabel == null) return;
+
+        await ref.read(rsvpProvider.notifier).rsvp(
+              widget.eventId,
+              RsvpStatus.going,
+              raceVariantLabel: pickedLabel,
+            );
+        return;
+      }
+    }
+
+    // Eski race event'ler veya kategori listesi olmayan durumlarda
+    // ekstra seçim istemeden RSVP al.
+    await ref.read(rsvpProvider.notifier).rsvp(
+          widget.eventId,
+          RsvpStatus.going,
+        );
+  }
+
+  Future<List<String>> _resolveRaceVariantLabelsFromRoute(
+    WidgetRef ref,
+    EventEntity event,
+  ) async {
+    final routeId = event.routeId;
+    if (routeId == null || routeId.isEmpty) return const <String>[];
+
+    try {
+      final routes = await ref.read(allRoutesProvider.future);
+      final route = routes.firstWhere((r) => r.id == routeId);
+      final labels = route.gpxVariants
+          .map((v) => v.label)
+          .where((label) => label.trim().isNotEmpty)
+          .toList();
+      return labels;
+    } catch (_) {
+      return const <String>[];
+    }
+  }
+
+  Future<String?> _showRaceVariantLabelDialog(
+    BuildContext context,
+    List<String> labels,
+  ) async {
+    if (labels.isEmpty) return null;
+
+    String? selected = labels.first;
+
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return AlertDialog(
+              title: const Text('Yarış mesafesi seçin'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Katılıyorum demeden önce mesafe/kategori seçmelisiniz.',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.neutral600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: selected,
+                      isExpanded: true,
+                      items: labels.map((label) {
+                        return DropdownMenuItem<String>(
+                          value: label,
+                          child: Text(label),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() => selected = value);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, null),
+                  child: const Text('İptal'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext, selected);
+                  },
+                  child: const Text('Katıl'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showResultsModal(
     BuildContext context,
     AsyncValue<List<EventResultEntity>> resultsAsync,
@@ -876,6 +1071,8 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
       builder: (modalContext) => _ResultsModalContent(
         resultsAsync: resultsAsync,
         initialRankingType: _selectedRankingType,
+        isRaceEvent: event.eventType == EventType.race,
+        raceVariantLabels: event.raceVariantLabels,
       ),
     );
   }
@@ -1966,109 +2163,186 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           return routeAsync.when(
                             data: (route) {
                               final name = event.locationName ?? route.name;
-                              return AppCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      name,
-                                      style: AppTypography.titleSmall.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    if (event.locationAddress != null &&
-                                        event.locationAddress!.isNotEmpty &&
-                                        event.locationAddress != name) ...[
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        event.locationAddress!,
-                                        style: AppTypography.bodySmall.copyWith(
-                                          color: AppColors.neutral500,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                    const SizedBox(height: 12),
-                                    Row(
+                              int selectedVariantIndex = 0;
+                              final variants = route.gpxVariants;
+
+                              return StatefulBuilder(
+                                builder: (contextSB, modalSetState) {
+                                  final selectedVariant = variants.isNotEmpty
+                                      ? variants[selectedVariantIndex.clamp(0, variants.length - 1)]
+                                      : null;
+
+                                  return AppCard(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Expanded(
-                                          child: InkWell(
-                                            onTap: onDirections,
-                                            borderRadius: BorderRadius.circular(8),
-                                            child: Padding(
-                                              padding: const EdgeInsets.symmetric(vertical: 8),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(Icons.directions, size: 20, color: AppColors.primary),
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    'Yol Tarifi Al',
-                                                    style: AppTypography.labelMedium.copyWith(
-                                                      color: AppColors.primary,
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
+                                        Text(
+                                          name,
+                                          style: AppTypography.titleSmall.copyWith(
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                        InkWell(
-                                          onTap: onRouteDetail,
-                                          borderRadius: BorderRadius.circular(8),
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(vertical: 8),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  'Rotayı Görüntüle',
-                                                  style: AppTypography.labelMedium.copyWith(
-                                                    color: AppColors.primary,
-                                                    fontWeight: FontWeight.w600,
+                                        if (event.locationAddress != null &&
+                                            event.locationAddress!.isNotEmpty &&
+                                            event.locationAddress != name) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            event.locationAddress!,
+                                            style: AppTypography.bodySmall.copyWith(
+                                              color: AppColors.neutral500,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                        const SizedBox(height: 12),
+
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: InkWell(
+                                                onTap: onDirections,
+                                                borderRadius: BorderRadius.circular(8),
+                                                child: Padding(
+                                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(Icons.directions, size: 20, color: AppColors.primary),
+                                                      const SizedBox(width: 6),
+                                                      Text(
+                                                        'Yol Tarifi Al',
+                                                        style: AppTypography.labelMedium.copyWith(
+                                                          color: AppColors.primary,
+                                                          fontWeight: FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
-                                                const SizedBox(width: 4),
-                                                Icon(Icons.chevron_right, size: 18, color: AppColors.primary),
-                                              ],
+                                              ),
+                                            ),
+                                            InkWell(
+                                              onTap: () {
+                                                Navigator.pop(modalContext);
+                                                context.pushNamed(
+                                                  RouteNames.routeDetail,
+                                                  pathParameters: {'routeId': event.routeId!},
+                                                  extra: {'variantIndex': selectedVariantIndex},
+                                                );
+                                              },
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Padding(
+                                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      'Rotayı Görüntüle',
+                                                      style: AppTypography.labelMedium.copyWith(
+                                                        color: AppColors.primary,
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Icon(Icons.chevron_right, size: 18, color: AppColors.primary),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+
+                                        if (variants.length > 1) ...[
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            crossAxisAlignment: CrossAxisAlignment.center,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  'Mesafe',
+                                                  style: AppTypography.labelMedium.copyWith(
+                                                    fontWeight: FontWeight.w800,
+                                                    color: AppColors.neutral700,
+                                                  ),
+                                                ),
+                                              ),
+                                              DropdownButtonHideUnderline(
+                                                child: DropdownButton<int>(
+                                                  value: selectedVariantIndex,
+                                                  isDense: true,
+                                                  onChanged: (value) {
+                                                    if (value == null) return;
+                                                    modalSetState(() {
+                                                      selectedVariantIndex = value;
+                                                    });
+                                                  },
+                                                  items: List.generate(variants.length, (i) {
+                                                    final v = variants[i];
+                                                    return DropdownMenuItem<int>(
+                                                      value: i,
+                                                      child: Text(
+                                                        v.label,
+                                                        style: AppTypography.labelSmall,
+                                                      ),
+                                                    );
+                                                  }),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            '${variants.length} farklı rota seçeneği',
+                                            style: AppTypography.labelSmall.copyWith(
+                                              color: AppColors.neutral600,
                                             ),
                                           ),
+                                          const SizedBox(height: 10),
+                                          Text(
+                                            'Seçili Rota: ${selectedVariant?.label ?? variants[selectedVariantIndex].label} • '
+                                            '${(selectedVariant?.formattedDistance ?? variants[selectedVariantIndex].formattedDistance)}',
+                                            style: AppTypography.labelMedium.copyWith(
+                                              color: AppColors.neutral800,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+
+                                        const SizedBox(height: 8),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 4,
+                                          crossAxisAlignment: WrapCrossAlignment.center,
+                                          children: [
+                                            Icon(Icons.straighten, size: 14, color: AppColors.neutral500),
+                                            Text(
+                                              selectedVariant?.formattedDistance ?? route.formattedDistance,
+                                              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                                            ),
+                                            Icon(Icons.trending_up, size: 14, color: AppColors.neutral500),
+                                            Text(
+                                              selectedVariant?.formattedElevationGain ??
+                                                  route.formattedElevationGain,
+                                              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.tertiary.withValues(alpha: 0.15),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                route.terrainType.displayName,
+                                                style: AppTypography.labelSmall.copyWith(color: AppColors.tertiary),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 4,
-                                      crossAxisAlignment: WrapCrossAlignment.center,
-                                      children: [
-                                        Icon(Icons.straighten, size: 14, color: AppColors.neutral500),
-                                        Text(
-                                          route.formattedDistance,
-                                          style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
-                                        ),
-                                        Icon(Icons.trending_up, size: 14, color: AppColors.neutral500),
-                                        Text(
-                                          route.formattedElevationGain,
-                                          style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.tertiary.withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            route.terrainType.displayName,
-                                            style: AppTypography.labelSmall.copyWith(color: AppColors.tertiary),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                                  );
+                                },
                               );
                             },
                             loading: () => AppCard(
@@ -2340,7 +2614,8 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
       }
 
       // Async sonrasında context kullanmamak için Navigator referansını al
-      final navigator = Navigator.of(context);
+      // showDialog varsayılan olarak rootNavigator üzerinden açılır; aynı navigator ile kapatmalıyız.
+      final navigator = Navigator.of(context, rootNavigator: true);
 
       showDialog(
         context: context,
@@ -2441,7 +2716,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
       // Loading dialog'u kapatmayı dene (eğer açıksa)
       if (context.mounted) {
         try {
-          Navigator.of(context, rootNavigator: false).pop();
+          Navigator.of(context, rootNavigator: true).pop();
         } catch (_) {
           // Dialog zaten kapatılmış veya yok
         }
@@ -2621,10 +2896,14 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
 class _ResultsModalContent extends StatefulWidget {
   final AsyncValue<List<EventResultEntity>> resultsAsync;
   final String initialRankingType;
+  final bool isRaceEvent;
+  final List<String>? raceVariantLabels;
 
   const _ResultsModalContent({
     required this.resultsAsync,
     required this.initialRankingType,
+    required this.isRaceEvent,
+    required this.raceVariantLabels,
   });
 
   @override
@@ -2633,11 +2912,16 @@ class _ResultsModalContent extends StatefulWidget {
 
 class _ResultsModalContentState extends State<_ResultsModalContent> {
   late String _selectedRankingType;
+  String? _selectedRaceVariantLabel;
 
   @override
   void initState() {
     super.initState();
     _selectedRankingType = widget.initialRankingType;
+    _selectedRaceVariantLabel =
+        widget.raceVariantLabels != null && widget.raceVariantLabels!.isNotEmpty
+            ? widget.raceVariantLabels!.first
+            : null;
   }
 
   @override
@@ -2686,18 +2970,58 @@ class _ResultsModalContentState extends State<_ResultsModalContent> {
                   );
                 }
 
-                // Filtreleme: Seçilen sıralama tipine göre
+                // Race event: kategori (race_variant_label) dropdown + filtre
+                String? dropdownSelectedCategory = _selectedRaceVariantLabel;
+                List<String?> raceCategories = const [];
+
+                // Başlangıç olarak tüm sonuçları alıyoruz; filtreler aşağıda uygulanacak.
                 List<EventResultEntity> filteredResults = results;
+
+                if (widget.isRaceEvent) {
+                  final openLabels = widget.raceVariantLabels ?? const <String>[];
+                  final labelsFromResults = results
+                      .map((r) => r.raceVariantLabel)
+                      .toSet(); // String? set
+
+                  final categories = <String?>[];
+                  for (final l in openLabels) {
+                    if (!categories.contains(l)) categories.add(l);
+                  }
+
+                  // Event.raceVariantLabels boş olsa bile sonuçlarda label varsa onu ekle
+                  for (final l in labelsFromResults.whereType<String>()) {
+                    if (!categories.contains(l)) categories.add(l);
+                  }
+
+                  // Null (Belirsiz) opsiyonu
+                  if (labelsFromResults.contains(null) && !categories.contains(null)) {
+                    categories.add(null);
+                  }
+
+                  if (categories.isEmpty) categories.add(null);
+
+                  raceCategories = categories;
+
+                  if (!raceCategories.contains(_selectedRaceVariantLabel)) {
+                    dropdownSelectedCategory = raceCategories.first;
+                  }
+
+                  filteredResults = filteredResults.where((r) {
+                    return r.raceVariantLabel == dropdownSelectedCategory;
+                  }).toList();
+                }
+
+                // Filtreleme: Seçilen sıralama tipine göre (cinsiyet)
                 
                 if (_selectedRankingType == 'female') {
-                  filteredResults = results
+                  filteredResults = filteredResults
                       .where((r) => r.gender?.toLowerCase() == 'f' || 
                                    r.gender?.toLowerCase() == 'female' ||
                                    r.gender?.toLowerCase() == 'kadın' ||
                                    r.gender?.toLowerCase() == 'k')
                       .toList();
                 } else if (_selectedRankingType == 'male') {
-                  filteredResults = results
+                  filteredResults = filteredResults
                       .where((r) => r.gender?.toLowerCase() == 'm' || 
                                    r.gender?.toLowerCase() == 'male' ||
                                    r.gender?.toLowerCase() == 'erkek' ||
@@ -2757,6 +3081,40 @@ class _ResultsModalContentState extends State<_ResultsModalContent> {
                         ),
                       ),
                     ),
+                    if (widget.isRaceEvent) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 0),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.neutral100,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.neutral300),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String?>(
+                              value: dropdownSelectedCategory,
+                              isExpanded: true,
+                              icon: const Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.neutral900,
+                              ),
+                              items: raceCategories.map((cat) {
+                                return DropdownMenuItem<String?>(
+                                  value: cat,
+                                  child: Text(cat ?? 'Belirsiz'),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedRaceVariantLabel = value;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                     // Liste
                     Expanded(
                       child: filteredResults.isEmpty

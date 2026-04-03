@@ -32,16 +32,33 @@ final routeByIdProvider = FutureProvider.family<RouteEntity, String>((ref, id) a
 });
 
 /// Rota koordinatları provider
-final routeCoordinatesProvider = FutureProvider.family<List<RouteCoordinate>, String>((ref, routeId) async {
-  final dataSource = ref.watch(routeDataSourceProvider);
-  final route = await dataSource.getRouteById(routeId);
-  
-  if (route.gpxData == null || route.gpxData!.isEmpty) {
-    return [];
-  }
-  
-  return dataSource.parseGpxCoordinates(route.gpxData!);
-});
+///
+/// `variantIndex`:
+/// - `0` => ilk GPX varyant
+/// - sınır dışı ise ilk varyant kullanılır
+final routeCoordinatesProvider = FutureProvider.family<List<RouteCoordinate>, ({String routeId, int variantIndex})>(
+  (ref, params) async {
+    final dataSource = ref.watch(routeDataSourceProvider);
+    final route = await dataSource.getRouteById(params.routeId);
+
+    final variants = route.gpxVariants;
+    final hasVariants = variants.isNotEmpty;
+
+    final idx = hasVariants
+        ? params.variantIndex.clamp(0, variants.length - 1)
+        : 0;
+
+    final gpxData = hasVariants
+        ? variants[idx].gpxData
+        : route.gpxData;
+
+    if (gpxData == null || gpxData.isEmpty) {
+      return [];
+    }
+
+    return dataSource.parseGpxCoordinates(gpxData);
+  },
+);
 
 /// Rota oluşturma state
 class RouteCreationState {
@@ -85,6 +102,7 @@ class RouteCreationNotifier extends StateNotifier<RouteCreationState> {
     String? locationName,
     String? description,
     String? terrainType,
+    bool isRace = false,
     int difficultyLevel = 1,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -98,6 +116,7 @@ class RouteCreationNotifier extends StateNotifier<RouteCreationState> {
         locationName: locationName,
         description: description,
         terrainType: terrainType,
+        isRace: isRace,
         difficultyLevel: difficultyLevel,
       );
 
@@ -126,6 +145,7 @@ class RouteCreationNotifier extends StateNotifier<RouteCreationState> {
     String? locationName,
     String? description,
     String? terrainType,
+    bool isRace = false,
     int difficultyLevel = 1,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -140,6 +160,7 @@ class RouteCreationNotifier extends StateNotifier<RouteCreationState> {
         locationName: locationName,
         description: description,
         terrainType: terrainType,
+        isRace: isRace,
         difficultyLevel: difficultyLevel,
       );
 
@@ -158,6 +179,47 @@ class RouteCreationNotifier extends StateNotifier<RouteCreationState> {
     }
   }
 
+  /// Çoklu GPX varyantları ile rota oluşturur.
+  Future<void> createFromGpxVariants({
+    required String name,
+    required List<RouteGpxVariantInput> variants,
+    required double locationLat,
+    required double locationLng,
+    String? locationName,
+    String? description,
+    String? terrainType,
+    bool isRace = false,
+    int difficultyLevel = 1,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final model = await _dataSource.createRouteFromGpxVariants(
+        name: name,
+        variants: variants,
+        locationLat: locationLat,
+        locationLng: locationLng,
+        locationName: locationName,
+        description: description,
+        terrainType: terrainType,
+        isRace: isRace,
+        difficultyLevel: difficultyLevel,
+      );
+
+      state = state.copyWith(
+        isLoading: false,
+        createdRoute: model.toEntity(),
+      );
+
+      _ref.invalidate(allRoutesProvider);
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+    }
+  }
+
   /// Rotayı güncelle (düzenleme modu)
   Future<void> updateRoute({
     required String routeId,
@@ -167,6 +229,7 @@ class RouteCreationNotifier extends StateNotifier<RouteCreationState> {
     String? locationName,
     String? description,
     String? terrainType,
+    bool isRace = false,
     int difficultyLevel = 1,
     String? gpxContent,
   }) async {
@@ -181,8 +244,53 @@ class RouteCreationNotifier extends StateNotifier<RouteCreationState> {
         locationName: locationName,
         description: description,
         terrainType: terrainType,
+        isRace: isRace,
         difficultyLevel: difficultyLevel,
         gpxContent: gpxContent,
+      );
+
+      state = state.copyWith(
+        isLoading: false,
+        createdRoute: model.toEntity(),
+      );
+
+      _ref.invalidate(allRoutesProvider);
+      _ref.invalidate(routeByIdProvider(routeId));
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+    }
+  }
+
+  /// Çoklu GPX varyantları ile rotayı günceller.
+  Future<void> updateRouteWithGpxVariants({
+    required String routeId,
+    required String name,
+    required List<RouteGpxVariantInput> variants,
+    required double locationLat,
+    required double locationLng,
+    String? locationName,
+    String? description,
+    String? terrainType,
+    bool isRace = false,
+    int difficultyLevel = 1,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final model = await _dataSource.updateRouteWithGpxVariants(
+        id: routeId,
+        name: name,
+        variants: variants,
+        locationLat: locationLat,
+        locationLng: locationLng,
+        locationName: locationName,
+        description: description,
+        terrainType: terrainType,
+        isRace: isRace,
+        difficultyLevel: difficultyLevel,
       );
 
       state = state.copyWith(

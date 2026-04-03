@@ -5,6 +5,7 @@ class RouteModel {
   final String id;
   final String name;
   final String? description;
+  final bool isRace;
   final String? gpxData;
   final String? gpxFileUrl;
   final double? totalDistance;
@@ -15,6 +16,7 @@ class RouteModel {
   final List<ElevationPoint>? elevationProfile;
   final RouteLocation? startLocation;
   final RouteLocation? endLocation;
+  final List<RouteGpxVariantEntity> gpxVariants;
   final double? locationLat;
   final double? locationLng;
   final String? locationName;
@@ -28,6 +30,7 @@ class RouteModel {
     required this.id,
     required this.name,
     this.description,
+    this.isRace = false,
     this.gpxData,
     this.gpxFileUrl,
     this.totalDistance,
@@ -38,6 +41,7 @@ class RouteModel {
     this.elevationProfile,
     this.startLocation,
     this.endLocation,
+    this.gpxVariants = const [],
     this.locationLat,
     this.locationLng,
     this.locationName,
@@ -74,10 +78,91 @@ class RouteModel {
       );
     }
 
+    // GPX variants parsing
+    final gpxVariantsJson = json['gpx_variants'] as List<dynamic>?;
+    final variants = <RouteGpxVariantEntity>[];
+    if (gpxVariantsJson != null && gpxVariantsJson.isNotEmpty) {
+      double? numToDouble(dynamic v) {
+        if (v == null) return null;
+        if (v is num) return v.toDouble();
+        if (v is String) {
+          final normalized = v.trim().replaceAll(',', '.');
+          return double.tryParse(normalized);
+        }
+        return null;
+      }
+
+      RouteLocation? parseLocation(dynamic v) {
+        if (v is! Map) return null;
+        final lat = numToDouble(v['lat']);
+        final lng = numToDouble(v['lng']);
+        final name = v['name']?.toString();
+        if (lat == null || lng == null) return null;
+        return RouteLocation(lat: lat, lng: lng, name: name);
+      }
+
+      List<ElevationPoint>? parseElevationProfile(dynamic v) {
+        if (v is! List) return null;
+        final points = <ElevationPoint>[];
+        for (final e in v) {
+          if (e is! Map) continue;
+          final distance = numToDouble(e['distance']);
+          final elevation = numToDouble(e['elevation']);
+          if (distance == null || elevation == null) continue;
+          points.add(ElevationPoint(distance: distance, elevation: elevation));
+        }
+        return points.isEmpty ? null : points;
+      }
+
+      for (final variantRaw in gpxVariantsJson) {
+        if (variantRaw is! Map) continue;
+
+        final labelRaw = variantRaw['label'];
+        final label = labelRaw?.toString().trim().isNotEmpty == true
+            ? labelRaw.toString().trim()
+            : 'Default';
+
+        variants.add(RouteGpxVariantEntity(
+          label: label,
+          gpxData: variantRaw['gpx_data']?.toString(),
+          gpxFileUrl: variantRaw['gpx_file_url']?.toString(),
+          totalDistance: numToDouble(variantRaw['total_distance']),
+          elevationGain: numToDouble(variantRaw['elevation_gain']),
+          elevationLoss: numToDouble(variantRaw['elevation_loss']),
+          maxElevation: numToDouble(variantRaw['max_elevation']),
+          minElevation: numToDouble(variantRaw['min_elevation']),
+          elevationProfile: parseElevationProfile(variantRaw['elevation_profile']),
+          startLocation: parseLocation(variantRaw['start_location']),
+          endLocation: parseLocation(variantRaw['end_location']),
+        ));
+      }
+    }
+
+    // Geriye dönük uyumluluk: `gpx_variants` yoksa top-level GPX'ten tek default varyant üret.
+    if (variants.isEmpty) {
+      final topLevelGpxData = json['gpx_data'] as String?;
+      if (topLevelGpxData != null && topLevelGpxData.trim().isNotEmpty) {
+        variants.add(RouteGpxVariantEntity(
+          label: 'Default',
+          gpxData: topLevelGpxData,
+          gpxFileUrl: json['gpx_file_url'] as String?,
+          totalDistance: (json['total_distance'] as num?)?.toDouble(),
+          elevationGain: (json['elevation_gain'] as num?)?.toDouble(),
+          elevationLoss: (json['elevation_loss'] as num?)?.toDouble(),
+          maxElevation: (json['max_elevation'] as num?)?.toDouble(),
+          minElevation: (json['min_elevation'] as num?)?.toDouble(),
+          elevationProfile: elevationProfile,
+          startLocation: startLocation,
+          endLocation: endLocation,
+        ));
+      }
+    }
+
     return RouteModel(
       id: json['id'] as String,
       name: json['name'] as String,
       description: json['description'] as String?,
+      isRace: (json['is_race'] as bool?) ?? false,
       gpxData: json['gpx_data'] as String?,
       gpxFileUrl: json['gpx_file_url'] as String?,
       totalDistance: (json['total_distance'] as num?)?.toDouble(),
@@ -88,6 +173,7 @@ class RouteModel {
       elevationProfile: elevationProfile,
       startLocation: startLocation,
       endLocation: endLocation,
+      gpxVariants: variants,
       locationLat: (json['location_lat'] as num?)?.toDouble(),
       locationLng: (json['location_lng'] as num?)?.toDouble(),
       locationName: json['location_name'] as String?,
@@ -103,6 +189,7 @@ class RouteModel {
     return {
       'name': name,
       'description': description,
+      'is_race': isRace,
       'gpx_data': gpxData,
       'gpx_file_url': gpxFileUrl,
       'total_distance': totalDistance,
@@ -113,6 +200,25 @@ class RouteModel {
       'elevation_profile': elevationProfile?.map((e) => e.toJson()).toList(),
       'start_location': startLocation?.toJson(),
       'end_location': endLocation?.toJson(),
+      'gpx_variants': gpxVariants.isNotEmpty
+          ? gpxVariants
+              .map((e) => {
+                    'label': e.label,
+                    'gpx_data': e.gpxData,
+                    'gpx_file_url': e.gpxFileUrl,
+                    'total_distance': e.totalDistance,
+                    'elevation_gain': e.elevationGain,
+                    'elevation_loss': e.elevationLoss,
+                    'max_elevation': e.maxElevation,
+                    'min_elevation': e.minElevation,
+                    'elevation_profile': e.elevationProfile
+                        ?.map((p) => p.toJson())
+                        .toList(),
+                    'start_location': e.startLocation?.toJson(),
+                    'end_location': e.endLocation?.toJson(),
+                  })
+              .toList()
+          : null,
       'location_lat': locationLat,
       'location_lng': locationLng,
       'location_name': locationName,
@@ -128,6 +234,7 @@ class RouteModel {
       id: id,
       name: name,
       description: description,
+      isRace: isRace,
       gpxData: gpxData,
       gpxFileUrl: gpxFileUrl,
       totalDistance: totalDistance,
@@ -138,6 +245,7 @@ class RouteModel {
       elevationProfile: elevationProfile,
       startLocation: startLocation,
       endLocation: endLocation,
+      gpxVariants: gpxVariants,
       locationLat: locationLat,
       locationLng: locationLng,
       locationName: locationName,

@@ -75,6 +75,14 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
 
     return Scaffold(
       appBar: AppBar(
+        leading: isAdmin && _tabController.index == 1
+            ? IconButton(
+                icon: const Icon(Icons.speed),
+                tooltip: 'VDOT Eşik Değerleri',
+                onPressed: () =>
+                    context.pushNamed(RouteNames.vdotThresholdList),
+              )
+            : null,
         title: const Text('Gruplar ve Üyeler'),
         bottom: TabBar(
           controller: _tabController,
@@ -84,6 +92,12 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
           ],
         ),
         actions: [
+          if (isAdmin && _tabController.index == 0)
+            IconButton(
+              icon: const Icon(Icons.group_off),
+              tooltip: 'Grupsuz Üyeler',
+              onPressed: () => context.pushNamed(RouteNames.unassignedMembers),
+            ),
           if (isAdmin && _tabController.index == 0)
             IconButton(
               icon: const Icon(Icons.add),
@@ -557,6 +571,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                               );
                           ref.invalidate(activeUsersProvider);
                           ref.invalidate(allGroupsProvider);
+                          ref.invalidate(unassignedUsersProvider);
                           if (context.mounted) {
                             messenger.showSnackBar(
                               SnackBar(

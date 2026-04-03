@@ -11,6 +11,7 @@ class EventResultModel {
   final int? rankOverall;
   final int? rankGender;
   final String? notes;
+  final String? raceVariantLabel;
 
   const EventResultModel({
     required this.id,
@@ -23,6 +24,7 @@ class EventResultModel {
     this.rankOverall,
     this.rankGender,
     this.notes,
+    this.raceVariantLabel,
   });
 
   factory EventResultModel.fromJson(Map<String, dynamic> json) {
@@ -45,6 +47,7 @@ class EventResultModel {
       rankOverall: json['rank_overall'] as int?,
       rankGender: json['rank_gender'] as int?,
       notes: json['notes'] as String?,
+      raceVariantLabel: json['race_variant_label'] as String?,
     );
   }
 
@@ -60,6 +63,7 @@ class EventResultModel {
       rankOverall: rankOverall,
       rankGender: rankGender,
       notes: notes,
+      raceVariantLabel: raceVariantLabel,
     );
   }
 }

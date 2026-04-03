@@ -26,6 +26,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    const placeholderPersonalProgramContent = 'Kişiye özel program';
     final programsAsync = ref.watch(userEventGroupProgramsProvider(eventId));
     final memberProgramsAsync = ref.watch(userEventMemberProgramsProvider(eventId));
     final eventAsync = ref.watch(eventByIdProvider(eventId));
@@ -77,22 +78,30 @@ class UserGroupProgramViewer extends ConsumerWidget {
                   )),
                 ];
 
+                // Backend placeholder kaydını (sadece "kişiye özel program" metni) UI'da göstermeyelim.
+                final visiblePrograms = allPrograms.where((p) {
+                  final content = (p.programContent).trim();
+                  final isPlaceholder = content.toLowerCase() == placeholderPersonalProgramContent.toLowerCase();
+                  final hasWorkout = p.workoutDefinition != null && !p.workoutDefinition!.isEmpty;
+                  return !(isPlaceholder && !hasWorkout);
+                }).toList();
+
                 final allGroupPrograms = isAdminOrCoach
                     ? (allProgramsAsync?.valueOrNull ?? [])
                     : <EventGroupProgramEntity>[];
 
                 final trackLengthKmNoRoute = event.laneConfig?.trackLengthKm;
                 if (event.routeId == null) {
-                  return _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms);
+                  return _buildProgramsColumn(context, ref, visiblePrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms);
                 }
                 final routeAsync = ref.watch(routeByIdProvider(event.routeId!));
                 return routeAsync.when(
                   data: (route) {
                     final trackLengthKm = event.laneConfig?.trackLengthKm ?? route.totalDistance;
-                    return _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKm, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms);
+                    return _buildProgramsColumn(context, ref, visiblePrograms, userVdot, event, trackLengthKm, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms);
                   },
-                  loading: () => _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms),
-                  error: (_, __) => _buildProgramsColumn(context, ref, allPrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms),
+                  loading: () => _buildProgramsColumn(context, ref, visiblePrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms),
+                  error: (_, __) => _buildProgramsColumn(context, ref, visiblePrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms),
                 );
               },
               loading: () => _buildGroupProgramsFallback(context, ref, programs, userVdot, event),
@@ -144,7 +153,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
               ),
             ),
             if (allGroupPrograms.isNotEmpty)
-              _buildAllProgramsButton(context, allGroupPrograms, event),
+              _buildAllProgramsButton(context, ref, allGroupPrograms, event),
           ],
         ),
         const SizedBox(height: 12),
@@ -181,22 +190,15 @@ class UserGroupProgramViewer extends ConsumerWidget {
     required EventEntity event,
     double? trackLengthKm,
   }) {
-    // Kişisel pace hesapla (sn/km - kulvar ataması için)
-    String? personalPace;
     int? userPaceSecPerKm;
     if (userVdot != null && userVdot > 0) {
-      personalPace = VdotCalculator.formatPaceRange(
-        userVdot,
-        program.thresholdOffsetMinSeconds,
-        program.thresholdOffsetMaxSeconds,
-      );
       final paceRange = VdotCalculator.getPaceRangeFromOffsets(
         userVdot,
         program.thresholdOffsetMinSeconds,
         program.thresholdOffsetMaxSeconds,
       );
       if (paceRange != null) {
-        userPaceSecPerKm = paceRange.$1; // Hızlı pace kulvar ataması için
+        userPaceSecPerKm = paceRange.$1;
       }
     }
     final userLaneNumber = event.laneConfig != null && userPaceSecPerKm != null
@@ -227,61 +229,55 @@ class UserGroupProgramViewer extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Üst şerit: grup + kulvar + menü
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 8, 16),
-            decoration: BoxDecoration(
-              color: AppColors.neutral200,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: trainingColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          program.groupName ?? 'Grup',
-                          style: AppTypography.labelMedium.copyWith(
-                            color: trainingColor,
-                            fontWeight: FontWeight.w600,
-                          ),
+          // Üst şerit: grup + (opsiyonel) kulvar
+          if ((program.groupName != null && program.groupName!.trim().isNotEmpty) || userLaneNumber != null)
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 8, 16),
+              decoration: const BoxDecoration(color: AppColors.neutral200),
+              child: Row(
+                children: [
+                  if (program.groupName != null && program.groupName!.trim().isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: trainingColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        program.groupName!.trim(),
+                        style: AppTypography.labelMedium.copyWith(
+                          color: trainingColor,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      if (userLaneNumber != null) ...[
-                        const SizedBox(width: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: AppColors.tertiary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
+                    ),
+                  if (program.groupName != null && program.groupName!.trim().isNotEmpty && userLaneNumber != null)
+                    const SizedBox(width: 10),
+                  if (userLaneNumber != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.tertiary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.track_changes, size: 18, color: AppColors.tertiary),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Kulvar $userLaneNumber',
+                            style: AppTypography.labelMedium.copyWith(
+                              color: AppColors.tertiary,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.track_changes, size: 18, color: AppColors.tertiary),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Kulvar $userLaneNumber',
-                                style: AppTypography.labelMedium.copyWith(
-                                  color: AppColors.tertiary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
 
           // Program segmentleri
           Padding(
@@ -289,7 +285,12 @@ class UserGroupProgramViewer extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (program.workoutDefinition != null && !program.workoutDefinition!.isEmpty) ...[
+                if (program.workoutDefinition != null &&
+                    !program.workoutDefinition!.isEmpty &&
+                    (userVdot == null || userVdot <= 0) &&
+                    program.workoutDefinition!.hasVdotPaceSegments) ...[
+                  _buildVdotRequiredCard(context),
+                ] else if (program.workoutDefinition != null && !program.workoutDefinition!.isEmpty) ...[
                   Text(
                     'Program',
                     style: AppTypography.labelSmall.copyWith(
@@ -370,52 +371,6 @@ class UserGroupProgramViewer extends ConsumerWidget {
                   ),
                 ],
 
-                // VDOT bilgilendirme (offset'i olan tüm antrenman türleri için)
-                if (personalPace == null &&
-                    (userVdot == null || userVdot <= 0) &&
-                    program.thresholdOffsetMinSeconds != null) ...[
-                  const SizedBox(height: 14),
-                  GestureDetector(
-                    onTap: () => context.pushNamed(RouteNames.paceCalculator),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.info_outline, size: 22, color: AppColors.primary),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Kişisel pace önerisi al',
-                                  style: AppTypography.labelMedium.copyWith(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'VDOT değerinizi hesaplayarak bu antrenman için önerilen pace\'i görebilirsiniz.',
-                                  style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.neutral600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(Icons.chevron_right, size: 20, color: AppColors.primary),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-
                 // Rota (varsa)
                 if (program.routeId != null && program.routeName != null) ...[
                   const SizedBox(height: 14),
@@ -455,6 +410,58 @@ class UserGroupProgramViewer extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVdotRequiredCard(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.pushNamed(RouteNames.paceCalculator),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.speed, size: 36, color: AppColors.primary),
+            const SizedBox(height: 12),
+            Text(
+              'Antrenman programını görmek için\nVDOT değerini gir',
+              textAlign: TextAlign.center,
+              style: AppTypography.titleSmall.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Bu antrenman kişisel pace değerlerine göre hazırlandı. Programı görüntülemek için VDOT hesaplayıcıdan değerini kaydet.',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.neutral600,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'VDOT Hesapla',
+                style: AppTypography.labelMedium.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -774,8 +781,14 @@ class UserGroupProgramViewer extends ConsumerWidget {
           if (paceStr != null) return paceStr;
         }
       } else {
-        final effectivePace = s.customPaceSecondsPerKm ?? s.paceSecondsPerKm ?? s.paceSecondsPerKmMin;
-        if (effectivePace != null) return VdotCalculator.formatPace(effectivePace);
+        final paceMin = s.customPaceSecondsPerKm ?? s.paceSecondsPerKmMin ?? s.paceSecondsPerKm;
+        final paceMax = s.paceSecondsPerKmMax;
+        if (paceMin != null) {
+          if (paceMax != null && paceMax != paceMin) {
+            return '${VdotCalculator.formatPace(paceMin)} / ${VdotCalculator.formatPace(paceMax)}';
+          }
+          return VdotCalculator.formatPace(paceMin);
+        }
       }
     }
     if (isAdminView && (offsetMin != null || offsetMax != null)) {
@@ -818,6 +831,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
 
   Widget _buildAllProgramsButton(
     BuildContext context,
+    WidgetRef ref,
     List<EventGroupProgramEntity> allPrograms,
     EventEntity event,
   ) {
@@ -826,7 +840,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: () => _showAllGroupProgramsSheet(context, allPrograms, event),
+        onTap: () => _showAllGroupProgramsSheet(context, ref, allPrograms, event),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           child: Row(
@@ -867,7 +881,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
                 style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
-            _buildAllProgramsButton(context, allPrograms, event),
+            _buildAllProgramsButton(context, ref, allPrograms, event),
           ],
         ),
         const SizedBox(height: 16),
@@ -877,14 +891,32 @@ class UserGroupProgramViewer extends ConsumerWidget {
 
   void _showAllGroupProgramsSheet(
     BuildContext context,
+    WidgetRef ref,
     List<EventGroupProgramEntity> allPrograms,
     EventEntity event,
   ) {
+    const placeholderPersonalProgramContent = 'Kişiye özel program';
+    final normalPrograms = allPrograms.where((p) {
+      final content = (p.programContent).trim();
+      final isPlaceholder = content.toLowerCase() == placeholderPersonalProgramContent.toLowerCase();
+      return !isPlaceholder;
+    }).toList();
+
     final grouped = <String, List<EventGroupProgramEntity>>{};
-    for (final p in allPrograms) {
+    for (final p in normalPrograms) {
       final key = p.groupName ?? 'Grup';
       grouped.putIfAbsent(key, () => []).add(p);
     }
+
+    final performanceGroupIds = allPrograms
+        .where((p) {
+          final content = (p.programContent).trim();
+          final isPlaceholder = content.toLowerCase() == placeholderPersonalProgramContent.toLowerCase();
+          return isPlaceholder;
+        })
+        .map((p) => p.trainingGroupId)
+        .toSet()
+        .toList();
 
     showModalBottomSheet(
       context: context,
@@ -938,12 +970,136 @@ class UserGroupProgramViewer extends ConsumerWidget {
                       _buildAdminGroupSection(entry.key, entry.value, event),
                       const SizedBox(height: 20),
                     ],
+                    if (performanceGroupIds.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Kişiye Özel Programlar',
+                        style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      ...performanceGroupIds.map((groupId) {
+                        final async = ref.watch(eventMemberProgramsProvider((eventId: event.id, groupId: groupId)));
+                        return async.when(
+                          data: (memberPrograms) {
+                            if (memberPrograms.isEmpty) return const SizedBox.shrink();
+                            final groupName = memberPrograms.first.groupName ?? 'Performans';
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.secondary.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    groupName,
+                                    style: AppTypography.labelMedium.copyWith(
+                                      color: AppColors.secondary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                ...memberPrograms.map((mp) => _buildMemberProgramCardInAllSheet(mp, event)).toList(),
+                                const SizedBox(height: 20),
+                              ],
+                            );
+                          },
+                          loading: () => Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            alignment: Alignment.centerLeft,
+                            child: const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                          ),
+                          error: (_, __) => const SizedBox.shrink(),
+                        );
+                      }),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildMemberProgramCardInAllSheet(EventMemberProgramEntity mp, EventEntity event) {
+    final trainingColor = _parseColor(mp.trainingTypeColor ?? '#6366F1');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.neutral200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                child: Text(
+                  (mp.userName ?? '').isNotEmpty ? (mp.userName!)[0].toUpperCase() : '?',
+                  style: AppTypography.labelMedium.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  mp.userName ?? 'Üye',
+                  style: AppTypography.titleSmall.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (mp.workoutDefinition != null && !mp.workoutDefinition!.isEmpty) ...[
+            Text(
+              'Program',
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.neutral500,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ..._buildStructuredWorkoutSummary(
+              mp.workoutDefinition!,
+              null,
+              offsetMin: mp.thresholdOffsetMinSeconds,
+              offsetMax: mp.thresholdOffsetMaxSeconds,
+              isAdminView: true,
+              trackLengthKm: event.laneConfig?.trackLengthKm,
+            ),
+          ] else
+            Text(
+              mp.programContent,
+              style: AppTypography.bodyMedium.copyWith(height: 1.35),
+            ),
+          if (mp.trainingTypeName != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: trainingColor.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: trainingColor.withValues(alpha: 0.2)),
+              ),
+              child: Text(
+                mp.trainingTypeName!,
+                style: AppTypography.labelMedium.copyWith(
+                  color: trainingColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -987,28 +1143,30 @@ class UserGroupProgramViewer extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-            decoration: BoxDecoration(color: AppColors.neutral200),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: trainingColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    program.groupName ?? 'Grup',
-                    style: AppTypography.labelMedium.copyWith(
-                      color: trainingColor,
-                      fontWeight: FontWeight.w600,
+          // Admin görünümünde de grup adı kart üstünde görünsün.
+          if (program.groupName != null && program.groupName!.trim().isNotEmpty)
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              decoration: const BoxDecoration(color: AppColors.neutral200),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: trainingColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      program.groupName!.trim(),
+                      style: AppTypography.labelMedium.copyWith(
+                        color: trainingColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             child: Column(

@@ -163,6 +163,11 @@ class _EventGroupProgramsEditorState
     }
     if (oldWidget.memberPrograms != widget.memberPrograms) {
       _memberPrograms = List.from(widget.memberPrograms);
+      // Dışarıdan (ör. aylık plan auto-fill) üye programları geldiğinde
+      // performans grup bölümlerini de yeniden türet.
+      _addedPerformanceGroupIds
+        ..clear()
+        ..addAll(_memberPrograms.map((mp) => mp.group.id));
     }
   }
 

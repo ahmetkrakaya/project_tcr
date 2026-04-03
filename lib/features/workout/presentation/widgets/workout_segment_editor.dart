@@ -1,12 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/vdot_calculator.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../domain/entities/workout_entity.dart';
+
+/// Sadece rakam girilen pace alanını otomatik `m:ss` formatına çevirir.
+/// Kullanım: kullanıcı "730" yazarsa "7:30", "1030" yazarsa "10:30".
+class _PaceTextInputFormatter extends TextInputFormatter {
+  const _PaceTextInputFormatter();
+
+  static String _formatDigits(String digits, {required bool lenientWhileTyping}) {
+    final trimmed = digits.length > 4 ? digits.substring(digits.length - 4) : digits;
+    if (trimmed.isEmpty) return '';
+
+    // Yazarken 1-2 hane için kolon koymayalım; bu sayede "60" yazınca 0:59'a clamp olmaz
+    // ve kullanıcı rahatça "600" -> "6:00" yapabilir.
+    if (lenientWhileTyping && trimmed.length <= 2) {
+      return trimmed;
+    }
+
+    int minutes = 0;
+    int seconds = 0;
+
+    if (trimmed.length <= 2) {
+      // 0:ss gibi düşün (örn. "30" -> 0:30). 60+ gelirse dakikaya taşı.
+      seconds = int.tryParse(trimmed) ?? 0;
+    } else {
+      minutes = int.tryParse(trimmed.substring(0, trimmed.length - 2)) ?? 0;
+      seconds = int.tryParse(trimmed.substring(trimmed.length - 2)) ?? 0;
+    }
+
+    if (seconds >= 60) {
+      minutes += seconds ~/ 60;
+      seconds = seconds % 60;
+    }
+
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(text: '', selection: TextSelection.collapsed(offset: 0));
+    }
+
+    final formatted = _formatDigits(digits, lenientWhileTyping: true);
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+      composing: TextRange.empty,
+    );
+  }
+}
 
 /// Tek bir segment veya repeat adımını düzenlemek için kullanılan state (UI için)
 class WorkoutStepEditState {
@@ -704,17 +759,53 @@ class _StepRow extends ConsumerStatefulWidget {
   ConsumerState<_StepRow> createState() => _StepRowState();
 }
 
-class _StepRowState extends ConsumerState<_StepRow> {
+class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver {
   double? get _userVdot => ref.watch(userVdotProvider);
   late bool _isExpanded; // Segment açık/kapalı durumu
+  final _paceMinController = TextEditingController();
+  final _paceMaxController = TextEditingController();
+  final _paceMinFocusNode = FocusNode();
+  final _paceMaxFocusNode = FocusNode();
+  final _repeatCountFocusNode = FocusNode();
+  OverlayEntry? _keyboardDismissOverlay;
+  WorkoutSegmentEntity? _lastSegmentForPaceUi;
   
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Widget'tan gelen step'in isExpanded değerini kullan
     _isExpanded = widget.step.isExpanded;
+    _paceMinFocusNode.addListener(_handlePaceFocusChanged);
+    _paceMaxFocusNode.addListener(_handlePaceFocusChanged);
+    _repeatCountFocusNode.addListener(_handlePaceFocusChanged);
   }
   
+  @override
+  void dispose() {
+    _removeKeyboardDismissOverlay();
+    WidgetsBinding.instance.removeObserver(this);
+    _paceMinFocusNode.removeListener(_handlePaceFocusChanged);
+    _paceMaxFocusNode.removeListener(_handlePaceFocusChanged);
+    _repeatCountFocusNode.removeListener(_handlePaceFocusChanged);
+    _paceMinFocusNode.dispose();
+    _paceMaxFocusNode.dispose();
+    _repeatCountFocusNode.dispose();
+    _paceMinController.dispose();
+    _paceMaxController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    final entry = _keyboardDismissOverlay;
+    if (entry == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      entry.markNeedsBuild();
+    });
+  }
+
   String? _getSuggestedPaceForSegment(WorkoutSegmentEntity segment) {
     final vdot = _userVdot;
     if (vdot == null || vdot <= 0) return null;
@@ -737,6 +828,145 @@ class _StepRowState extends ConsumerState<_StepRow> {
     }
   }
 
+  void _handlePaceFocusChanged() {
+    final hasFocus = _paceMinFocusNode.hasFocus ||
+        _paceMaxFocusNode.hasFocus ||
+        _repeatCountFocusNode.hasFocus;
+    if (hasFocus) {
+      _insertKeyboardDismissOverlay();
+      // iOS'ta ilk anda viewInsets=0 olabildiği için, klavye açıldıktan sonra
+      // root overlay'e yeniden ekleyerek görünürlüğü garanti edelim.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (!(_paceMinFocusNode.hasFocus ||
+            _paceMaxFocusNode.hasFocus ||
+            _repeatCountFocusNode.hasFocus)) return;
+        _removeKeyboardDismissOverlay();
+        _insertKeyboardDismissOverlay();
+      });
+    } else {
+      _removeKeyboardDismissOverlay();
+    }
+
+    // Pace alanı focus kaybedince değeri kaydet (submit'e gerek kalmasın).
+    if (!_paceMinFocusNode.hasFocus && !_paceMaxFocusNode.hasFocus) {
+      final s = _lastSegmentForPaceUi;
+      if (s != null && mounted) {
+        _commitPaceFromControllers(s);
+      }
+    }
+  }
+
+  void _commitPaceFromControllers(WorkoutSegmentEntity s) {
+    if (s.useVdotForPace == true) return;
+
+    final minSec = _StepRowState._parsePaceStringToSeconds(_paceMinController.text);
+    final maxSec = _StepRowState._parsePaceStringToSeconds(_paceMaxController.text);
+    if (minSec == null && maxSec == null) return;
+
+    final nextMin = minSec ?? s.paceSecondsPerKmMin;
+    final nextMax = maxSec ?? s.paceSecondsPerKmMax;
+
+    int? adjustedMin = nextMin;
+    int? adjustedMax = nextMax;
+    if (adjustedMin != null && adjustedMax != null && adjustedMax < adjustedMin) {
+      adjustedMax = adjustedMin;
+    }
+
+    widget.onChanged(WorkoutStepEditState(
+      stepType: 'segment',
+      segment: WorkoutSegmentEntity(
+        segmentType: s.segmentType,
+        targetType: s.targetType,
+        target: s.target,
+        durationSeconds: s.durationSeconds,
+        distanceMeters: s.distanceMeters,
+        paceSecondsPerKm: s.paceSecondsPerKm,
+        paceSecondsPerKmMin: adjustedMin,
+        paceSecondsPerKmMax: adjustedMax,
+        customPaceSecondsPerKm: null,
+        useVdotForPace: false,
+        heartRateBpmMin: s.heartRateBpmMin,
+        heartRateBpmMax: s.heartRateBpmMax,
+        cadenceMin: s.cadenceMin,
+        cadenceMax: s.cadenceMax,
+        powerWattsMin: s.powerWattsMin,
+        powerWattsMax: s.powerWattsMax,
+      ),
+      isExpanded: widget.step.isExpanded,
+    ));
+  }
+
+  void _insertKeyboardDismissOverlay() {
+    if (_keyboardDismissOverlay != null) return;
+    final overlay = Overlay.of(context, rootOverlay: true);
+
+    _keyboardDismissOverlay = OverlayEntry(
+      builder: (context) {
+        // Root overlay context'inde MediaQuery her zaman doğru inset vermeyebiliyor.
+        // View üzerinden almak daha stabil (özellikle iOS numeric keyboard).
+        final view = View.of(context);
+        final bottomInset = view.viewInsets.bottom / view.devicePixelRatio;
+        if (bottomInset <= 0) return const SizedBox.shrink();
+        return Positioned(
+          bottom: bottomInset + 16,
+          right: 20,
+          child: Material(
+            color: AppColors.tertiary,
+            borderRadius: BorderRadius.circular(20),
+            elevation: 8,
+            shadowColor: AppColors.tertiary.withValues(alpha: 0.5),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: const SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
+                  child: Icon(
+                    Icons.keyboard_hide,
+                    size: 24,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    overlay.insert(_keyboardDismissOverlay!);
+  }
+
+  void _removeKeyboardDismissOverlay() {
+    _keyboardDismissOverlay?.remove();
+    _keyboardDismissOverlay = null;
+  }
+
+  void _syncPaceControllers(WorkoutSegmentEntity s) {
+    // Kullanıcı yazarken metni zorla değiştirmeyelim.
+    if (!_paceMinFocusNode.hasFocus) {
+      final minText = s.paceSecondsPerKmMin != null
+          ? _formatPaceInput(s.paceSecondsPerKmMin!)
+          : _getDefaultPaceFromSuggestion(s);
+      if (_paceMinController.text != minText) {
+        _paceMinController.text = minText;
+      }
+    }
+
+    if (!_paceMaxFocusNode.hasFocus) {
+      final maxText = s.paceSecondsPerKmMax != null
+          ? _formatPaceInput(s.paceSecondsPerKmMax!)
+          : (s.paceSecondsPerKmMin != null
+              ? _formatPaceInput(s.paceSecondsPerKmMin! + 30)
+              : _getDefaultPaceFromSuggestion(s));
+      if (_paceMaxController.text != maxText) {
+        _paceMaxController.text = maxText;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.step.stepType == 'repeat') {
@@ -747,6 +977,14 @@ class _StepRowState extends ConsumerState<_StepRow> {
 
   Widget _buildSegmentRow() {
     final s = widget.step.segment!;
+    _lastSegmentForPaceUi = s;
+    // Controller'ı build sırasında güncelleme; frame sonunda senkronla.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!(_paceMinFocusNode.hasFocus || _paceMaxFocusNode.hasFocus)) {
+        _syncPaceControllers(s);
+      }
+    });
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -1149,115 +1387,124 @@ class _StepRowState extends ConsumerState<_StepRow> {
               Row(
                 children: [
                   Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        FocusScope.of(context).unfocus();
-                        _showPacePicker(
-                          s.paceSecondsPerKmMin ?? _StepRowState._parsePaceStringToSeconds(_getDefaultPaceFromSuggestion(s)),
-                          (sec) {
-                            FocusScope.of(context).unfocus();
-                            widget.onChanged(WorkoutStepEditState(
-                              stepType: 'segment',
-                              segment: WorkoutSegmentEntity(
-                                segmentType: s.segmentType,
-                                targetType: s.targetType,
-                                target: s.target,
-                                durationSeconds: s.durationSeconds,
-                                distanceMeters: s.distanceMeters,
-                                paceSecondsPerKm: s.paceSecondsPerKm,
-                                paceSecondsPerKmMin: sec,
-                                paceSecondsPerKmMax: s.paceSecondsPerKmMax,
-                                customPaceSecondsPerKm: null,
-                                useVdotForPace: false,
-                                heartRateBpmMin: s.heartRateBpmMin,
-                                heartRateBpmMax: s.heartRateBpmMax,
-                                cadenceMin: s.cadenceMin,
-                                cadenceMax: s.cadenceMax,
-                                powerWattsMin: s.powerWattsMin,
-                                powerWattsMax: s.powerWattsMax,
-                              ),
-                              isExpanded: widget.step.isExpanded,
-                            ));
-                          },
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                        decoration: BoxDecoration(
-                          color: AppColors.neutral100,
+                    child: TextFormField(
+                      controller: _paceMinController,
+                      focusNode: _paceMinFocusNode,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.next,
+                      inputFormatters: [
+                        const _PaceTextInputFormatter(),
+                      ],
+                      decoration: InputDecoration(
+                        hintText: '7:30',
+                        isDense: true,
+                        filled: true,
+                        fillColor: AppColors.neutral100,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                        border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.neutral200),
+                          borderSide: BorderSide(color: AppColors.neutral200),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              s.paceSecondsPerKmMin != null
-                                  ? _formatPaceInput(s.paceSecondsPerKmMin!)
-                                  : _getDefaultPaceFromSuggestion(s),
-                              style: AppTypography.bodyMedium,
-                            ),
-                            Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
-                          ],
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.neutral200),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.primary),
                         ),
                       ),
+                      onChanged: (_) => _syncPaceControllers(s),
+                      onFieldSubmitted: (v) {
+                        final sec = _StepRowState._parsePaceStringToSeconds(v);
+                        if (sec == null) return;
+                        final currentMax = s.paceSecondsPerKmMax;
+                        final nextMax = (currentMax != null && currentMax < sec) ? sec : currentMax;
+                        widget.onChanged(WorkoutStepEditState(
+                          stepType: 'segment',
+                          segment: WorkoutSegmentEntity(
+                            segmentType: s.segmentType,
+                            targetType: s.targetType,
+                            target: s.target,
+                            durationSeconds: s.durationSeconds,
+                            distanceMeters: s.distanceMeters,
+                            paceSecondsPerKm: s.paceSecondsPerKm,
+                            paceSecondsPerKmMin: sec,
+                            paceSecondsPerKmMax: nextMax,
+                            customPaceSecondsPerKm: null,
+                            useVdotForPace: false,
+                            heartRateBpmMin: s.heartRateBpmMin,
+                            heartRateBpmMax: s.heartRateBpmMax,
+                            cadenceMin: s.cadenceMin,
+                            cadenceMax: s.cadenceMax,
+                            powerWattsMin: s.powerWattsMin,
+                            powerWattsMax: s.powerWattsMax,
+                          ),
+                          isExpanded: widget.step.isExpanded,
+                        ));
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        FocusScope.of(context).unfocus();
-                        _showPacePicker(
-                          s.paceSecondsPerKmMax ?? (s.paceSecondsPerKmMin != null ? s.paceSecondsPerKmMin! + 30 : (_StepRowState._parsePaceStringToSeconds(_getDefaultPaceFromSuggestion(s)) ?? 330)),
-                          (sec) {
-                            FocusScope.of(context).unfocus();
-                            widget.onChanged(WorkoutStepEditState(
-                              stepType: 'segment',
-                              segment: WorkoutSegmentEntity(
-                                segmentType: s.segmentType,
-                                targetType: s.targetType,
-                                target: s.target,
-                                durationSeconds: s.durationSeconds,
-                                distanceMeters: s.distanceMeters,
-                                paceSecondsPerKm: s.paceSecondsPerKm,
-                                paceSecondsPerKmMin: s.paceSecondsPerKmMin,
-                                paceSecondsPerKmMax: sec,
-                                customPaceSecondsPerKm: null,
-                                heartRateBpmMin: s.heartRateBpmMin,
-                                heartRateBpmMax: s.heartRateBpmMax,
-                                cadenceMin: s.cadenceMin,
-                                cadenceMax: s.cadenceMax,
-                                powerWattsMin: s.powerWattsMin,
-                                powerWattsMax: s.powerWattsMax,
-                              ),
-                              isExpanded: widget.step.isExpanded,
-                            ));
-                          },
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                        decoration: BoxDecoration(
-                          color: AppColors.neutral100,
+                    child: TextFormField(
+                      controller: _paceMaxController,
+                      focusNode: _paceMaxFocusNode,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      inputFormatters: [
+                        const _PaceTextInputFormatter(),
+                      ],
+                      decoration: InputDecoration(
+                        hintText: '10:30',
+                        isDense: true,
+                        filled: true,
+                        fillColor: AppColors.neutral100,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                        border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.neutral200),
+                          borderSide: BorderSide(color: AppColors.neutral200),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              s.paceSecondsPerKmMax != null
-                                  ? _formatPaceInput(s.paceSecondsPerKmMax!)
-                                  : (s.paceSecondsPerKmMin != null
-                                      ? _formatPaceInput(s.paceSecondsPerKmMin! + 30)
-                                      : _getDefaultPaceFromSuggestion(s)),
-                              style: AppTypography.bodyMedium,
-                            ),
-                            Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
-                          ],
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.neutral200),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.primary),
                         ),
                       ),
+                      onFieldSubmitted: (v) {
+                        final sec = _StepRowState._parsePaceStringToSeconds(v);
+                        if (sec == null) return;
+                        final currentMin = s.paceSecondsPerKmMin;
+                        final nextMin = (currentMin != null && sec < currentMin) ? sec : currentMin;
+                        // Eğer max < min olacaksa, min'i max'a çekmeyelim; max'ı en az min yapalım.
+                        final adjustedMax = (currentMin != null && sec < currentMin) ? currentMin : sec;
+                        widget.onChanged(WorkoutStepEditState(
+                          stepType: 'segment',
+                          segment: WorkoutSegmentEntity(
+                            segmentType: s.segmentType,
+                            targetType: s.targetType,
+                            target: s.target,
+                            durationSeconds: s.durationSeconds,
+                            distanceMeters: s.distanceMeters,
+                            paceSecondsPerKm: s.paceSecondsPerKm,
+                            paceSecondsPerKmMin: nextMin,
+                            paceSecondsPerKmMax: adjustedMax,
+                            customPaceSecondsPerKm: null,
+                            useVdotForPace: false,
+                            heartRateBpmMin: s.heartRateBpmMin,
+                            heartRateBpmMax: s.heartRateBpmMax,
+                            cadenceMin: s.cadenceMin,
+                            cadenceMax: s.cadenceMax,
+                            powerWattsMin: s.powerWattsMin,
+                            powerWattsMax: s.powerWattsMax,
+                          ),
+                          isExpanded: widget.step.isExpanded,
+                        ));
+                        FocusScope.of(context).unfocus();
+                      },
                     ),
                   ),
                 ],
@@ -1354,15 +1601,32 @@ class _StepRowState extends ConsumerState<_StepRow> {
 
 
   static int? _parsePaceStringToSeconds(String input) {
-    final parts = input.trim().split(RegExp(r'[:\s]'));
-    if (parts.length >= 2) {
-      final m = int.tryParse(parts[0]);
-      final s = int.tryParse(parts[1]);
-      if (m != null && s != null && m >= 0 && s >= 0 && s < 60) return m * 60 + s;
+    final raw = input.trim();
+    if (raw.isEmpty) return null;
+
+    // Kolon varsa klasik parse
+    if (raw.contains(':')) {
+      final parts = raw.split(':');
+      if (parts.length >= 2) {
+        final m = int.tryParse(parts[0].trim());
+        final s = int.tryParse(parts[1].trim());
+        if (m == null || s == null || m < 0 || s < 0) return null;
+        return m * 60 + s;
+      }
     }
-    final single = int.tryParse(input.trim());
-    if (single != null && single > 0) return single * 60;
-    return null;
+
+    // Sadece rakam: formatter mantığıyla uyumlu şekilde yorumla.
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return null;
+
+    // lenientWhileTyping=false => 1-2 hane de 0:ss formatına dönüştürülür.
+    final normalized = _PaceTextInputFormatter._formatDigits(digits, lenientWhileTyping: false);
+    final parts = normalized.split(':');
+    if (parts.length != 2) return null;
+    final m = int.tryParse(parts[0]);
+    final s = int.tryParse(parts[1]);
+    if (m == null || s == null) return null;
+    return m * 60 + s;
   }
 
   // Süre picker için bottom sheet
@@ -1514,81 +1778,6 @@ class _StepRowState extends ConsumerState<_StepRow> {
     );
   }
 
-  // Pace picker için bottom sheet
-  Future<void> _showPacePicker(int? currentSeconds, Function(int) onSelected) async {
-    final totalSeconds = currentSeconds ?? 300; // Varsayılan 5:00
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-
-    int selectedMinutes = minutes;
-    int selectedSeconds = seconds;
-
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: 250,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('İptal'),
-                  ),
-                  Text(
-                    'Pace Seç',
-                    style: AppTypography.titleMedium,
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      final total = selectedMinutes * 60 + selectedSeconds;
-                      onSelected(total);
-                      Navigator.pop(context);
-                    },
-                    child: Text(
-                      'Tamam',
-                      style: AppTypography.labelMedium.copyWith(color: AppColors.primary),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: CupertinoPicker(
-                      itemExtent: 40,
-                      scrollController: FixedExtentScrollController(initialItem: selectedMinutes),
-                      onSelectedItemChanged: (value) => selectedMinutes = value,
-                      children: List.generate(60, (i) => Center(child: Text('$i\''))),
-                    ),
-                  ),
-                  Expanded(
-                    child: CupertinoPicker(
-                      itemExtent: 40,
-                      scrollController: FixedExtentScrollController(initialItem: selectedSeconds),
-                      onSelectedItemChanged: (value) => selectedSeconds = value,
-                      children: List.generate(60, (i) => Center(child: Text('$i\'\''))),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildPaceModeButton({
     required String label,
     required bool isSelected,
@@ -1690,6 +1879,7 @@ class _StepRowState extends ConsumerState<_StepRow> {
                       initialValue: '${widget.step.repeatCount}',
                       decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
                       keyboardType: TextInputType.number,
+                      focusNode: _repeatCountFocusNode,
                       textAlign: TextAlign.center,
                       onChanged: (v) {
                         final c = int.tryParse(v);
@@ -2056,13 +2246,176 @@ class _RepeatSegmentEditor extends ConsumerStatefulWidget {
   ConsumerState<_RepeatSegmentEditor> createState() => _RepeatSegmentEditorState();
 }
 
-class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> {
+class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> with WidgetsBindingObserver {
   double? get _userVdot => ref.watch(userVdotProvider);
   bool _isExpanded = false; // Tekrar içi segment başlangıçta kapalı
+  final _paceMinController = TextEditingController();
+  final _paceMaxController = TextEditingController();
+  final _paceMinFocusNode = FocusNode();
+  final _paceMaxFocusNode = FocusNode();
+  OverlayEntry? _keyboardDismissOverlay;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _paceMinFocusNode.addListener(_handlePaceFocusChanged);
+    _paceMaxFocusNode.addListener(_handlePaceFocusChanged);
+  }
+
+  @override
+  void dispose() {
+    _removeKeyboardDismissOverlay();
+    WidgetsBinding.instance.removeObserver(this);
+    _paceMinFocusNode.removeListener(_handlePaceFocusChanged);
+    _paceMaxFocusNode.removeListener(_handlePaceFocusChanged);
+    _paceMinFocusNode.dispose();
+    _paceMaxFocusNode.dispose();
+    _paceMinController.dispose();
+    _paceMaxController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    final entry = _keyboardDismissOverlay;
+    if (entry == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      entry.markNeedsBuild();
+    });
+  }
+
+  void _handlePaceFocusChanged() {
+    final hasFocus = _paceMinFocusNode.hasFocus || _paceMaxFocusNode.hasFocus;
+    if (hasFocus) {
+      _insertKeyboardDismissOverlay();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (!(_paceMinFocusNode.hasFocus || _paceMaxFocusNode.hasFocus)) return;
+        _removeKeyboardDismissOverlay();
+        _insertKeyboardDismissOverlay();
+      });
+    } else {
+      _removeKeyboardDismissOverlay();
+    }
+
+    if (!_paceMinFocusNode.hasFocus && !_paceMaxFocusNode.hasFocus) {
+      _commitPaceFromControllers(widget.segment);
+    }
+  }
+
+  void _commitPaceFromControllers(WorkoutSegmentEntity s) {
+    if (s.useVdotForPace == true) return;
+
+    final minSec = _StepRowState._parsePaceStringToSeconds(_paceMinController.text);
+    final maxSec = _StepRowState._parsePaceStringToSeconds(_paceMaxController.text);
+    if (minSec == null && maxSec == null) return;
+
+    final nextMin = minSec ?? s.paceSecondsPerKmMin;
+    final nextMax = maxSec ?? s.paceSecondsPerKmMax;
+
+    int? adjustedMin = nextMin;
+    int? adjustedMax = nextMax;
+    if (adjustedMin != null && adjustedMax != null && adjustedMax < adjustedMin) {
+      adjustedMax = adjustedMin;
+    }
+
+    widget.onChanged(WorkoutSegmentEntity(
+      segmentType: s.segmentType,
+      targetType: s.targetType,
+      target: s.target,
+      durationSeconds: s.durationSeconds,
+      distanceMeters: s.distanceMeters,
+      paceSecondsPerKm: s.paceSecondsPerKm,
+      paceSecondsPerKmMin: adjustedMin,
+      paceSecondsPerKmMax: adjustedMax,
+      customPaceSecondsPerKm: null,
+      useVdotForPace: false,
+      heartRateBpmMin: s.heartRateBpmMin,
+      heartRateBpmMax: s.heartRateBpmMax,
+      cadenceMin: s.cadenceMin,
+      cadenceMax: s.cadenceMax,
+      powerWattsMin: s.powerWattsMin,
+      powerWattsMax: s.powerWattsMax,
+    ));
+  }
+
+  void _insertKeyboardDismissOverlay() {
+    if (_keyboardDismissOverlay != null) return;
+    final overlay = Overlay.of(context, rootOverlay: true);
+
+    _keyboardDismissOverlay = OverlayEntry(
+      builder: (context) {
+        final view = View.of(context);
+        final bottomInset = view.viewInsets.bottom / view.devicePixelRatio;
+        if (bottomInset <= 0) return const SizedBox.shrink();
+        return Positioned(
+          bottom: bottomInset + 16,
+          right: 20,
+          child: Material(
+            color: AppColors.tertiary,
+            borderRadius: BorderRadius.circular(20),
+            elevation: 8,
+            shadowColor: AppColors.tertiary.withValues(alpha: 0.5),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: const SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
+                  child: Icon(
+                    Icons.keyboard_hide,
+                    size: 24,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    overlay.insert(_keyboardDismissOverlay!);
+  }
+
+  void _removeKeyboardDismissOverlay() {
+    _keyboardDismissOverlay?.remove();
+    _keyboardDismissOverlay = null;
+  }
+
+  void _syncPaceControllers(WorkoutSegmentEntity s) {
+    if (!_paceMinFocusNode.hasFocus) {
+      final minText = s.paceSecondsPerKmMin != null
+          ? _formatPaceInput(s.paceSecondsPerKmMin!)
+          : _getDefaultPaceFromSuggestion(s);
+      if (_paceMinController.text != minText) {
+        _paceMinController.text = minText;
+      }
+    }
+
+    if (!_paceMaxFocusNode.hasFocus) {
+      final maxText = s.paceSecondsPerKmMax != null
+          ? _formatPaceInput(s.paceSecondsPerKmMax!)
+          : (s.paceSecondsPerKmMin != null
+              ? _formatPaceInput(s.paceSecondsPerKmMin! + 30)
+              : _getDefaultPaceFromSuggestion(s));
+      if (_paceMaxController.text != maxText) {
+        _paceMaxController.text = maxText;
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = widget.segment;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!(_paceMinFocusNode.hasFocus || _paceMaxFocusNode.hasFocus)) {
+        _syncPaceControllers(s);
+      }
+    });
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -2434,108 +2787,115 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> {
                 Row(
                   children: [
                     Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          FocusScope.of(context).unfocus();
-                          _showPacePicker(
-                            s.paceSecondsPerKmMin ?? _StepRowState._parsePaceStringToSeconds(_getDefaultPaceFromSuggestion(s)),
-                            (sec) {
-                              FocusScope.of(context).unfocus();
-                              widget.onChanged(WorkoutSegmentEntity(
-                                segmentType: s.segmentType,
-                                targetType: s.targetType,
-                                target: s.target,
-                                durationSeconds: s.durationSeconds,
-                                distanceMeters: s.distanceMeters,
-                                paceSecondsPerKm: s.paceSecondsPerKm,
-                                paceSecondsPerKmMin: sec,
-                                paceSecondsPerKmMax: s.paceSecondsPerKmMax,
-                                customPaceSecondsPerKm: null,
-                                useVdotForPace: false,
-                                heartRateBpmMin: s.heartRateBpmMin,
-                                heartRateBpmMax: s.heartRateBpmMax,
-                                cadenceMin: s.cadenceMin,
-                                cadenceMax: s.cadenceMax,
-                                powerWattsMin: s.powerWattsMin,
-                                powerWattsMax: s.powerWattsMax,
-                              ));
-                            },
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                          decoration: BoxDecoration(
-                            color: AppColors.neutral100,
+                      child: TextFormField(
+                        controller: _paceMinController,
+                        focusNode: _paceMinFocusNode,
+                      keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.next,
+                        inputFormatters: [
+                          const _PaceTextInputFormatter(),
+                        ],
+                        decoration: InputDecoration(
+                          hintText: '7:30',
+                          isDense: true,
+                          filled: true,
+                          fillColor: AppColors.neutral100,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                          border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.neutral200),
+                            borderSide: BorderSide(color: AppColors.neutral200),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                s.paceSecondsPerKmMin != null
-                                    ? _formatPaceInput(s.paceSecondsPerKmMin!)
-                                    : _getDefaultPaceFromSuggestion(s),
-                                style: AppTypography.bodyMedium,
-                              ),
-                              Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
-                            ],
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: AppColors.neutral200),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: AppColors.primary),
                           ),
                         ),
+                        onChanged: (_) => _syncPaceControllers(s),
+                        onFieldSubmitted: (v) {
+                          final sec = _StepRowState._parsePaceStringToSeconds(v);
+                          if (sec == null) return;
+                          final currentMax = s.paceSecondsPerKmMax;
+                          final nextMax = (currentMax != null && currentMax < sec) ? sec : currentMax;
+                          widget.onChanged(WorkoutSegmentEntity(
+                            segmentType: s.segmentType,
+                            targetType: s.targetType,
+                            target: s.target,
+                            durationSeconds: s.durationSeconds,
+                            distanceMeters: s.distanceMeters,
+                            paceSecondsPerKm: s.paceSecondsPerKm,
+                            paceSecondsPerKmMin: sec,
+                            paceSecondsPerKmMax: nextMax,
+                            customPaceSecondsPerKm: null,
+                            useVdotForPace: false,
+                            heartRateBpmMin: s.heartRateBpmMin,
+                            heartRateBpmMax: s.heartRateBpmMax,
+                            cadenceMin: s.cadenceMin,
+                            cadenceMax: s.cadenceMax,
+                            powerWattsMin: s.powerWattsMin,
+                            powerWattsMax: s.powerWattsMax,
+                          ));
+                        },
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          FocusScope.of(context).unfocus();
-                          _showPacePicker(
-                            s.paceSecondsPerKmMax ?? (s.paceSecondsPerKmMin != null ? s.paceSecondsPerKmMin! + 30 : (_StepRowState._parsePaceStringToSeconds(_getDefaultPaceFromSuggestion(s)) ?? 330)),
-                            (sec) {
-                              FocusScope.of(context).unfocus();
-                              widget.onChanged(WorkoutSegmentEntity(
-                                segmentType: s.segmentType,
-                                targetType: s.targetType,
-                                target: s.target,
-                                durationSeconds: s.durationSeconds,
-                                distanceMeters: s.distanceMeters,
-                                paceSecondsPerKm: s.paceSecondsPerKm,
-                                paceSecondsPerKmMin: s.paceSecondsPerKmMin,
-                                paceSecondsPerKmMax: sec,
-                                customPaceSecondsPerKm: null,
-                                useVdotForPace: false,
-                                heartRateBpmMin: s.heartRateBpmMin,
-                                heartRateBpmMax: s.heartRateBpmMax,
-                                cadenceMin: s.cadenceMin,
-                                cadenceMax: s.cadenceMax,
-                                powerWattsMin: s.powerWattsMin,
-                                powerWattsMax: s.powerWattsMax,
-                              ));
-                            },
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                          decoration: BoxDecoration(
-                            color: AppColors.neutral100,
+                      child: TextFormField(
+                        controller: _paceMaxController,
+                        focusNode: _paceMaxFocusNode,
+                      keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        inputFormatters: [
+                          const _PaceTextInputFormatter(),
+                        ],
+                        decoration: InputDecoration(
+                          hintText: '10:30',
+                          isDense: true,
+                          filled: true,
+                          fillColor: AppColors.neutral100,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                          border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.neutral200),
+                            borderSide: BorderSide(color: AppColors.neutral200),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                s.paceSecondsPerKmMax != null
-                                    ? _formatPaceInput(s.paceSecondsPerKmMax!)
-                                    : (s.paceSecondsPerKmMin != null
-                                        ? _formatPaceInput(s.paceSecondsPerKmMin! + 30)
-                                        : _getDefaultPaceFromSuggestion(s)),
-                                style: AppTypography.bodyMedium,
-                              ),
-                              Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
-                            ],
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: AppColors.neutral200),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: AppColors.primary),
                           ),
                         ),
+                        onFieldSubmitted: (v) {
+                          final sec = _StepRowState._parsePaceStringToSeconds(v);
+                          if (sec == null) return;
+                          final currentMin = s.paceSecondsPerKmMin;
+                          final nextMin = (currentMin != null && sec < currentMin) ? sec : currentMin;
+                          final adjustedMax = (currentMin != null && sec < currentMin) ? currentMin : sec;
+                          widget.onChanged(WorkoutSegmentEntity(
+                            segmentType: s.segmentType,
+                            targetType: s.targetType,
+                            target: s.target,
+                            durationSeconds: s.durationSeconds,
+                            distanceMeters: s.distanceMeters,
+                            paceSecondsPerKm: s.paceSecondsPerKm,
+                            paceSecondsPerKmMin: nextMin,
+                            paceSecondsPerKmMax: adjustedMax,
+                            customPaceSecondsPerKm: null,
+                            useVdotForPace: false,
+                            heartRateBpmMin: s.heartRateBpmMin,
+                            heartRateBpmMax: s.heartRateBpmMax,
+                            cadenceMin: s.cadenceMin,
+                            cadenceMax: s.cadenceMax,
+                            powerWattsMin: s.powerWattsMin,
+                            powerWattsMax: s.powerWattsMax,
+                          ));
+                          FocusScope.of(context).unfocus();
+                        },
                       ),
                     ),
                   ],
@@ -2751,80 +3111,6 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> {
                     child: Text('$m m'),
                   );
                 }),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showPacePicker(int? currentSeconds, Function(int) onSelected) async {
-    final totalSeconds = currentSeconds ?? 300;
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-
-    int selectedMinutes = minutes;
-    int selectedSeconds = seconds;
-
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: 250,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('İptal'),
-                  ),
-                  Text(
-                    'Pace Seç',
-                    style: AppTypography.titleMedium,
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      final total = selectedMinutes * 60 + selectedSeconds;
-                      onSelected(total);
-                      Navigator.pop(context);
-                    },
-                    child: Text(
-                      'Tamam',
-                      style: AppTypography.labelMedium.copyWith(color: AppColors.primary),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: CupertinoPicker(
-                      itemExtent: 40,
-                      scrollController: FixedExtentScrollController(initialItem: selectedMinutes),
-                      onSelectedItemChanged: (value) => selectedMinutes = value,
-                      children: List.generate(20, (i) => Center(child: Text('$i dk'))),
-                    ),
-                  ),
-                  Expanded(
-                    child: CupertinoPicker(
-                      itemExtent: 40,
-                      scrollController: FixedExtentScrollController(initialItem: selectedSeconds),
-                      onSelectedItemChanged: (value) => selectedSeconds = value,
-                      children: List.generate(60, (i) => Center(child: Text('$i sn'))),
-                    ),
-                  ),
-                ],
               ),
             ),
           ],

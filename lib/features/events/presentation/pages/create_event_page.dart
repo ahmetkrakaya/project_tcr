@@ -16,6 +16,7 @@ import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../../members_groups/presentation/widgets/event_group_programs_editor.dart';
 import '../../../routes/domain/entities/route_entity.dart';
 import '../../../routes/presentation/providers/route_provider.dart';
+import '../../../workout/data/models/workout_model.dart';
 import '../../data/models/event_model.dart';
 import '../../domain/entities/event_entity.dart';
 import '../../domain/entities/event_template_entity.dart';
@@ -76,6 +77,8 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   /// Özel etkinlik (sadece seçili kullanıcılar görebilir)
   bool _isRestrictedEvent = false;
   final List<String> _selectedVisibleUserIds = [];
+  /// Yarış etkinliklerinde açılacak resmi mesafeler/kategoriler (örn. 5K, 10K)
+  List<String> _selectedRaceVariants = [];
 
   /// Tekrarlayan etkinlik
   bool _isRecurring = false;
@@ -121,6 +124,10 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       _loadEventData();
     } else if (widget.prefillData != null) {
       _applyPrefillData(widget.prefillData!);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _tryApplyMonthlyPlanForSelectedDate();
+      });
     }
   }
 
@@ -150,20 +157,172 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
     });
   }
 
+  Future<void> _tryApplyMonthlyPlanForSelectedDate() async {
+    if (_isEditing) return;
+    if (_selectedEventType != EventType.training) return;
+    try {
+      final ds = ref.read(eventDataSourceProvider);
+      final plans = await ds.getMonthlyProgramsByDate(_startDate);
+      if (!mounted || plans.isEmpty) return;
+
+      final allGroups = await ref.read(allGroupsProvider.future);
+      List<EventGroupProgramItem> nextGroupPrograms = [];
+      List<EventMemberProgramItem> nextMemberPrograms = [];
+
+      for (final plan in plans) {
+        final scopeType = (plan['scope_type'] as String?) ?? 'group';
+        final groupId = plan['training_group_id'] as String?;
+        final trainingTypeId = plan['training_type_id'] as String?;
+        final trainingTypeName =
+            (plan['training_types'] as Map<String, dynamic>?)?['display_name'] as String?;
+        final programContent = (plan['program_content'] as String?) ?? '';
+        final wdRaw = plan['workout_definition'];
+        dynamic workoutDef;
+        if (wdRaw is Map<String, dynamic>) {
+          workoutDef = WorkoutDefinitionModel.fromJson(wdRaw).toEntity();
+        } else if (wdRaw is Map) {
+          workoutDef = WorkoutDefinitionModel.fromJson(
+            Map<String, dynamic>.from(wdRaw),
+          ).toEntity();
+        } else if (wdRaw is List) {
+          workoutDef = WorkoutDefinitionModel.fromJsonList(wdRaw).toEntity();
+        }
+
+        final group = allGroups.firstWhere(
+          (g) => g.id == groupId,
+          orElse: () => allGroups.first,
+        );
+
+        if (scopeType == 'group') {
+          nextGroupPrograms.add(
+            EventGroupProgramItem(
+              group: group,
+              programContent: programContent,
+              workoutDefinition: workoutDef,
+              trainingTypeId: trainingTypeId,
+              trainingTypeName: trainingTypeName,
+            ),
+          );
+        } else {
+          final userId = plan['user_id'] as String?;
+          if (userId == null) continue;
+          final userObj = (plan['users'] as Map<String, dynamic>?) ?? {};
+          final firstName = (userObj['first_name'] as String?) ?? '';
+          final lastName = (userObj['last_name'] as String?) ?? '';
+          final fullName = '$firstName $lastName'.trim();
+          final fallbackEmail = (userObj['email'] as String?) ?? '';
+          nextMemberPrograms.add(
+            EventMemberProgramItem(
+              userId: userId,
+              userName: fullName.isNotEmpty ? fullName : fallbackEmail,
+              userAvatarUrl: null,
+              group: group,
+              programContent: programContent,
+              workoutDefinition: workoutDef,
+              trainingTypeId: trainingTypeId,
+              trainingTypeName: trainingTypeName,
+            ),
+          );
+        }
+      }
+
+      // Aylık planda satırı olmasa bile tüm aktif gruplar düzenlenebilir görünsün.
+      // Böylece admin, boş kalan grupları elle doldurabilir.
+      final groupDataSource = ref.read(groupDataSourceProvider);
+
+      final existingNormalGroupIds = nextGroupPrograms
+          .map((p) => p.group.id)
+          .toSet();
+      for (final group in allGroups.where((g) => !g.isPerformanceGroup)) {
+        if (!existingNormalGroupIds.contains(group.id)) {
+          nextGroupPrograms.add(
+            EventGroupProgramItem(
+              group: group,
+              programContent: '',
+              workoutDefinition: null,
+            ),
+          );
+        }
+      }
+
+      // Performans gruplarında planı olmasa da üye-bazlı boş kartlar gelsin.
+      final existingMemberKeys = nextMemberPrograms
+          .map((mp) => '${mp.group.id}::${mp.userId}')
+          .toSet();
+      for (final pGroup in allGroups.where((g) => g.isPerformanceGroup)) {
+        final members = await groupDataSource.getGroupMembers(pGroup.id);
+        for (final m in members) {
+          final key = '${pGroup.id}::${m.userId}';
+          if (!existingMemberKeys.contains(key)) {
+            nextMemberPrograms.add(
+              EventMemberProgramItem(
+                userId: m.userId,
+                userName: m.userName,
+                userAvatarUrl: m.userAvatarUrl,
+                group: pGroup,
+                programContent: '',
+                workoutDefinition: null,
+              ),
+            );
+            existingMemberKeys.add(key);
+          }
+        }
+      }
+
+      setState(() {
+        _selectedEventType = EventType.training;
+        _participationType = 'team';
+        _groupPrograms = nextGroupPrograms;
+        _memberPrograms = nextMemberPrograms;
+        // Not: Aylık plandan sadece antrenman programı doldurulur.
+        // Etkinlik meta alanları (rota/saat/konum) değiştirilmez.
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Aylık programdan ${plans.length} satır antrenman dolduruldu. Düzenleyebilirsiniz.',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      // Aylık plan yoksa veya erişim yoksa sessizce devam et.
+    }
+  }
+
   Future<void> _loadEventData() async {
     try {
       final event = await ref.read(eventByIdProvider(widget.eventId!).future);
+      const placeholderPersonalProgramContent = 'Kişiye özel program';
       
       // Grup programlarını yükle
       final groupPrograms = await ref.read(eventGroupProgramsProvider(widget.eventId!).future);
       final allGroups = await ref.read(allGroupsProvider.future);
       
       final programItems = <EventGroupProgramItem>[];
+      final performanceGroupIdsInEvent = <String>{};
       for (final program in groupPrograms) {
         final group = allGroups.firstWhere(
           (g) => g.id == program.trainingGroupId,
           orElse: () => allGroups.first,
         );
+
+        final isPerformancePlaceholder = group.isPerformanceGroup &&
+            program.programContent.trim().toLowerCase() ==
+                placeholderPersonalProgramContent.toLowerCase() &&
+            (program.workoutDefinition == null || program.workoutDefinition!.isEmpty);
+
+        if (group.isPerformanceGroup) {
+          performanceGroupIdsInEvent.add(group.id);
+          // Performans grupları düzenleme ekranında normal grup kartı olarak görünmesin.
+          // Bu gruplar üye-bazlı program listesiyle yönetiliyor.
+          if (isPerformancePlaceholder) {
+            continue;
+          }
+        }
+
         programItems.add(EventGroupProgramItem(
           id: program.id,
           group: group,
@@ -181,9 +340,13 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
 
       // Performans grubu üye programlarını yükle
       final memberProgramItems = <EventMemberProgramItem>[];
-      final performanceGroups = allGroups.where((g) => g.isPerformanceGroup).toList();
       final groupDataSource = ref.read(groupDataSourceProvider);
-      for (final pGroup in performanceGroups) {
+      for (final performanceGroupId in performanceGroupIdsInEvent) {
+        final pGroup = allGroups.firstWhere(
+          (g) => g.id == performanceGroupId,
+          orElse: () => allGroups.first,
+        );
+        if (!pGroup.isPerformanceGroup) continue;
         final memberPrograms = await groupDataSource.getEventMemberPrograms(
           widget.eventId!, pGroup.id,
         );
@@ -216,6 +379,8 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           _endTime = TimeOfDay.fromDateTime(event.endTime!);
         }
         _selectedRouteId = event.routeId;
+        // Eski yarışlar için: event.raceVariantLabels null olabilir
+        _selectedRaceVariants = event.raceVariantLabels?.toList() ?? <String>[];
         _groupPrograms = programItems;
         _memberPrograms = memberProgramItems;
         // Rota yoksa ama konum varsa (önceki konum seçimi) harita konumunu yükle
@@ -309,6 +474,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           _endTime = TimeOfDay.fromDateTime(endDateTime);
         }
         _selectedRouteId = template.routeId;
+        _selectedRaceVariants = <String>[];
         _groupPrograms = template.eventType == EventType.training ? programItems : [];
         _memberPrograms = [];
         _pickedLocationLat = null;
@@ -552,6 +718,10 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 ),
                 const SizedBox(height: 12),
                 _buildRouteSelector(),
+                if (_selectedEventType == EventType.race) ...[
+                  const SizedBox(height: 16),
+                  _buildRaceCategorySelector(),
+                ],
               ],
               if (_showLocationPicker) ...[
                 Text('Konum seçimi', style: AppTypography.titleMedium),
@@ -1247,6 +1417,9 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         }
         _updateDateTimeDisplayControllers();
       });
+      if (isStart) {
+        await _tryApplyMonthlyPlanForSelectedDate();
+      }
     }
   }
 
@@ -1410,14 +1583,20 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           _selectedRouteId != null) {
         final routes = await ref.read(allRoutesProvider.future);
         try {
-          final selectedRoute = routes.firstWhere((r) => r.id == _selectedRouteId);
+          final selectedRoute = _selectedEventType == EventType.race
+              ? routes.firstWhere((r) => r.id == _selectedRouteId && r.isRace)
+              : routes.firstWhere((r) => r.id == _selectedRouteId);
           selectedRouteForLane = selectedRoute;
           locationName = selectedRoute.name;
           locationAddress = selectedRoute.locationName;
           locationLat = selectedRoute.locationLat;
           locationLng = selectedRoute.locationLng;
           routeId = _selectedRouteId;
-        } catch (_) {}
+        } catch (_) {
+          if (_selectedEventType == EventType.race) {
+            throw Exception('Yarış etkinliği için yalnızca yarış rotası seçin.');
+          }
+        }
       } else if (_showLocationPicker &&
           _pickedLocationLat != null &&
           _pickedLocationLng != null) {
@@ -1434,6 +1613,25 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       EventModel? existingEvent;
       if (_isEditing && widget.eventId != null) {
         existingEvent = await dataSource.getEventById(widget.eventId!);
+      }
+
+      // Yarış etkinliği için seçili kategoriler (mesafeler)
+      // Hiç seçim yoksa, rota üzerindeki tüm varyantlar varsayılan olarak açık kabul edilir.
+      List<String>? raceVariantLabels;
+      if (_selectedEventType == EventType.race && _selectedRouteId != null) {
+        final routes = await ref.read(allRoutesProvider.future);
+        final route = routes.firstWhere(
+          (r) => r.id == _selectedRouteId,
+          orElse: () => routes.first,
+        );
+        final allLabels = route.gpxVariants.map((v) => v.label).toList();
+        final selected = _selectedRaceVariants.isEmpty ? allLabels : _selectedRaceVariants;
+        // Güvenlik: sadece mevcut varyant label'larını kaydet
+        raceVariantLabels =
+            selected.where((label) => allLabels.contains(label)).toList();
+        if (raceVariantLabels.isEmpty) {
+          throw Exception('En az bir yarış mesafesi seçmelisiniz.');
+        }
       }
 
       final eventModel = EventModel(
@@ -1477,6 +1675,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         recurrenceEndDate: _recurrenceEndDate,
         isRecurrenceException: widget.editRecurrenceScope == 'only_this' || (existingEvent?.isRecurrenceException ?? false),
         visibility: _isRestrictedEvent ? 'restricted' : 'public',
+        raceVariantLabels: raceVariantLabels ?? existingEvent?.raceVariantLabels,
       );
 
       String createdEventId;
@@ -2260,7 +2459,11 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
 
     return routesAsync.when(
       data: (routes) {
-        if (routes.isEmpty) {
+        final displayedRoutes = _selectedEventType == EventType.race
+            ? routes.where((r) => r.isRace).toList()
+            : routes;
+
+        if (displayedRoutes.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -2276,7 +2479,9 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'Henüz rota eklenmemiş',
+                  _selectedEventType == EventType.race
+                      ? 'Henüz yarış rotası eklenmemiş'
+                      : 'Henüz rota eklenmemiş',
                   style: AppTypography.bodyMedium.copyWith(
                     color: AppColors.neutral500,
                   ),
@@ -2287,14 +2492,13 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         }
 
         final selectedRoute = _selectedRouteId != null
-            ? routes.firstWhere(
-                (r) => r.id == _selectedRouteId,
-                orElse: () => routes.first,
-              )
+            ? displayedRoutes.where((r) => r.id == _selectedRouteId).isNotEmpty
+                ? displayedRoutes.firstWhere((r) => r.id == _selectedRouteId)
+                : null
             : null;
 
         return InkWell(
-          onTap: () => _showRouteSelectionSheet(routes),
+          onTap: () => _showRouteSelectionSheet(displayedRoutes),
           borderRadius: BorderRadius.circular(12),
           child: Container(
             padding: const EdgeInsets.all(16),
@@ -2509,6 +2713,111 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
     );
   }
 
+  /// Yarış etkinliklerinde, seçilen rota içindeki gpxVariants listesinden
+  /// hangi mesafelerin/kategorilerin açılacağını çoklu seçtiren alan.
+  Widget _buildRaceCategorySelector() {
+    if (_selectedRouteId == null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.neutral100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.neutral200),
+        ),
+        child: Text(
+          'Önce bir yarış rotası seçin.',
+          style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+        ),
+      );
+    }
+
+    final routesAsync = ref.watch(allRoutesProvider);
+
+    return routesAsync.when(
+      data: (routes) {
+        final route = routes.firstWhere(
+          (r) => r.id == _selectedRouteId,
+          orElse: () => routes.first,
+        );
+
+        if (route.gpxVariants.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.neutral100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.neutral200),
+            ),
+            child: Text(
+              'Bu rotada tanımlı mesafe/varyant yok.\nLütfen rota detayından GPX varyantları ekleyin.',
+              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+            ),
+          );
+        }
+
+        // Varsayılan: hiçbir seçim yapılmamışsa tüm varyantlar seçili kabul et
+        final Set<String> selected = _selectedRaceVariants.isEmpty
+            ? route.gpxVariants.map((v) => v.label).toSet()
+            : _selectedRaceVariants.toSet();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Yarış Mesafeleri',
+                  style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${selected.length}/${route.gpxVariants.length} seçili',
+                  style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: route.gpxVariants.map((v) {
+                final isSelected = selected.contains(v.label);
+                return FilterChip(
+                  label: Text(
+                    v.label,
+                    style: AppTypography.labelSmall.copyWith(
+                      color: isSelected ? Colors.white : AppColors.neutral700,
+                    ),
+                  ),
+                  selected: isSelected,
+                  selectedColor: AppColors.primary,
+                  onSelected: (value) {
+                    setState(() {
+                      final current = selected.toSet();
+                      if (value) {
+                        current.add(v.label);
+                      } else {
+                        current.remove(v.label);
+                      }
+                      _selectedRaceVariants = current.toList();
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Katılımcılar sadece bu mesafelerden birine kayıt olabilecek.',
+              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+            ),
+          ],
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
   void _showRouteSelectionSheet(List<RouteEntity> routes) {
     final parentContext = context;
     showModalBottomSheet(
@@ -2599,7 +2908,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                         ),
                       ),
                       subtitle: Text(
-                        '${route.formattedDistance} • ${route.formattedElevationGain} yükseliş • ${route.terrainType.displayName}',
+                        '${route.isRace ? 'Yarış' : 'Normal'} • ${route.formattedDistance} • ${route.formattedElevationGain} yükseliş • ${route.terrainType.displayName}',
                         style: AppTypography.bodySmall.copyWith(
                           color: AppColors.neutral500,
                         ),

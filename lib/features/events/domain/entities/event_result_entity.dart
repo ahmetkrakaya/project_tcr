@@ -9,6 +9,8 @@ class EventResultEntity {
   final int? rankOverall;
   final int? rankGender;
   final String? notes;
+  /// Sonucun ait olduğu kategori etiketi (örn. 10K, 21K)
+  final String? raceVariantLabel;
 
   const EventResultEntity({
     required this.id,
@@ -21,6 +23,7 @@ class EventResultEntity {
     this.rankOverall,
     this.rankGender,
     this.notes,
+    this.raceVariantLabel,
   });
 
   /// Süreyi kullanıcıya gösterilecek formatta döndür (mm:ss veya hh:mm:ss)

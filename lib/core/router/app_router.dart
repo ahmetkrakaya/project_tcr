@@ -15,6 +15,7 @@ import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/events/presentation/pages/events_page.dart';
 import '../../features/events/presentation/pages/event_detail_page.dart';
 import '../../features/events/presentation/pages/create_event_page.dart';
+import '../../features/events/presentation/pages/admin_monthly_program_upload_page.dart';
 import '../../features/events/presentation/pages/event_report_page.dart';
 import '../../features/events/presentation/pages/event_report_detail_page.dart';
 import '../../features/chat/presentation/pages/chat_page.dart';
@@ -41,6 +42,8 @@ import '../../features/members_groups/presentation/pages/groups_page.dart';
 import '../../features/members_groups/presentation/pages/group_detail_page.dart';
 import '../../features/members_groups/presentation/pages/create_group_page.dart';
 import '../../features/members_groups/presentation/pages/upcoming_birthdays_page.dart';
+import '../../features/members_groups/presentation/pages/vdot_threshold_list_page.dart';
+import '../../features/members_groups/presentation/pages/unassigned_members_page.dart';
 import '../../features/gallery/presentation/pages/event_gallery_page.dart';
 import '../../features/marketplace/presentation/pages/marketplace_page.dart';
 import '../../features/marketplace/presentation/pages/listing_detail_page.dart';
@@ -54,6 +57,7 @@ import '../../features/integrations/presentation/pages/strava_activity_list_page
 import '../../features/auth/presentation/providers/auth_notifier.dart';
 import '../../features/members_groups/presentation/providers/group_provider.dart';
 import '../../features/notifications/presentation/providers/notification_provider.dart';
+import '../../features/notifications/presentation/pages/admin_create_notification_page.dart';
 import '../../features/posts/presentation/pages/create_post_page.dart';
 import '../../features/posts/presentation/pages/post_detail_page.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
@@ -236,6 +240,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 },
               ),
               GoRoute(
+                path: 'monthly-upload',
+                name: RouteNames.adminMonthlyProgramUpload,
+                builder: (context, state) => const AdminMonthlyProgramUploadPage(),
+              ),
+              GoRoute(
                 path: 'report',
                 name: RouteNames.eventReport,
                 builder: (context, state) => const EventReportPage(),
@@ -393,7 +402,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 name: RouteNames.routeDetail,
                 builder: (context, state) {
                   final routeId = state.pathParameters['routeId']!;
-                  return route_pages.RouteDetailPage(routeId: routeId);
+                  final extra = state.extra;
+                  final variantIndex = extra is Map<String, dynamic>
+                      ? (extra['variantIndex'] as int?)
+                      : null;
+                  return route_pages.RouteDetailPage(
+                    routeId: routeId,
+                    variantIndex: variantIndex,
+                  );
                 },
                 routes: [
                   GoRoute(
@@ -424,6 +440,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: 'birthdays',
                 name: RouteNames.upcomingBirthdays,
                 builder: (context, state) => const UpcomingBirthdaysPage(),
+              ),
+              GoRoute(
+                path: 'vdot-thresholds',
+                name: RouteNames.vdotThresholdList,
+                builder: (context, state) => const VdotThresholdListPage(),
+              ),
+              GoRoute(
+                path: 'unassigned-members',
+                name: RouteNames.unassignedMembers,
+                builder: (context, state) => const UnassignedMembersPage(),
               ),
               GoRoute(
                 path: ':groupId',
@@ -498,6 +524,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               final userId = state.uri.queryParameters['userId'];
               return StatisticsPage(userId: userId);
             },
+          ),
+          GoRoute(
+            path: 'admin-notification',
+            name: RouteNames.adminCreateNotification,
+            builder: (context, state) => const AdminCreateNotificationPage(),
           ),
           // Path parameter route'u en sonda (static route'lardan sonra)
           GoRoute(

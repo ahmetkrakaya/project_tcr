@@ -146,4 +146,15 @@ class WorkoutDefinitionEntity {
   const WorkoutDefinitionEntity({required this.steps});
 
   bool get isEmpty => steps.isEmpty;
+
+  /// Herhangi bir segmentte VDOT bazlı pace kullanılıyor mu?
+  bool get hasVdotPaceSegments => _stepsHaveVdotPace(steps);
+
+  static bool _stepsHaveVdotPace(List<WorkoutStepEntity> steps) {
+    for (final step in steps) {
+      if (step.segment?.useVdotForPace == true) return true;
+      if (step.steps != null && _stepsHaveVdotPace(step.steps!)) return true;
+    }
+    return false;
+  }
 }

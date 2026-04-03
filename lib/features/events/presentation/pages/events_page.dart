@@ -12,6 +12,7 @@ import '../../../../shared/widgets/loading_widget.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../domain/entities/event_entity.dart';
 import '../providers/event_provider.dart';
+import '../widgets/admin_monthly_program_entry_card.dart';
 
 /// Events Page
 class EventsPage extends ConsumerStatefulWidget {
@@ -41,6 +42,9 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   // Scroll throttle için
   DateTime? _lastScrollUpdate;
   static const _scrollThrottleMs = 100; // 100ms throttle
+
+  /// Sadece admin: Etkinlikler ↔ Aylık antrenman (takvim + plan listesi)
+  bool _adminWorkoutView = false;
 
   @override
   void initState() {
@@ -231,18 +235,45 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(isAdminProvider);
+    final showAdminWorkouts = isAdmin && _adminWorkoutView;
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.calendar_today),
-          onPressed: () {
-            _hasScrolledToCurrentDate = false;
-            _scrollToCurrentDate();
-          },
-          tooltip: 'Bugüne git',
-        ),
-        title: const Text('Etkinlikler'),
+        leadingWidth: isAdmin ? 112 : null,
+        leading: isAdmin
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      showAdminWorkouts ? Icons.event : Icons.fitness_center,
+                    ),
+                    tooltip: showAdminWorkouts
+                        ? 'Etkinlik görünümüne dön'
+                        : 'Aylık antrenman görünümü',
+                    onPressed: () {
+                      setState(() => _adminWorkoutView = !_adminWorkoutView);
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.calendar_today),
+                    onPressed: () {
+                      _hasScrolledToCurrentDate = false;
+                      _scrollToCurrentDate();
+                    },
+                    tooltip: 'Bugüne git',
+                  ),
+                ],
+              )
+            : IconButton(
+                icon: const Icon(Icons.calendar_today),
+                onPressed: () {
+                  _hasScrolledToCurrentDate = false;
+                  _scrollToCurrentDate();
+                },
+                tooltip: 'Bugüne git',
+              ),
+        title: Text(showAdminWorkouts ? 'Antrenmanlar' : 'Etkinlikler'),
         actions: [
           IconButton(
             icon: const Icon(Icons.emoji_events_outlined),
@@ -250,9 +281,27 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             onPressed: () => context.pushNamed(RouteNames.clubRaces),
           ),
           if (isAdmin)
-            IconButton(
+            PopupMenuButton<String>(
               icon: const Icon(Icons.add),
-              onPressed: () => context.pushNamed(RouteNames.createEvent),
+              onSelected: (value) {
+                if (value == 'create') {
+                  context.pushNamed(RouteNames.createEvent);
+                  return;
+                }
+                if (value == 'monthly_upload') {
+                  context.pushNamed(RouteNames.adminMonthlyProgramUpload);
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem<String>(
+                  value: 'create',
+                  child: Text('Etkinlik Oluştur'),
+                ),
+                PopupMenuItem<String>(
+                  value: 'monthly_upload',
+                  child: Text('Aylık Program Yükle'),
+                ),
+              ],
             ),
         ],
       ),
@@ -289,8 +338,12 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   }
 
   Widget _buildCalendarView() {
-    final allEventsAsync = ref.watch(allEventsProvider);
     final isAdmin = ref.watch(isAdminProvider);
+    if (isAdmin && _adminWorkoutView) {
+      return _buildAdminWorkoutCalendarView();
+    }
+
+    final allEventsAsync = ref.watch(allEventsProvider);
 
     return allEventsAsync.when(
       data: (events) {
@@ -435,7 +488,10 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                             Duration(days: index * 7),
                           );
                           return RepaintBoundary(
-                            child: _buildWeekCalendar(startWeek, eventsByDate),
+                            child: _buildWeekCalendar(
+                              startWeek,
+                              eventsByDate: eventsByDate,
+                            ),
                           );
                         },
                         childCount: totalWeeks,
@@ -449,7 +505,9 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             ),
 
             // Alt kısım: Etkinlik listesi
-            Expanded(child: _buildUpcomingEventsList(eventsByDate, isAdmin)),
+            Expanded(
+              child: _buildUpcomingEventsList(eventsByDate, isAdmin),
+            ),
           ],
         );
       },
@@ -461,6 +519,203 @@ class _EventsPageState extends ConsumerState<EventsPage> {
           onRetry: () => ref.invalidate(allEventsProvider),
         ),
       ),
+    );
+  }
+
+  /// Admin: aylık plan satırları + takvim (günlerde plan noktası)
+  Widget _buildAdminWorkoutCalendarView() {
+    final monthAnchor = DateTime(
+      (_selectedDay ?? DateTime.now()).year,
+      (_selectedDay ?? DateTime.now()).month,
+      1,
+    );
+    final rowsAsync =
+        ref.watch(adminMonthlyProgramsForMonthProvider(monthAnchor));
+
+    // Scroll view hep ekranda kalsın; aksi halde veri yüklenirken widget sökülüp takvim kayıyor.
+    final rows = rowsAsync.valueOrNull ?? const [];
+
+    final byDate = <DateTime, List<Map<String, dynamic>>>{};
+    for (final r in rows) {
+      final pd = r['plan_date'] as String?;
+      if (pd == null) continue;
+      final d = DateTime.tryParse(pd);
+      if (d == null) continue;
+      final key = DateTime(d.year, d.month, d.day);
+      byDate.putIfAbsent(key, () => []).add(r);
+    }
+    final daysWithItems = byDate.entries
+        .where((e) => e.value.isNotEmpty)
+        .map((e) => DateTime(e.key.year, e.key.month, e.key.day))
+        .toSet();
+
+    final startDate = DateTime(2025, 7, 1);
+    final endDate = DateTime(2030, 12, 31);
+    final firstMonday = _getFirstMonday(startDate);
+    final lastMonday = _getLastMonday(endDate);
+    final totalWeeks =
+        ((lastMonday.difference(firstMonday).inDays) / 7).ceil() + 1;
+
+    if (!_hasScrolledToCurrentDate && !_initialScrollScheduled) {
+      _initialScrollScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && !_hasScrolledToCurrentDate && _scrollController.hasClients) {
+            _scrollToCurrentDate();
+          }
+        });
+      });
+    }
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
+                .map(
+                  (day) => Expanded(
+                    child: Text(
+                      day,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.neutral500,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+        SizedBox(
+          height: _calculateThreeWeekHeight(),
+          child: ClipRect(
+            child: CustomScrollView(
+              controller: _scrollController,
+              slivers: [
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final startWeek =
+                          firstMonday.add(Duration(days: index * 7));
+                      return RepaintBoundary(
+                        child: _buildWeekCalendar(
+                          startWeek,
+                          daysWithSimpleDots: daysWithItems,
+                        ),
+                      );
+                    },
+                    childCount: totalWeeks,
+                    addAutomaticKeepAlives: false,
+                    addRepaintBoundaries: false,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: rowsAsync.when(
+            data: (rows) => _buildAdminMonthlyWorkoutList(rows),
+            loading: () => const Center(child: LoadingWidget()),
+            error: (e, _) => Center(
+              child: ErrorStateWidget(
+                title: 'Aylık plan yüklenemedi',
+                message: e.toString(),
+                onRetry: () => ref.invalidate(
+                  adminMonthlyProgramsForMonthProvider(monthAnchor),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdminMonthlyWorkoutList(List<Map<String, dynamic>> rows) {
+    if (_selectedDay == null || _topVisibleDate == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Text('Yükleniyor...'),
+        ),
+      );
+    }
+
+    final startDate = _selectedDay!;
+    final startKey = DateTime(startDate.year, startDate.month, startDate.day);
+
+    final byDate = <DateTime, List<Map<String, dynamic>>>{};
+    for (final r in rows) {
+      final pd = r['plan_date'] as String?;
+      final d = pd == null ? null : DateTime.tryParse(pd);
+      if (d == null) continue;
+      final k = DateTime(d.year, d.month, d.day);
+      if (!k.isBefore(startKey)) {
+        byDate.putIfAbsent(k, () => []).add(r);
+      }
+    }
+
+    final eventDays = byDate.keys.toList()..sort();
+
+    if (eventDays.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.fitness_center,
+                size: 48,
+                color: AppColors.neutral400,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Bu günden itibaren aylık plan kaydı yok',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.neutral500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: eventDays.length,
+      cacheExtent: 500,
+      itemBuilder: (context, index) {
+        final date = eventDays[index];
+        final dayRows = byDate[date]!;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: EdgeInsets.only(bottom: 8, top: index == 0 ? 0 : 16),
+              child: Text(
+                '${date.day} ${_getMonthName(date)} ${_getDayName(date)}',
+                style: AppTypography.titleSmall.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.neutral900,
+                ),
+              ),
+            ),
+            ...dayRows.map(
+              (r) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: AdminMonthlyProgramEntryCard(row: r),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -523,9 +778,10 @@ class _EventsPageState extends ConsumerState<EventsPage> {
 
   // 1 haftalık takvim widget'ı oluşturur
   Widget _buildWeekCalendar(
-    DateTime startWeek,
-    Map<DateTime, List<EventEntity>> eventsByDate,
-  ) {
+    DateTime startWeek, {
+    Map<DateTime, List<EventEntity>>? eventsByDate,
+    Set<DateTime>? daysWithSimpleDots,
+  }) {
     // MediaQuery'yi optimize et (mümkünse cache'lenmiş değeri kullan)
     final screenWidth = MediaQuery.maybeOf(context)?.size.width ?? 
                         MediaQuery.of(context).size.width;
@@ -537,9 +793,11 @@ class _EventsPageState extends ConsumerState<EventsPage> {
       child: Row(
         children: List.generate(7, (index) {
           final currentDay = startWeek.add(Duration(days: index));
-
-          // Event ve Seçililik durumu
-          final dayEvents = eventsByDate[currentDay] ?? [];
+          final dayKey =
+              DateTime(currentDay.year, currentDay.month, currentDay.day);
+          final dayEvents = eventsByDate?[currentDay] ?? const <EventEntity>[];
+          final hasSimpleDot =
+              daysWithSimpleDots != null && daysWithSimpleDots.contains(dayKey);
           final isSelected = isSameDay(_selectedDay, currentDay);
           final isToday = isSameDay(DateTime.now(), currentDay);
 
@@ -582,8 +840,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                       ),
                     ),
                   ),
-                  // Event Noktaları (Varsa)
-                  if (dayEvents.isNotEmpty)
+                  if (eventsByDate != null && dayEvents.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Row(
@@ -599,6 +856,24 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                             ),
                           );
                         }).toList(),
+                      ),
+                    )
+                  else if (hasSimpleDot)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 1),
+                            width: 4,
+                            height: 4,
+                            decoration: const BoxDecoration(
+                              color: AppColors.secondary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
                       ),
                     )
                   else

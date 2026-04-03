@@ -8,6 +8,19 @@ import '../../../../core/errors/exceptions.dart';
 import '../../domain/entities/route_entity.dart';
 import '../models/route_model.dart';
 
+/// Route oluştururken/güncellerken tek bir GPX varyantı temsil eder.
+class RouteGpxVariantInput {
+  final String label; // Örn: "21K", "10K"
+  final String gpxContent; // Ham GPX XML içeriği
+  final Uint8List gpxBytes; // Storage upload için
+
+  const RouteGpxVariantInput({
+    required this.label,
+    required this.gpxContent,
+    required this.gpxBytes,
+  });
+}
+
 /// Route Remote Data Source
 class RouteRemoteDataSource {
   final SupabaseClient _supabase;
@@ -58,6 +71,7 @@ class RouteRemoteDataSource {
     String? locationName,
     String? description,
     String? terrainType,
+    bool isRace = false,
     int difficultyLevel = 1,
   }) async {
     try {
@@ -98,6 +112,7 @@ class RouteRemoteDataSource {
         'start_location': parsedData.startLocation?.toJson(),
         'end_location': parsedData.endLocation?.toJson(),
         'terrain_type': terrainType ?? 'asphalt',
+        'is_race': isRace,
         'difficulty_level': difficultyLevel,
         'created_by': userId,
       };
@@ -131,6 +146,7 @@ class RouteRemoteDataSource {
     String? locationName,
     String? description,
     String? terrainType,
+    bool isRace = false,
     int difficultyLevel = 1,
   }) async {
     try {
@@ -168,6 +184,7 @@ class RouteRemoteDataSource {
         'start_location': parsedData.startLocation?.toJson(),
         'end_location': parsedData.endLocation?.toJson(),
         'terrain_type': terrainType ?? 'asphalt',
+        'is_race': isRace,
         'difficulty_level': difficultyLevel,
         'created_by': userId,
       };
@@ -183,6 +200,222 @@ class RouteRemoteDataSource {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
       throw ServerException(message: 'Rota yüklenemedi: $e');
+    }
+  }
+
+  /// Tek bir `Route` kaydına birden fazla GPX varyantı kaydeder.
+  /// - `gpx_variants` JSONB içine tüm varyantları yazar
+  /// - Geriye uyumluluk için top-level `gpx_data` ve istatistikleri ilk varyanttan doldurur.
+  Future<RouteModel> createRouteFromGpxVariants({
+    required String name,
+    required List<RouteGpxVariantInput> variants,
+    required double locationLat,
+    required double locationLng,
+    String? locationName,
+    String? description,
+    String? terrainType,
+    bool isRace = false,
+    int difficultyLevel = 1,
+  }) async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw const ServerException(message: 'Kullanıcı giriş yapmamış');
+      }
+
+      // Variants boşsa eski davranışa dön (GPX yok kabul et)
+      if (variants.isEmpty) {
+        return createRouteFromGpx(
+          name: name,
+          gpxContent: null,
+          locationLat: locationLat,
+          locationLng: locationLng,
+          locationName: locationName,
+          description: description,
+          terrainType: terrainType,
+          isRace: isRace,
+          difficultyLevel: difficultyLevel,
+        );
+      }
+
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+
+      final List<Map<String, dynamic>> variantJsonList = [];
+      for (int i = 0; i < variants.length; i++) {
+        final v = variants[i];
+
+        // Storage'a yükle
+        final fileName = 'route_${nowMs}_variant_${i + 1}.gpx';
+        await _supabase.storage.from('routes').uploadBinary(
+              fileName,
+              v.gpxBytes,
+              fileOptions: const FileOptions(contentType: 'application/gpx+xml'),
+            );
+        final gpxFileUrl = _supabase.storage.from('routes').getPublicUrl(fileName);
+
+        // GPX'i parse et (stats + profile)
+        final gpx = GpxReader().fromString(v.gpxContent);
+        final parsedData = _parseGpxData(gpx);
+
+        variantJsonList.add({
+          'label': v.label,
+          'gpx_data': v.gpxContent,
+          'gpx_file_url': gpxFileUrl,
+          'total_distance': parsedData.totalDistance,
+          'elevation_gain': parsedData.elevationGain,
+          'elevation_loss': parsedData.elevationLoss,
+          'max_elevation': parsedData.maxElevation,
+          'min_elevation': parsedData.minElevation,
+          'elevation_profile': parsedData.elevationProfile.map((e) => e.toJson()).toList(),
+          'start_location': parsedData.startLocation?.toJson(),
+          'end_location': parsedData.endLocation?.toJson(),
+        });
+      }
+
+      final defaultVariant = variantJsonList.first;
+
+      final routeData = <String, dynamic>{
+        'name': name,
+        'description': description,
+        'gpx_variants': variantJsonList,
+        // Top-level geri uyumluluk: ilk varyant
+        'gpx_data': defaultVariant['gpx_data'],
+        'gpx_file_url': defaultVariant['gpx_file_url'],
+        'total_distance': defaultVariant['total_distance'],
+        'elevation_gain': defaultVariant['elevation_gain'],
+        'elevation_loss': defaultVariant['elevation_loss'],
+        'max_elevation': defaultVariant['max_elevation'],
+        'min_elevation': defaultVariant['min_elevation'],
+        'elevation_profile': defaultVariant['elevation_profile'],
+        'start_location': defaultVariant['start_location'],
+        'end_location': defaultVariant['end_location'],
+
+        'location_lat': locationLat,
+        'location_lng': locationLng,
+        'location_name': locationName,
+        'terrain_type': terrainType ?? 'asphalt',
+        'is_race': isRace,
+        'difficulty_level': difficultyLevel,
+        'created_by': userId,
+      };
+
+      final response = await _supabase
+          .from('routes')
+          .insert(routeData)
+          .select()
+          .single();
+
+      return RouteModel.fromJson(response);
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Rota varyantları oluşturulamadı: $e');
+    }
+  }
+
+  /// Mevcut bir rotayı (top-level + `gpx_variants`) günceller.
+  /// - Top-level GPX/istatistikler ilk varyanttan doldurulur.
+  Future<RouteModel> updateRouteWithGpxVariants({
+    required String id,
+    required String name,
+    required List<RouteGpxVariantInput> variants,
+    required double locationLat,
+    required double locationLng,
+    String? locationName,
+    String? description,
+    String? terrainType,
+    bool isRace = false,
+    int difficultyLevel = 1,
+  }) async {
+    try {
+      // GPX varyant yoksa (varyantlar silinmiş gibi) top-level GPX alanlarını temizle
+      if (variants.isEmpty) {
+        final data = <String, dynamic>{
+          'name': name,
+          'location_lat': locationLat,
+          'location_lng': locationLng,
+          'location_name': locationName,
+          'description': description,
+          'terrain_type': terrainType ?? 'asphalt',
+          'is_race': isRace,
+          'difficulty_level': difficultyLevel,
+          'gpx_variants': null,
+          'gpx_data': null,
+          'gpx_file_url': null,
+          'total_distance': 0,
+          'elevation_gain': 0,
+          'elevation_loss': 0,
+          'max_elevation': 0,
+          'min_elevation': 0,
+          'elevation_profile': [],
+          'start_location': null,
+          'end_location': null,
+        };
+        return updateRoute(id, data);
+      }
+
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+
+      final List<Map<String, dynamic>> variantJsonList = [];
+      for (int i = 0; i < variants.length; i++) {
+        final v = variants[i];
+
+        final fileName = 'route_${nowMs}_variant_${i + 1}.gpx';
+        await _supabase.storage.from('routes').uploadBinary(
+              fileName,
+              v.gpxBytes,
+              fileOptions: const FileOptions(contentType: 'application/gpx+xml'),
+            );
+        final gpxFileUrl = _supabase.storage.from('routes').getPublicUrl(fileName);
+
+        final gpx = GpxReader().fromString(v.gpxContent);
+        final parsedData = _parseGpxData(gpx);
+
+        variantJsonList.add({
+          'label': v.label,
+          'gpx_data': v.gpxContent,
+          'gpx_file_url': gpxFileUrl,
+          'total_distance': parsedData.totalDistance,
+          'elevation_gain': parsedData.elevationGain,
+          'elevation_loss': parsedData.elevationLoss,
+          'max_elevation': parsedData.maxElevation,
+          'min_elevation': parsedData.minElevation,
+          'elevation_profile': parsedData.elevationProfile.map((e) => e.toJson()).toList(),
+          'start_location': parsedData.startLocation?.toJson(),
+          'end_location': parsedData.endLocation?.toJson(),
+        });
+      }
+
+      final defaultVariant = variantJsonList.first;
+
+      final data = <String, dynamic>{
+        'name': name,
+        'location_lat': locationLat,
+        'location_lng': locationLng,
+        'location_name': locationName,
+        'description': description,
+        'terrain_type': terrainType ?? 'asphalt',
+        'is_race': isRace,
+        'difficulty_level': difficultyLevel,
+
+        'gpx_variants': variantJsonList,
+
+        // Top-level geri uyumluluk
+        'gpx_data': defaultVariant['gpx_data'],
+        'gpx_file_url': defaultVariant['gpx_file_url'],
+        'total_distance': defaultVariant['total_distance'],
+        'elevation_gain': defaultVariant['elevation_gain'],
+        'elevation_loss': defaultVariant['elevation_loss'],
+        'max_elevation': defaultVariant['max_elevation'],
+        'min_elevation': defaultVariant['min_elevation'],
+        'elevation_profile': defaultVariant['elevation_profile'],
+        'start_location': defaultVariant['start_location'],
+        'end_location': defaultVariant['end_location'],
+      };
+
+      return updateRoute(id, data);
+    } catch (e) {
+      throw ServerException(message: 'Rota varyantları güncellenemedi: $e');
     }
   }
 
@@ -213,6 +446,7 @@ class RouteRemoteDataSource {
     String? locationName,
     String? description,
     String? terrainType,
+    bool isRace = false,
     int difficultyLevel = 1,
     String? gpxContent,
   }) async {
@@ -224,6 +458,7 @@ class RouteRemoteDataSource {
         'location_name': locationName,
         'description': description,
         'terrain_type': terrainType ?? 'asphalt',
+        'is_race': isRace,
         'difficulty_level': difficultyLevel,
       };
 

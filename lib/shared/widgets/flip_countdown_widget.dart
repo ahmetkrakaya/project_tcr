@@ -36,6 +36,25 @@ class _FlipCountdownWidgetState extends State<FlipCountdownWidget> {
   int _seconds = 0;
   bool _isPast = false;
 
+  DateTime _asLocalWallTime(DateTime dt) {
+    // DB/JSON tarafında timestamptz vs. kaynaklı UTC(+0) parse edilip
+    // uygulamada "yerel saat" olarak düşünülmüş etkinlik zamanlarında
+    // countdown 3 saat kayabiliyor (TR UTC+3).
+    //
+    // Burada "moment" değil "duvar saati" bazlı fark hesaplıyoruz:
+    // year/month/day/hour/minute/... bileşenlerini yerel DateTime'a taşıyoruz.
+    return DateTime(
+      dt.year,
+      dt.month,
+      dt.day,
+      dt.hour,
+      dt.minute,
+      dt.second,
+      dt.millisecond,
+      dt.microsecond,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -50,8 +69,10 @@ class _FlipCountdownWidgetState extends State<FlipCountdownWidget> {
   }
 
   void _updateCountdown() {
-    final now = DateTime.now();
-    if (widget.targetDate.isBefore(now) || widget.targetDate.isAtSameMomentAs(now)) {
+    final now = _asLocalWallTime(DateTime.now());
+    final target = _asLocalWallTime(widget.targetDate);
+
+    if (target.isBefore(now) || target.isAtSameMomentAs(now)) {
       if (!_isPast) {
         setState(() {
           _isPast = true;
@@ -63,7 +84,7 @@ class _FlipCountdownWidgetState extends State<FlipCountdownWidget> {
       }
       return;
     }
-    final diff = widget.targetDate.difference(now);
+    final diff = target.difference(now);
     setState(() {
       _days = diff.inDays;
       _hours = diff.inHours % 24;

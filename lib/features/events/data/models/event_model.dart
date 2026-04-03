@@ -14,6 +14,7 @@ class EventModel {
   final double? locationLat;
   final double? locationLng;
   final String? routeId;
+  final List<String>? raceVariantLabels;
   final String? trainingGroupId;
   final String? trainingTypeId;
   final String? trainingTypeName;
@@ -28,6 +29,7 @@ class EventModel {
   final DateTime createdAt;
   final int participantCount;
   final bool isUserParticipating;
+  final String? currentUserRsvpStatus;
   final String participationType;
   final LaneConfigEntity? laneConfig;
   final bool isPinned;
@@ -54,6 +56,7 @@ class EventModel {
     this.locationLat,
     this.locationLng,
     this.routeId,
+    this.raceVariantLabels,
     this.trainingGroupId,
     this.trainingTypeId,
     this.trainingTypeName,
@@ -68,6 +71,7 @@ class EventModel {
     required this.createdAt,
     this.participantCount = 0,
     this.isUserParticipating = false,
+    this.currentUserRsvpStatus,
     this.participationType = 'team',
     this.laneConfig,
     this.isPinned = false,
@@ -81,7 +85,11 @@ class EventModel {
     this.canUserParticipate = true,
   });
 
-  factory EventModel.fromJson(Map<String, dynamic> json, {bool? isParticipating}) {
+  factory EventModel.fromJson(
+    Map<String, dynamic> json, {
+    bool? isParticipating,
+    String? currentUserRsvpStatus,
+  }) {
     // Training type bilgilerini nested object'ten al
     final trainingTypeData = json['training_types'] as Map<String, dynamic>?;
     
@@ -101,6 +109,9 @@ class EventModel {
       locationLat: (json['location_lat'] as num?)?.toDouble(),
       locationLng: (json['location_lng'] as num?)?.toDouble(),
       routeId: json['route_id'] as String?,
+      raceVariantLabels: (json['race_variant_labels'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList(),
       trainingGroupId: json['training_group_id'] as String?,
       trainingTypeId: json['training_type_id'] as String?,
       trainingTypeName: trainingTypeData?['display_name'] as String?,
@@ -115,6 +126,7 @@ class EventModel {
       createdAt: DateTime.parse(json['created_at'] as String),
       participantCount: json['participant_count'] as int? ?? 0,
       isUserParticipating: isParticipating ?? false,
+      currentUserRsvpStatus: currentUserRsvpStatus,
       participationType: json['participation_type'] as String? ?? 'team',
       laneConfig: LaneConfigEntity.fromJson(
         json['lane_config'] as Map<String, dynamic>?,
@@ -148,6 +160,7 @@ class EventModel {
       'location_lat': locationLat,
       'location_lng': locationLng,
       'route_id': routeId,
+      'race_variant_labels': raceVariantLabels,
       'training_group_id': trainingGroupId,
       'training_type_id': trainingTypeId,
       'weather_note': weatherNote,
@@ -182,6 +195,7 @@ class EventModel {
       locationLat: locationLat,
       locationLng: locationLng,
       routeId: routeId,
+      raceVariantLabels: raceVariantLabels,
       trainingGroupId: trainingGroupId,
       trainingTypeId: trainingTypeId,
       trainingTypeName: trainingTypeName,
@@ -196,6 +210,9 @@ class EventModel {
       createdAt: createdAt,
       participantCount: participantCount,
       isUserParticipating: isUserParticipating,
+      currentUserRsvpStatus: currentUserRsvpStatus != null
+          ? RsvpStatus.fromString(currentUserRsvpStatus!)
+          : null,
       participationType: participationType,
       laneConfig: laneConfig,
       isPinned: isPinned,
@@ -222,6 +239,7 @@ class EventParticipantModel {
   final DateTime respondedAt;
   final bool checkedIn;
   final DateTime? checkedInAt;
+  final String? raceVariantLabel;
 
   const EventParticipantModel({
     required this.id,
@@ -234,6 +252,7 @@ class EventParticipantModel {
     required this.respondedAt,
     this.checkedIn = false,
     this.checkedInAt,
+    this.raceVariantLabel,
   });
 
   factory EventParticipantModel.fromJson(Map<String, dynamic> json) {
@@ -255,6 +274,7 @@ class EventParticipantModel {
       checkedInAt: json['checked_in_at'] != null 
           ? DateTime.parse(json['checked_in_at'] as String) 
           : null,
+      raceVariantLabel: json['race_variant_label'] as String?,
     );
   }
 
@@ -270,6 +290,7 @@ class EventParticipantModel {
       respondedAt: respondedAt,
       checkedIn: checkedIn,
       checkedInAt: checkedInAt,
+      raceVariantLabel: raceVariantLabel,
     );
   }
 }

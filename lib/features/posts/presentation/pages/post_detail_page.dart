@@ -640,6 +640,8 @@ class _RaceResultsBlockWidget extends StatefulWidget {
 
 class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
   String _selectedRankingType = 'overall'; // 'overall', 'male', 'female'
+  /// null => Belirsiz (kategorisi olmayan sonuçlar)
+  String? _selectedRaceVariantLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -667,27 +669,57 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
         );
       }
 
-      // Filtreleme: Seçilen sıralama tipine göre
+      bool hasRaceVariantLabelField = resultsData.any((r) {
+        final map = r as Map<String, dynamic>;
+        return map.containsKey('raceVariantLabel') ||
+            map.containsKey('race_variant_label');
+      });
+
+      String? raceLabelFor(dynamic r) {
+        final map = r as Map<String, dynamic>;
+
+        final v1 = map['raceVariantLabel'];
+        if (v1 is String) return v1;
+
+        final v2 = map['race_variant_label'];
+        if (v2 is String) return v2;
+
+        return null;
+      }
+
+      final raceCategories = hasRaceVariantLabelField
+          ? resultsData.map(raceLabelFor).toSet().toList()
+          : const <String?>[];
+
+      final dropdownValue = hasRaceVariantLabelField && raceCategories.isNotEmpty
+          ? (raceCategories.contains(_selectedRaceVariantLabel)
+              ? _selectedRaceVariantLabel
+              : raceCategories.first)
+          : null;
+
+      // Filtreleme: önce kategori, sonra cinsiyet
       List<dynamic> filteredResults = resultsData;
-      
+
+      if (hasRaceVariantLabelField && raceCategories.isNotEmpty) {
+        filteredResults = filteredResults
+            .where((r) => raceLabelFor(r) == dropdownValue)
+            .toList();
+      }
+
       if (_selectedRankingType == 'female') {
-        filteredResults = resultsData
-            .where((r) {
-              final gender = (r as Map<String, dynamic>)['gender'] as String?;
-              if (gender == null) return false;
-              final g = gender.toLowerCase();
-              return g == 'f' || g == 'female' || g == 'kadın' || g == 'k';
-            })
-            .toList();
+        filteredResults = filteredResults.where((r) {
+          final gender = (r as Map<String, dynamic>)['gender'] as String?;
+          if (gender == null) return false;
+          final g = gender.toLowerCase();
+          return g == 'f' || g == 'female' || g == 'kadın' || g == 'k';
+        }).toList();
       } else if (_selectedRankingType == 'male') {
-        filteredResults = resultsData
-            .where((r) {
-              final gender = (r as Map<String, dynamic>)['gender'] as String?;
-              if (gender == null) return false;
-              final g = gender.toLowerCase();
-              return g == 'm' || g == 'male' || g == 'erkek' || g == 'e';
-            })
-            .toList();
+        filteredResults = filteredResults.where((r) {
+          final gender = (r as Map<String, dynamic>)['gender'] as String?;
+          if (gender == null) return false;
+          final g = gender.toLowerCase();
+          return g == 'm' || g == 'male' || g == 'erkek' || g == 'e';
+        }).toList();
       }
 
       // Sıralama: Her zaman süreye göre (en hızlıdan en yavaşa)
@@ -731,6 +763,45 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
                 ],
               ),
             ),
+            if (hasRaceVariantLabelField) ...[
+              // Kategori (mesafe) seçimi
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.neutral100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.neutral300),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String?>(
+                    value: dropdownValue,
+                    isExpanded: true,
+                    icon: const Icon(
+                      Icons.arrow_drop_down,
+                      color: AppColors.neutral600,
+                    ),
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.neutral900,
+                    ),
+                    items: raceCategories.map((cat) {
+                      return DropdownMenuItem<String?>(
+                        value: cat,
+                        child: Text(cat ?? 'Belirsiz'),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedRaceVariantLabel = value;
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ],
             // Dropdown ile sıralama tipi seçimi
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
