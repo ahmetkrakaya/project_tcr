@@ -15,6 +15,9 @@ abstract class PostRemoteDataSource {
   /// event_id ile post getir (etkinlik programından üretilen post)
   Future<PostModel?> getPostByEventId(String eventId);
 
+  /// event_id + title ile post getir (aynı etkinliğe birden fazla post olabileceği için)
+  Future<PostModel?> getPostByEventIdAndTitle(String eventId, String title);
+
   /// Post oluştur
   Future<PostModel> createPost(PostModel post);
 
@@ -166,9 +169,58 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
             users!inner(first_name, last_name, avatar_url)
           ''')
           .eq('event_id', eventId)
-          .maybeSingle();
-      if (response == null) return null;
-      final Map<String, dynamic> postJson = response;
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      final List<dynamic> data = response as List<dynamic>;
+      if (data.isEmpty) return null;
+
+      final Map<String, dynamic> postJson = data.first as Map<String, dynamic>;
+      final userJson = postJson['users'] as Map<String, dynamic>;
+      return PostModel(
+        id: postJson['id'] as String,
+        userId: postJson['user_id'] as String,
+        userName: '${userJson['first_name'] ?? ''} ${userJson['last_name'] ?? ''}'.trim(),
+        userAvatarUrl: userJson['avatar_url'] as String?,
+        title: postJson['title'] as String,
+        coverImageUrl: postJson['cover_image_url'] as String?,
+        isPublished: postJson['is_published'] as bool? ?? true,
+        blocks: const [],
+        createdAt: DateTime.parse(postJson['created_at'] as String),
+        updatedAt: postJson['updated_at'] != null
+            ? DateTime.parse(postJson['updated_at'] as String)
+            : null,
+        isPinned: postJson['is_pinned'] as bool? ?? false,
+        pinnedAt: postJson['pinned_at'] != null
+            ? DateTime.parse(postJson['pinned_at'] as String)
+            : null,
+        eventId: postJson['event_id'] as String?,
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Post alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<PostModel?> getPostByEventIdAndTitle(String eventId, String title) async {
+    try {
+      final response = await _supabase
+          .from('posts')
+          .select('''
+            *,
+            users!inner(first_name, last_name, avatar_url)
+          ''')
+          .eq('event_id', eventId)
+          .eq('title', title)
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      final List<dynamic> data = response as List<dynamic>;
+      if (data.isEmpty) return null;
+
+      final postJson = data.first as Map<String, dynamic>;
       final userJson = postJson['users'] as Map<String, dynamic>;
       return PostModel(
         id: postJson['id'] as String,

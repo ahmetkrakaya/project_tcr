@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -12,7 +13,13 @@ import '../../../events/presentation/providers/event_provider.dart';
 import '../../../routes/presentation/providers/route_provider.dart';
 import '../../../workout/domain/entities/workout_entity.dart' show WorkoutDefinitionEntity, WorkoutStepEntity, WorkoutSegmentType, WorkoutTarget;
 import '../../domain/entities/group_entity.dart';
+import '../../data/datasources/group_remote_datasource.dart';
 import '../providers/group_provider.dart';
+
+final _currentUserGroupIdProvider = FutureProvider<String?>((ref) async {
+  final ds = GroupRemoteDataSource(Supabase.instance.client);
+  return ds.getCurrentUserGroupId();
+});
 
 /// Kullanıcının grup programlarını gösteren widget
 /// Etkinlik detay sayfasında kullanılır
@@ -29,16 +36,22 @@ class UserGroupProgramViewer extends ConsumerWidget {
     const placeholderPersonalProgramContent = 'Kişiye özel program';
     final programsAsync = ref.watch(userEventGroupProgramsProvider(eventId));
     final memberProgramsAsync = ref.watch(userEventMemberProgramsProvider(eventId));
+    final currentUserGroupIdAsync = ref.watch(_currentUserGroupIdProvider);
     final eventAsync = ref.watch(eventByIdProvider(eventId));
     final userVdot = ref.watch(userVdotProvider);
     final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
-    final allProgramsAsync = isAdminOrCoach
-        ? ref.watch(eventGroupProgramsProvider(eventId))
-        : null;
+    final allProgramsAsync =
+        isAdminOrCoach ? ref.watch(eventGroupProgramsProvider(eventId)) : null;
 
     return eventAsync.when(
       data: (event) {
-        if (event.isPast) return const SizedBox.shrink();
+        final now = DateTime.now();
+        // Ekip antrenmanı: eskisi gibi, geçmişse gizle.
+        // Bireysel: başlangıçtan 2 gün sonra artık gösterme.
+        final shouldHidePrograms = event.participationType == 'individual'
+            ? event.startTime.add(const Duration(days: 2)).isBefore(now)
+            : event.isPast;
+        if (shouldHidePrograms) return const SizedBox.shrink();
 
         return programsAsync.when(
           data: (programs) {
@@ -54,10 +67,28 @@ class UserGroupProgramViewer extends ConsumerWidget {
                   return const SizedBox.shrink();
                 }
 
+                final currentGroupId = currentUserGroupIdAsync.valueOrNull;
+
+                // Performans grubu kişisel programı: sadece gerçekten içerik varsa göster.
+                // Boş/kısmi kayıtlar (örn. sadece şablon/placeholder) kullanıcıda görünmesin.
+                final visibleMemberPrograms = memberPrograms.where((mp) {
+                  // Kullanıcı artık o grupta değilse, eski kişisel programı gösterme.
+                  if (currentGroupId != null &&
+                      currentGroupId.isNotEmpty &&
+                      mp.trainingGroupId != currentGroupId) {
+                    return false;
+                  }
+                  final content = (mp.programContent).trim();
+                  final hasWorkout = mp.workoutDefinition != null && !mp.workoutDefinition!.isEmpty;
+                  final isPlaceholder = content.toLowerCase() == placeholderPersonalProgramContent.toLowerCase();
+                  final hasText = content.isNotEmpty && !isPlaceholder;
+                  return hasWorkout || hasText;
+                }).toList();
+
                 // Kişisel programları EventGroupProgramEntity formatına dönüştür
                 final allPrograms = <EventGroupProgramEntity>[
                   ...programs,
-                  ...memberPrograms.map((mp) => EventGroupProgramEntity(
+                  ...visibleMemberPrograms.map((mp) => EventGroupProgramEntity(
                     id: mp.id,
                     eventId: mp.eventId,
                     trainingGroupId: mp.trainingGroupId,
@@ -92,16 +123,52 @@ class UserGroupProgramViewer extends ConsumerWidget {
 
                 final trackLengthKmNoRoute = event.laneConfig?.trackLengthKm;
                 if (event.routeId == null) {
-                  return _buildProgramsColumn(context, ref, visiblePrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms);
+                  return _buildProgramsColumn(
+                    context,
+                    ref,
+                    visiblePrograms,
+                    userVdot,
+                    event,
+                    trackLengthKmNoRoute,
+                    visibleMemberPrograms.isNotEmpty,
+                    allGroupPrograms: allGroupPrograms,
+                  );
                 }
                 final routeAsync = ref.watch(routeByIdProvider(event.routeId!));
                 return routeAsync.when(
                   data: (route) {
                     final trackLengthKm = event.laneConfig?.trackLengthKm ?? route.totalDistance;
-                    return _buildProgramsColumn(context, ref, visiblePrograms, userVdot, event, trackLengthKm, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms);
+                    return _buildProgramsColumn(
+                      context,
+                      ref,
+                      visiblePrograms,
+                      userVdot,
+                      event,
+                      trackLengthKm,
+                      visibleMemberPrograms.isNotEmpty,
+                      allGroupPrograms: allGroupPrograms,
+                    );
                   },
-                  loading: () => _buildProgramsColumn(context, ref, visiblePrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms),
-                  error: (_, __) => _buildProgramsColumn(context, ref, visiblePrograms, userVdot, event, trackLengthKmNoRoute, memberPrograms.isNotEmpty, allGroupPrograms: allGroupPrograms),
+                  loading: () => _buildProgramsColumn(
+                    context,
+                    ref,
+                    visiblePrograms,
+                    userVdot,
+                    event,
+                    trackLengthKmNoRoute,
+                    visibleMemberPrograms.isNotEmpty,
+                    allGroupPrograms: allGroupPrograms,
+                  ),
+                  error: (_, __) => _buildProgramsColumn(
+                    context,
+                    ref,
+                    visiblePrograms,
+                    userVdot,
+                    event,
+                    trackLengthKmNoRoute,
+                    visibleMemberPrograms.isNotEmpty,
+                    allGroupPrograms: allGroupPrograms,
+                  ),
                 );
               },
               loading: () => _buildGroupProgramsFallback(context, ref, programs, userVdot, event),
@@ -1001,7 +1068,9 @@ class UserGroupProgramViewer extends ConsumerWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                ...memberPrograms.map((mp) => _buildMemberProgramCardInAllSheet(mp, event)).toList(),
+                                ...memberPrograms.map(
+                                  (mp) => _buildMemberProgramCardInAllSheet(mp, event),
+                                ),
                                 const SizedBox(height: 20),
                               ],
                             );

@@ -592,23 +592,36 @@ serve(async (req) => {
       }
     }
 
-    // Import sonrası otomatik post oluştur (eğer yoksa)
+    // Import sonrası otomatik sonuç post'u oluştur/güncelle
     if (event) {
-      const { data: existingPost } = await supabase
+      const resultsTitle = `${event.title} Yarış Sonuçları`;
+
+      // Daha önce oluşturulmuş sonuç post'u var mı? (title üzerinden)
+      const { data: existingPosts, error: existingPostError } = await supabase
         .from("posts")
         .select("id")
         .eq("event_id", event.id)
-        .maybeSingle();
+        .ilike("title", "%Yarış Sonuçları%")
+        .order("created_at", { ascending: false })
+        .limit(1);
 
       let postId: string | null = null;
 
+      const existingPost: { id: string } | null =
+        Array.isArray(existingPosts) && existingPosts.length > 0 && existingPosts[0]?.id
+          ? { id: String(existingPosts[0].id) }
+          : null;
+
+      if (existingPostError) {
+        console.error("Failed to look up results post", existingPostError);
+      }
+
       if (!existingPost) {
-        const title = `${event.title} yarış sonuçları yayınlandı`;
         const { data: newPost, error: postError } = await supabase
           .from("posts")
           .insert({
             user_id: event.created_by,
-            title,
+            title: resultsTitle,
             is_published: true,
             event_id: event.id,
             cover_image_url: event.banner_image_url || null, // Etkinliğin banner'ını kapak görseli olarak kullan
@@ -623,6 +636,21 @@ serve(async (req) => {
         }
       } else {
         postId = existingPost.id;
+
+        // Başlık/kapak güncel değilse güncelle (sessiz)
+        if (postId) {
+          const { error: updateError } = await supabase
+            .from("posts")
+            .update({
+              title: resultsTitle,
+              cover_image_url: event.banner_image_url || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", postId);
+          if (updateError) {
+            console.error("Failed to update results post metadata", updateError);
+          }
+        }
       }
 
       // Post oluşturulduysa veya zaten varsa, sonuçları blok olarak ekle

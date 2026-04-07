@@ -29,7 +29,25 @@ class _AdminMonthlyProgramUploadPageState
 
   String get _monthKey => DateFormat('yyyy-MM').format(_selectedMonth);
 
-  Future<void> _downloadTemplate() async {
+  Rect _shareOriginFor(BuildContext originContext) {
+    final box = originContext.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize) {
+      final topLeft = box.localToGlobal(Offset.zero);
+      final bottomRight = box.localToGlobal(box.size.bottomRight(Offset.zero));
+      final rect = Rect.fromPoints(topLeft, bottomRight);
+      if (rect.width > 0 && rect.height > 0) return rect;
+    }
+
+    final size = MediaQuery.of(originContext).size;
+    return Rect.fromLTWH(
+      size.width / 2 - 1,
+      size.height / 2 - 1,
+      2,
+      2,
+    );
+  }
+
+  Future<void> _downloadTemplate(BuildContext originContext) async {
     try {
       setState(() => _isLoading = true);
       final ds = ref.read(eventDataSourceProvider);
@@ -50,7 +68,10 @@ class _AdminMonthlyProgramUploadPageState
       final tempDir = await getTemporaryDirectory();
       final file = File('${tempDir.path}/monthly_program_template.xlsx');
       await file.writeAsBytes(bytes);
-      await Share.shareXFiles([XFile(file.path)], text: 'Aylık program şablonu');
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        sharePositionOrigin: _shareOriginFor(originContext),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -162,10 +183,14 @@ class _AdminMonthlyProgramUploadPageState
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _isLoading ? null : _downloadTemplate,
-                  icon: const Icon(Icons.download_outlined),
-                  label: const Text('Şablonu İndir'),
+                child: Builder(
+                  builder: (btnContext) {
+                    return OutlinedButton.icon(
+                      onPressed: _isLoading ? null : () => _downloadTemplate(btnContext),
+                      icon: const Icon(Icons.download_outlined),
+                      label: const Text('Şablonu İndir'),
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 12),

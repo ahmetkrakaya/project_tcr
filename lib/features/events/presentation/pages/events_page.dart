@@ -700,7 +700,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             Padding(
               padding: EdgeInsets.only(bottom: 8, top: index == 0 ? 0 : 16),
               child: Text(
-                '${date.day} ${_getMonthName(date)} ${_getDayName(date)}',
+                '${date.day} ${_getMonthName(date)} ${_getDayName(date)} ${date.year}',
                 style: AppTypography.titleSmall.copyWith(
                   fontWeight: FontWeight.bold,
                   color: AppColors.neutral900,
@@ -1302,7 +1302,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             Padding(
               padding: EdgeInsets.only(bottom: 8, top: index == 0 ? 0 : 16),
               child: Text(
-                '${date.day} ${_getMonthName(date)} ${_getDayName(date)}',
+                '${date.day} ${_getMonthName(date)} ${_getDayName(date)} ${date.year}',
                 style: AppTypography.titleSmall.copyWith(
                   fontWeight: FontWeight.bold,
                   color: AppColors.neutral900,

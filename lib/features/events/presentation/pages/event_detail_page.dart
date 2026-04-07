@@ -419,9 +419,11 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   // Chat Section
                   // Normal kullanıcılar: sadece katılımcıysa görür
                   // Admin: katılımcı olmasa da görebilir (sorumlu olduğu içerikleri denetleyebilsin)
-                  if (event.isUserParticipating || isAdminOrCoach)
+                  if (!_isIndividualParticipation(event) &&
+                      (event.isUserParticipating || isAdminOrCoach))
                     _buildChatSection(context, widget.eventId, event),
-                  if (event.isUserParticipating || isAdminOrCoach)
+                  if (!_isIndividualParticipation(event) &&
+                      (event.isUserParticipating || isAdminOrCoach))
                     const SizedBox(height: 24),
 
                   // Participants Section (sadece Ekip / toplu antrenmanda)
@@ -1618,8 +1620,20 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
         });
       }
 
-      final fileExt = pickedXFile.name.split('.').last;
-      final fileName = 'event_${event.id}_banner_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final rawExt = pickedXFile.name.contains('.') ? pickedXFile.name.split('.').last : 'jpg';
+      final ext = rawExt.toLowerCase();
+      // Supabase bucket allowed_mime_types genelde image/jpeg bekler; iOS bazen HEIC döndürür.
+      final contentType = switch (ext) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'gif' => 'image/gif',
+        'heic' => 'image/heic',
+        'heif' => 'image/heif',
+        _ => 'application/octet-stream',
+      };
+      final safeExt = (ext == 'jpeg' || ext == 'jpg') ? 'jpg' : ext;
+      final fileName = 'event_${event.id}_banner_${DateTime.now().millisecondsSinceEpoch}.$safeExt';
       final bytes = await pickedXFile.readAsBytes();
       
       // Supabase Storage'a yükle (bytes ile web+mobil uyumlu)
@@ -1627,7 +1641,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
       await supabase.storage.from('event-banners').uploadBinary(
         fileName,
         bytes,
-        fileOptions: FileOptions(contentType: 'image/$fileExt'),
+        fileOptions: FileOptions(contentType: contentType),
       );
       
       // Public URL al

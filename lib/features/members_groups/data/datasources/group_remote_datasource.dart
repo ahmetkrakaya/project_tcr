@@ -494,30 +494,42 @@ class GroupRemoteDataSource {
       return [];
     }
 
-    // Kullanıcının grup ID'lerini al
-    final userGroups = await _supabase
+    // 037 migration sonrası kullanıcı tek grupta olmalı (UNIQUE(user_id)).
+    // Önce tek kaydı okumayı dene (daha deterministik, daha az edge-case).
+    final singleMembership = await _supabase
         .from('group_members')
         .select('group_id')
-        .eq('user_id', _currentUserId!);
+        .eq('user_id', _currentUserId!)
+        .maybeSingle();
 
-    final groupIds =
-        (userGroups as List).map((g) => g['group_id'] as String).toList();
-
-    if (groupIds.isEmpty) {
-      return [];
+    List<String> groupIds;
+    if (singleMembership != null && singleMembership['group_id'] != null) {
+      groupIds = [(singleMembership['group_id'] as String)];
+    } else {
+      // Fallback: birden fazla üyelik veya eski veriler için liste çek.
+      final userGroups = await _supabase
+          .from('group_members')
+          .select('group_id')
+          .eq('user_id', _currentUserId!);
+      groupIds =
+          (userGroups as List).map((g) => g['group_id'] as String).toList();
     }
+
+    if (groupIds.isEmpty) return [];
 
     // Bu gruplara ait programları getir
     final response = await _supabase
         .from('event_group_programs')
-        .select('*, training_groups(name, color), routes(name), training_types(display_name, description, color, threshold_offset_min_seconds, threshold_offset_max_seconds)')
+        .select(
+          '*, training_groups(name, color), routes(name), training_types(display_name, description, color, threshold_offset_min_seconds, threshold_offset_max_seconds)',
+        )
         .eq('event_id', eventId)
         .inFilter('training_group_id', groupIds)
         .order('order_index', ascending: true);
 
     return (response as List)
-        .map((json) =>
-            EventGroupProgramModel.fromJson(json as Map<String, dynamic>))
+        .map(
+            (json) => EventGroupProgramModel.fromJson(json as Map<String, dynamic>))
         .toList();
   }
 

@@ -609,31 +609,57 @@ serve(async (req) => {
       const isPerf = (g.group_type ?? "normal") === "performance";
       const membersThisGroup = performanceMembersByGroup.get(g.name) ?? [];
       const perfDefaultUser = membersThisGroup[0] ?? "";
+      const isTcrPerformans =
+        g.name.trim().toLocaleLowerCase("tr-TR") === "tcr performans";
 
       /** Aynı gün + aynı grup (veya performansta aynı sporcu) DB'de tekil olmalı; örnek satır monthDates[0] ile çakışmasın */
       const sampleRows: ProgramRow[] = [];
-      const datesWithoutExample = monthDates.length > 0 ? monthDates.slice(1) : [];
-      for (const date of datesWithoutExample) {
+      // İstek: her grup sekmesi için 2 satır örnek yeterli.
+      // İstisna: sadece "TCR Performans" grubunda her üye için 1 örnek satır olsun.
+      if (isPerf && isTcrPerformans) {
+        if (membersThisGroup.length === 0) {
+          // Üye yoksa yine de 1 satır bırak (dropdown boş kalmasın)
+          const d = monthDates[0] ?? nextMonthStart;
+          sampleRows.push({
+            ...buildGroupRow(d, g.name, ttLabels),
+            target_type: "Performans",
+            performance_user: "",
+          });
+        } else {
+          const dates = monthDates.length > 0 ? monthDates : [nextMonthStart];
+          membersThisGroup.forEach((member, idx) => {
+            const d = dates[idx % dates.length];
+            sampleRows.push({
+              ...buildGroupRow(d, g.name, ttLabels),
+              target_type: "Performans",
+              performance_user: member,
+            });
+          });
+        }
+      } else {
+        // Normal gruplar (ve diğer performans grupları): toplam 2 satır örnek
+        if (monthDates.length > 0) {
+          let ex1 = exampleDoubleMainStepRow(monthDates[0], g.name, ttLabels);
+          if (isPerf && perfDefaultUser) {
+            ex1 = {
+              ...ex1,
+              target_type: "Performans",
+              performance_user: perfDefaultUser,
+            };
+          }
+          sampleRows.push(ex1);
+        }
+
+        const d2 = monthDates.length > 1 ? monthDates[1] : (monthDates[0] ?? nextMonthStart);
         if (isPerf) {
           sampleRows.push({
-            ...buildGroupRow(date, g.name, ttLabels),
+            ...buildGroupRow(d2, g.name, ttLabels),
             target_type: "Performans",
             performance_user: perfDefaultUser,
           });
         } else {
-          sampleRows.push(buildGroupRow(date, g.name, ttLabels));
+          sampleRows.push(buildGroupRow(d2, g.name, ttLabels));
         }
-      }
-      if (monthDates.length > 0) {
-        let ex = exampleDoubleMainStepRow(monthDates[0], g.name, ttLabels);
-        if (isPerf && perfDefaultUser) {
-          ex = {
-            ...ex,
-            target_type: "Performans",
-            performance_user: perfDefaultUser,
-          };
-        }
-        sampleRows.unshift(ex);
       }
 
       sampleRows.forEach((row) => sheet.addRow(row));

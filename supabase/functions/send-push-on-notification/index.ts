@@ -225,12 +225,12 @@ serve(async (req) => {
 
     const payload = body as WebhookPayload;
     const tableName = payload.table ?? "";
-    const isNotificationsInsert =
-      payload.type === "INSERT" &&
-      (tableName === "notifications" ||
-        tableName.endsWith(".notifications"));
+    const isNotificationsTable = tableName === "notifications" ||
+      tableName.endsWith(".notifications");
+    const isNotificationsWrite = isNotificationsTable &&
+      (payload.type === "INSERT" || payload.type === "UPDATE");
 
-    if (!isNotificationsInsert) {
+    if (!isNotificationsWrite) {
       console.log(
         "[send-push] Skipped: type=",
         payload.type,
@@ -238,7 +238,7 @@ serve(async (req) => {
         payload.table,
       );
       return new Response(
-        JSON.stringify({ ok: true, skipped: "not INSERT notifications" }),
+        JSON.stringify({ ok: true, skipped: "not notifications INSERT/UPDATE" }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -268,7 +268,21 @@ serve(async (req) => {
       record.user_id,
       "type:",
       record.type,
+      "op:",
+      payload.type,
     );
+
+    // "WhatsApp gibi" gruplama: DB tarafında aynı notification satırı UPDATE ediliyor olabilir.
+    // Bu durumda da push göndermeye devam etmek istiyoruz; ancak UPDATE'lerde sadece sohbet tipi için.
+    if (payload.type === "UPDATE" && record.type !== "event_chat_message") {
+      return new Response(
+        JSON.stringify({ ok: true, skipped: "update non-chat notification" }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??

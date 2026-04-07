@@ -297,8 +297,10 @@ final rsvpProvider = StateNotifierProvider<RsvpNotifier, AsyncValue<void>>((ref)
 
 /// Event Info Blocks Provider — veriyi event_id'li post'un post_blocks'undan verir (tek kaynak)
 final eventInfoBlocksProvider = FutureProvider.family<List<EventInfoBlockEntity>, String>((ref, eventId) async {
+  final eventDs = ref.watch(eventDataSourceProvider);
   final postDs = ref.watch(postDataSourceProvider);
-  final post = await postDs.getPostByEventId(eventId);
+  final event = await eventDs.getEventById(eventId);
+  final post = await postDs.getPostByEventIdAndTitle(eventId, event.title);
   if (post == null) return [];
   final blocks = await postDs.getPostBlocks(post.id);
   return blocks.map((b) => postBlockToEventInfoBlockEntity(b, eventId)).toList();
@@ -320,7 +322,8 @@ class EventInfoBlocksNotifier extends StateNotifier<AsyncValue<List<EventInfoBlo
   Future<void> loadBlocks() async {
     state = const AsyncValue.loading();
     try {
-      final post = await _postDataSource.getPostByEventId(eventId);
+      final event = await _eventDataSource.getEventById(eventId);
+      final post = await _postDataSource.getPostByEventIdAndTitle(eventId, event.title);
       if (post == null) {
         state = const AsyncValue.data([]);
         return;
@@ -383,7 +386,7 @@ class EventInfoBlocksNotifier extends StateNotifier<AsyncValue<List<EventInfoBlo
     state = const AsyncValue.loading();
     try {
       final event = await _eventDataSource.getEventById(eventId);
-      PostModel? existingPost = await _postDataSource.getPostByEventId(eventId);
+      PostModel? existingPost = await _postDataSource.getPostByEventIdAndTitle(eventId, event.title);
       PostModel post;
       if (existingPost != null) {
         post = existingPost;
