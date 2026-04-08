@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
-
 class AppConstants {
   AppConstants._();
 
@@ -29,14 +27,15 @@ class AppConstants {
   );
 
   // Strava: client_id runtime'da Edge Function'dan alınır (strava-public-config).
-  /// Strava OAuth redirect URI - web'de https, mobilde custom scheme
-  static String get stravaRedirectUri =>
-      kIsWeb ? 'https://app.rivlus.com/auth/callback' : 'tcr://redirect';
+  /// Strava OAuth redirect URI.
+  ///
+  /// Web uygulaması kapatıldığı için redirect her zaman mobil custom scheme'e gider.
+  static String get stravaRedirectUri => 'tcr://redirect';
 
-  /// Şifre sıfırlama e-postasındaki linkin yönlendirmesi
-  /// Web'de https URL, mobilde custom scheme deep link
+  /// Şifre sıfırlama e-postasındaki linkin yönlendirmesi.
+  /// Web kapatıldığı için her zaman mobil custom scheme'e gider.
   static String get authResetPasswordRedirectUrl =>
-      kIsWeb ? 'https://app.rivlus.com/reset-password' : 'tcr://reset-password';
+      'tcr://reset-password';
 
   /// Etkinlik detay deep link (uygulamada aç – landing sayfasındaki buton bu linki kullanır)
   static String eventDetailDeepLink(String eventId) =>

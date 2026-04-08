@@ -632,7 +632,7 @@ async function cleanupExpiredWorkouts(
   accessToken: string,
   userId: string,
 ): Promise<number> {
-  const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const cutoffDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
     .toISOString()
     .split("T")[0];
 
@@ -776,8 +776,9 @@ async function syncUserWorkouts(
 
   const { data: events } = await supabase
     .from("events")
-    .select("id, title, start_time, end_time, event_type, lane_config, route_id, routes(total_distance)")
+    .select("id, title, start_time, end_time, event_type, participation_type, lane_config, route_id, routes(total_distance), status")
     .eq("event_type", "training")
+    .eq("status", "published")
     .gte("start_time", `${startDate}T00:00:00`)
     .lte("start_time", `${endDate}T23:59:59`)
     .order("start_time", { ascending: true });
@@ -800,18 +801,6 @@ async function syncUserWorkouts(
     const cleaned = await cleanupExpiredWorkouts(supabase, accessToken, userId);
     return { sent: 0, skipped: 0, updated: 0, cleaned };
   }
-
-  // 5b. Kullanıcının gerçekten katıldığı (RSVP status = going) etkinlikleri filtrele
-  const { data: participations } = await supabase
-    .from("event_participants")
-    .select("event_id")
-    .in("event_id", eventIds)
-    .eq("user_id", userId)
-    .eq("status", "going");
-
-  const participatingEventIds = new Set<string>(
-    (participations ?? []).map((p: any) => p.event_id as string),
-  );
 
   // 6. Zaten gönderilmiş olanları al (hash karşılaştırması için)
   const { data: sentWorkouts } = await supabase
@@ -855,9 +844,14 @@ async function syncUserWorkouts(
   for (const program of programs) {
     const key = `${program.event_id}:${program.id}`;
     const existing = sentMap.get(key);
+    const event = eventsById[program.event_id];
+    if (!event) {
+      skipped++;
+      continue;
+    }
 
-    // Kullanıcı bu etkinliğe katılmıyorsa (RSVP yok veya going değilse) programı atla
-    if (!participatingEventIds.has(program.event_id)) {
+    const participationType = event.participation_type ?? "team";
+    if (participationType !== "team" && participationType !== "individual") {
       skipped++;
       continue;
     }
@@ -888,9 +882,6 @@ async function syncUserWorkouts(
       }
       updated++;
     }
-
-    const event = eventsById[program.event_id];
-    if (!event) continue;
 
     const ttInfo = program.training_type_id ? trainingTypes[program.training_type_id] : null;
     const eventDate = new Date(event.start_time);

@@ -1,3 +1,7 @@
+> ⚠️ **Not: Web deploy hattı devre dışı bırakıldı.**  
+> `app.rivlus.com` altında çalışan Flutter web uygulaması artık kullanılmıyor ve bu doküman yalnızca arşiv / referans amaçlı tutuluyor.  
+> Mevcut canlı domain: **`rivlus.com`** (statik `rivlus-site` projesi; about / terms / deep-links burada kalmaya devam edecek).
+
 # TCR Web - app.rivlus.com Deploy Rehberi
 
 ## Mimari
