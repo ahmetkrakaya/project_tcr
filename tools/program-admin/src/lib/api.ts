@@ -156,18 +156,13 @@ export function rowsToDayDrafts(
     const row = byDate.get(ymd(d));
     const hasStructuredWorkout =
       (row?.workout_definition?.steps?.length ?? 0) > 0;
-    const isRest =
-      !hasStructuredWorkout &&
-      (!row?.program_content ||
-        /^(rest|dinlenme)$/i.test(row.program_content.trim()));
 
     return {
-      workout: "",
+      workout: row?.program_content ?? "",
       coachNotes: row?.coach_notes ?? "",
       trainingTypeOverride: row?.training_types?.name ?? null,
       workoutDefinition: hasStructuredWorkout ? row?.workout_definition ?? null : null,
-      persistedCoachText:
-        !isRest && row?.program_content ? row.program_content : null,
+      persistedCoachText: null,
     };
   });
 }
