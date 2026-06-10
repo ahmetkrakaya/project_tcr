@@ -1,6 +1,6 @@
-# TCR Program Admin
+# TCR Antrenman Programı
 
-`app.rivlus.com` için hafif antrenman programı yönetim paneli. Mobil uygulamadaki haftalık editör ve Excel import ile aynı Supabase tablolarını ve edge function'ları kullanır.
+`app.rivlus.com` için hafif antrenman programı yönetim paneli. Mobil uygulamadaki haftalık editör ile aynı Supabase tablolarını ve `weekly-program-upsert` edge function'ını kullanır.
 
 ## Yerel geliştirme
 

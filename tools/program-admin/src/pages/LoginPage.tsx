@@ -34,8 +34,8 @@ export function LoginPage() {
     <div className="login-page">
       <form className="card login-card stack" onSubmit={handleSubmit}>
         <div>
-          <h1>TCR Program Admin</h1>
-          <p>Antrenman programlarını web üzerinden yönetin.</p>
+          <h1>TCR Antrenman Programı</h1>
+          <p>Haftalık antrenman programlarını yönetin.</p>
         </div>
         {error && <div className="alert alert-error">{error}</div>}
         <label>

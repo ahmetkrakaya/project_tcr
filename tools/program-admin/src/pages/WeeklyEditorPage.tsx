@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WeekDayForm } from "../components/WeekDayForm";
+import { WeekPreviewModal } from "../components/WeekPreviewModal";
 import {
   type DayDraft,
   type GroupMember,
@@ -22,8 +23,55 @@ const emptyDays = (): DayDraft[] =>
     trainingTypeOverride: null,
   }));
 
+type GroupDraftSnapshot = {
+  days: DayDraft[];
+  dirty: boolean;
+};
+
 function memberKey(ids: Iterable<string>): string {
   return [...ids].sort().join(",");
+}
+
+function draftCacheKey(groupId: string, memberIds: string[]): string {
+  if (memberIds.length === 0) return groupId;
+  return `${groupId}|${memberKey(memberIds)}`;
+}
+
+function parseDraftCacheKey(key: string): {
+  groupId: string;
+  memberIds: string[];
+} {
+  if (!key.includes("|")) {
+    return { groupId: key, memberIds: [] };
+  }
+  const [groupId, members] = key.split("|");
+  return {
+    groupId,
+    memberIds: members ? members.split(",").filter(Boolean) : [],
+  };
+}
+
+function snapshotFromDays(days: DayDraft[], dirty: boolean): GroupDraftSnapshot {
+  return {
+    days: days.map((d) => ({ ...d })),
+    dirty,
+  };
+}
+
+function draftLabel(
+  key: string,
+  groups: TrainingGroup[],
+  members: GroupMember[],
+): string {
+  const { groupId, memberIds } = parseDraftCacheKey(key);
+  const groupName = groups.find((g) => g.id === groupId)?.name ?? "Grup";
+  if (memberIds.length === 0) return groupName;
+  if (memberIds.length === 1) {
+    const name =
+      members.find((m) => m.user_id === memberIds[0])?.userName ?? "sporcu";
+    return `${groupName} (${name})`;
+  }
+  return `${groupName} (${memberIds.length} sporcu)`;
 }
 
 export function WeeklyEditorPage() {
@@ -35,15 +83,26 @@ export function WeeklyEditorPage() {
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [days, setDays] = useState<DayDraft[]>(emptyDays);
   const [dirty, setDirty] = useState(false);
+  const [draftCache, setDraftCache] = useState<Record<string, GroupDraftSnapshot>>(
+    {},
+  );
   const [loading, setLoading] = useState(true);
   const [loadingWeek, setLoadingWeek] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error" | "warning";
     text: string;
   } | null>(null);
 
   const loadRequestRef = useRef(0);
+  const daysRef = useRef(days);
+  const dirtyRef = useRef(dirty);
+  const draftCacheRef = useRef(draftCache);
+
+  daysRef.current = days;
+  dirtyRef.current = dirty;
+  draftCacheRef.current = draftCache;
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId);
   const isPerformance = selectedGroup?.group_type === "performance";
@@ -52,24 +111,46 @@ export function WeeklyEditorPage() {
     [selectedMemberIds],
   );
 
-  const loadWeekData = useCallback(async () => {
+  const canEditProgram = Boolean(
+    selectedGroupId && (!isPerformance || selectedMemberIds.length > 0),
+  );
+
+  const stashCurrentDraft = useCallback(() => {
+    if (!selectedGroupId) return;
+    const key = draftCacheKey(selectedGroupId, selectedMemberIds);
+    setDraftCache((prev) => ({
+      ...prev,
+      [key]: snapshotFromDays(daysRef.current, dirtyRef.current),
+    }));
+  }, [selectedGroupId, selectedMemberIds]);
+
+  const cacheWithCurrent = useMemo(() => {
+    const merged = { ...draftCache };
+    if (selectedGroupId && canEditProgram) {
+      merged[draftCacheKey(selectedGroupId, selectedMemberIds)] =
+        snapshotFromDays(days, dirty);
+    }
+    return merged;
+  }, [
+    draftCache,
+    days,
+    dirty,
+    selectedGroupId,
+    selectedMemberIds,
+    canEditProgram,
+  ]);
+
+  const pendingSaveCount = useMemo(
+    () => Object.values(cacheWithCurrent).filter((s) => s.dirty).length,
+    [cacheWithCurrent],
+  );
+
+  const loadWeekFromApi = useCallback(async () => {
     if (!selectedGroupId) return;
 
     const requestId = ++loadRequestRef.current;
-
-    if (isPerformance && selectedMemberIds.length > 1) {
-      setDays(emptyDays());
-      setDirty(false);
-      return;
-    }
-
-    if (isPerformance && selectedMemberIds.length === 0) {
-      setDays(emptyDays());
-      setDirty(false);
-      return;
-    }
-
     setLoadingWeek(true);
+
     try {
       const memberId =
         isPerformance && selectedMemberIds.length === 1
@@ -98,12 +179,42 @@ export function WeeklyEditorPage() {
         setLoadingWeek(false);
       }
     }
-  }, [
-    selectedGroupId,
-    weekStart,
-    isPerformance,
-    selectedMemberIds,
-  ]);
+  }, [selectedGroupId, weekStart, isPerformance, selectedMemberIds]);
+
+  const restoreDraftOrLoad = useCallback(async () => {
+    if (!selectedGroupId) return;
+
+    if (isPerformance && selectedMemberIds.length === 0) {
+      setDays(emptyDays());
+      setDirty(false);
+      return;
+    }
+
+    if (isPerformance && selectedMemberIds.length > 1) {
+      const cached =
+        draftCacheRef.current[
+          draftCacheKey(selectedGroupId, selectedMemberIds)
+        ];
+      if (cached) {
+        setDays(cached.days.map((d) => ({ ...d })));
+        setDirty(cached.dirty);
+        return;
+      }
+      setDays(emptyDays());
+      setDirty(false);
+      return;
+    }
+
+    const cached =
+      draftCacheRef.current[draftCacheKey(selectedGroupId, selectedMemberIds)];
+    if (cached) {
+      setDays(cached.days.map((d) => ({ ...d })));
+      setDirty(cached.dirty);
+      return;
+    }
+
+    await loadWeekFromApi();
+  }, [selectedGroupId, isPerformance, selectedMemberIds, loadWeekFromApi]);
 
   useEffect(() => {
     let cancelled = false;
@@ -161,45 +272,76 @@ export function WeeklyEditorPage() {
 
   useEffect(() => {
     if (!selectedGroupId || loading) return;
-    void loadWeekData();
-  }, [selectedGroupId, weekStart, selectedMemberKey, loading, loadWeekData]);
+    void restoreDraftOrLoad();
+  }, [
+    selectedGroupId,
+    weekStart,
+    selectedMemberKey,
+    loading,
+    restoreDraftOrLoad,
+  ]);
 
   function shiftWeek(delta: number) {
-    if (dirty && !confirm("Kaydedilmemiş değişiklikler var. Devam edilsin mi?")) {
+    if (
+      pendingSaveCount > 0 &&
+      !confirm(
+        `${pendingSaveCount} kaydedilmemiş taslak var. Hafta değiştirilsin mi?`,
+      )
+    ) {
       return;
     }
+    setDraftCache({});
     const next = new Date(weekStart);
     next.setDate(next.getDate() + delta * 7);
     setWeekStart(mondayOf(next));
+    setMessage(null);
   }
 
   function handleGroupChange(groupId: string) {
-    if (
-      dirty &&
-      !confirm("Kaydedilmemiş değişiklikler var. Grup değiştirilsin mi?")
-    ) {
-      return;
-    }
+    if (groupId === selectedGroupId) return;
+
+    const target = groups.find((g) => g.id === groupId);
+    stashCurrentDraft();
     setSelectedGroupId(groupId);
     setSelectedMemberIds([]);
-    setDirty(false);
     setMessage(null);
+
+    if (target?.group_type === "performance") {
+      setDays(emptyDays());
+      setDirty(false);
+    }
   }
 
   function toggleMember(userId: string) {
-    if (
-      dirty &&
-      !confirm("Kaydedilmemiş değişiklikler var. Sporcu seçimi değiştirilsin mi?")
-    ) {
+    const prevCount = selectedMemberIds.length;
+    stashCurrentDraft();
+
+    const nextIds = selectedMemberIds.includes(userId)
+      ? selectedMemberIds.filter((id) => id !== userId)
+      : [...selectedMemberIds, userId];
+
+    setSelectedMemberIds(nextIds);
+    setMessage(null);
+
+    if (nextIds.length === 0) {
+      setDays(emptyDays());
+      setDirty(false);
       return;
     }
-    setSelectedMemberIds((prev) => {
-      if (prev.includes(userId)) {
-        return prev.filter((id) => id !== userId);
+
+    if (nextIds.length > 1 && prevCount <= 1) {
+      const cached =
+        draftCacheRef.current[draftCacheKey(selectedGroupId, nextIds)];
+      if (cached) {
+        setDays(cached.days.map((d) => ({ ...d })));
+        setDirty(cached.dirty);
+        return;
       }
-      return [...prev, userId];
-    });
-    setMessage(null);
+      if (prevCount === 0) {
+        setDays(emptyDays());
+      }
+      setDirty(nextIds.length > 0);
+    }
   }
 
   function updateDay(index: number, patch: Partial<DayDraft>) {
@@ -210,7 +352,7 @@ export function WeeklyEditorPage() {
   }
 
   async function copyPreviousWeek() {
-    if (!selectedGroupId) return;
+    if (!selectedGroupId || !canEditProgram) return;
     setLoadingWeek(true);
     setMessage(null);
     try {
@@ -242,39 +384,100 @@ export function WeeklyEditorPage() {
   }
 
   async function handleSave() {
-    if (!selectedGroup) return;
+    const mergedCache = { ...draftCacheRef.current };
+    if (selectedGroupId && canEditProgram) {
+      mergedCache[draftCacheKey(selectedGroupId, selectedMemberIds)] =
+        snapshotFromDays(daysRef.current, dirtyRef.current);
+    }
 
-    if (isPerformance && selectedMemberIds.length === 0) {
+    const dirtyEntries = Object.entries(mergedCache).filter(
+      ([, snapshot]) => snapshot.dirty,
+    );
+
+    if (dirtyEntries.length === 0) {
       setMessage({
         type: "warning",
-        text: "Performans grubu için en az bir sporcu seçin",
+        text: "Kaydedilecek değişiklik yok",
       });
       return;
     }
 
     setSaving(true);
     setMessage(null);
-    const payload = dayDraftsToPayload(days, weekStart);
-    const targets = isPerformance ? selectedMemberIds : [null as string | null];
 
-    const allErrors: Array<{ plan_date: string; message: string }> = [];
+    const allErrors: Array<{ label: string; plan_date?: string; message: string }> =
+      [];
+    const savedKeys: string[] = [];
 
     try {
-      for (const memberId of targets) {
-        const { errors } = await upsertWeeklyProgram({
-          weekStartMonday: weekStart,
-          scopeType: isPerformance ? "member" : "group",
-          trainingGroupId: selectedGroup.id,
-          memberUserId: memberId,
-          days: payload,
-        });
-        allErrors.push(...errors);
+      for (const [key, snapshot] of dirtyEntries) {
+        const { groupId, memberIds } = parseDraftCacheKey(key);
+        const group = groups.find((g) => g.id === groupId);
+        if (!group) continue;
+
+        const label = draftLabel(key, groups, members);
+        const isPerf = group.group_type === "performance";
+
+        if (isPerf && memberIds.length === 0) {
+          allErrors.push({
+            label,
+            message: "sporcu seçilmedi",
+          });
+          continue;
+        }
+
+        const targets = isPerf ? memberIds : [null as string | null];
+        const keyErrors: Array<{ plan_date: string; message: string }> = [];
+
+        for (const memberId of targets) {
+          const { errors } = await upsertWeeklyProgram({
+            weekStartMonday: weekStart,
+            scopeType: isPerf ? "member" : "group",
+            trainingGroupId: groupId,
+            memberUserId: memberId,
+            days: dayDraftsToPayload(snapshot.days, weekStart),
+          });
+          keyErrors.push(...errors);
+        }
+
+        if (keyErrors.length === 0) {
+          savedKeys.push(key);
+        } else {
+          for (const error of keyErrors) {
+            allErrors.push({
+              label,
+              plan_date: error.plan_date,
+              message: error.message,
+            });
+          }
+        }
+      }
+
+      setDraftCache((prev) => {
+        const next = { ...prev, ...mergedCache };
+        for (const key of savedKeys) {
+          if (next[key]) {
+            next[key] = { ...next[key], dirty: false };
+          }
+        }
+        return next;
+      });
+
+      if (selectedGroupId && canEditProgram) {
+        const currentKey = draftCacheKey(selectedGroupId, selectedMemberIds);
+        if (savedKeys.includes(currentKey)) {
+          setDirty(false);
+        }
       }
 
       if (allErrors.length > 0) {
         const summary = allErrors
           .slice(0, 5)
-          .map((e) => `${e.plan_date}: ${e.message}`)
+          .map((e) =>
+            e.plan_date
+              ? `${e.label} — ${e.plan_date}: ${e.message}`
+              : `${e.label}: ${e.message}`,
+          )
           .join("\n");
         setMessage({
           type: "error",
@@ -283,15 +486,14 @@ export function WeeklyEditorPage() {
           }`,
         });
       } else {
-        setDirty(false);
         setMessage({
           type: "success",
           text:
-            targets.length > 1
-              ? `${targets.length} sporcu için program kaydedildi`
-              : "Program kaydedildi",
+            savedKeys.length === 1
+              ? `${draftLabel(savedKeys[0], groups, members)} kaydedildi`
+              : `${savedKeys.length} program kaydedildi`,
         });
-        await loadWeekData();
+        await restoreDraftOrLoad();
       }
     } catch (err) {
       setMessage({
@@ -302,6 +504,14 @@ export function WeeklyEditorPage() {
       setSaving(false);
     }
   }
+
+  const saveButtonLabel = saving
+    ? "Kaydediliyor…"
+    : pendingSaveCount > 1
+      ? `Tümünü kaydet (${pendingSaveCount})`
+      : pendingSaveCount === 1
+        ? "Kaydet"
+        : "Kaydedildi";
 
   if (loading) {
     return <p className="muted">Yükleniyor…</p>;
@@ -325,11 +535,24 @@ export function WeeklyEditorPage() {
               Program yükleniyor…
             </span>
           )}
+          {pendingSaveCount > 0 && (
+            <span className="muted">
+              {pendingSaveCount} kaydedilmemiş taslak
+            </span>
+          )}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setPreviewOpen(true)}
+            disabled={loadingWeek || saving}
+          >
+            Önizleme
+          </button>
           <button
             type="button"
             className="btn"
             onClick={copyPreviousWeek}
-            disabled={loadingWeek || saving}
+            disabled={loadingWeek || saving || !canEditProgram}
           >
             Geçen haftadan kopyala
           </button>
@@ -337,9 +560,9 @@ export function WeeklyEditorPage() {
             type="button"
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={!dirty || saving || loadingWeek}
+            disabled={pendingSaveCount === 0 || saving || loadingWeek}
           >
-            {saving ? "Kaydediliyor…" : dirty ? "Kaydet" : "Kaydedildi"}
+            {saveButtonLabel}
           </button>
         </div>
       </div>
@@ -358,12 +581,20 @@ export function WeeklyEditorPage() {
               value={selectedGroupId}
               onChange={(e) => handleGroupChange(e.target.value)}
             >
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                  {g.group_type === "performance" ? " (Performans)" : ""}
-                </option>
-              ))}
+              {groups.map((g) => {
+                const hasDraft = Object.entries(cacheWithCurrent).some(
+                  ([key, snapshot]) =>
+                    snapshot.dirty &&
+                    parseDraftCacheKey(key).groupId === g.id,
+                );
+                return (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                    {g.group_type === "performance" ? " (Performans)" : ""}
+                    {hasDraft ? " •" : ""}
+                  </option>
+                );
+              })}
             </select>
           </label>
         </div>
@@ -398,6 +629,14 @@ export function WeeklyEditorPage() {
         )}
       </div>
 
+      {!canEditProgram && (
+        <div className="alert alert-warning">
+          {!selectedGroupId
+            ? "Program girmek için bir antrenman grubu seçin."
+            : "Performans grubunda program girmek için en az bir sporcu seçin."}
+        </div>
+      )}
+
       <div
         className={`day-grid-wrapper${loadingWeek ? " day-grid-wrapper--loading" : ""}`}
         aria-busy={loadingWeek}
@@ -407,9 +646,18 @@ export function WeeklyEditorPage() {
           days={days}
           trainingTypes={trainingTypes}
           disabled={saving || loadingWeek}
+          locked={!canEditProgram}
           onChange={updateDay}
         />
       </div>
+
+      <WeekPreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        weekStartMonday={weekStart}
+        days={days}
+        trainingTypes={trainingTypes}
+      />
     </div>
   );
 }

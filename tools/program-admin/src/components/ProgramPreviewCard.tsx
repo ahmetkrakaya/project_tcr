@@ -1,0 +1,187 @@
+import { parseCoachText } from "../lib/coach_text_parser";
+import type { TrainingType } from "../lib/api";
+
+type WorkoutStep = {
+  type?: string;
+  repeat_count?: number;
+  steps?: WorkoutStep[];
+  segment?: {
+    segment_type?: string;
+    target_type?: string;
+    duration_seconds?: number;
+    distance_meters?: number;
+    pace_seconds_per_km_min?: number;
+    pace_seconds_per_km_max?: number;
+    use_vdot_for_pace?: boolean;
+    duration_seconds_min?: number;
+    duration_seconds_max?: number;
+  };
+};
+
+const SEGMENT_LABELS: Record<string, string> = {
+  warmup: "Isınma",
+  main: "Ana",
+  recovery: "Toparlanma",
+  cooldown: "Soğuma",
+};
+
+function formatDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m <= 0) return `${s}s`;
+  if (s === 0) return `${m} dk`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function formatPace(secPerKm: number): string {
+  const m = Math.floor(secPerKm / 60);
+  const s = secPerKm % 60;
+  return `${m}:${String(s).padStart(2, "0")}/km`;
+}
+
+function formatDistance(meters: number): string {
+  if (meters >= 1000) {
+    const km = meters / 1000;
+    return meters % 1000 === 0 ? `${km} km` : `${km.toFixed(1)} km`;
+  }
+  return `${Math.round(meters)} m`;
+}
+
+function segmentDetails(seg: NonNullable<WorkoutStep["segment"]>): string[] {
+  const out: string[] = [];
+  if (seg.target_type === "duration" && seg.duration_seconds) {
+    out.push(formatDuration(seg.duration_seconds));
+  }
+  if (seg.distance_meters && seg.distance_meters > 0) {
+    out.push(formatDistance(seg.distance_meters));
+  }
+  if (seg.duration_seconds_min && seg.duration_seconds_max) {
+    out.push(
+      `${formatDuration(seg.duration_seconds_min)}-${formatDuration(seg.duration_seconds_max)}`,
+    );
+  } else if (seg.duration_seconds_min) {
+    out.push(formatDuration(seg.duration_seconds_min));
+  }
+  if (seg.use_vdot_for_pace) {
+    out.push("VDOT pace");
+  } else if (seg.pace_seconds_per_km_min && seg.pace_seconds_per_km_max) {
+    const min = seg.pace_seconds_per_km_min;
+    const max = seg.pace_seconds_per_km_max;
+    out.push(
+      min === max
+        ? `Tempo ${formatPace(min)}`
+        : `Tempo ${formatPace(min)}-${formatPace(max)}`,
+    );
+  }
+  return out;
+}
+
+function StepList({ steps, depth = 0 }: { steps: WorkoutStep[]; depth?: number }) {
+  return (
+    <>
+      {steps.map((step, i) => (
+        <StepNode key={`${depth}-${i}`} step={step} depth={depth} />
+      ))}
+    </>
+  );
+}
+
+function StepNode({ step, depth }: { step: WorkoutStep; depth: number }) {
+  if (step.type === "repeat" && step.steps) {
+    return (
+      <div className="preview-step" style={{ marginLeft: depth * 12 }}>
+        <div className="preview-repeat">
+          <span className="preview-repeat-icon">↻</span>
+          {step.repeat_count ?? 1}x tekrar
+        </div>
+        <StepList steps={step.steps} depth={depth + 1} />
+      </div>
+    );
+  }
+
+  if (step.type === "segment" && step.segment) {
+    const seg = step.segment;
+    const label = SEGMENT_LABELS[seg.segment_type ?? "main"] ?? "Ana";
+    const details = segmentDetails(seg);
+    return (
+      <div className="preview-step" style={{ marginLeft: depth * 12 }}>
+        <div className="preview-segment">
+          <div className="preview-segment-icon">🏃</div>
+          <div>
+            <div className="preview-segment-title">{label}</div>
+            {details.length > 0 && (
+              <div className="preview-segment-details">{details.join(" · ")}</div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+type Props = {
+  workoutText: string;
+  coachNotes: string;
+  trainingTypeOverride: string | null;
+  trainingTypes: TrainingType[];
+  planDateLabel?: string;
+};
+
+export function ProgramPreviewCard({
+  workoutText,
+  coachNotes,
+  trainingTypeOverride,
+  trainingTypes,
+  planDateLabel,
+}: Props) {
+  const parsed = parseCoachText(workoutText);
+  const typeLabel =
+    trainingTypes.find((t) => t.name === trainingTypeOverride)?.display_name ??
+    "Otomatik";
+
+  if (workoutText.trim() === "" || (parsed.ok && parsed.isRest)) {
+    if (!coachNotes.trim()) {
+      return (
+        <div className="preview-card preview-card--rest">
+          <span>😴</span> Dinlenme günü
+        </div>
+      );
+    }
+    return (
+      <div className="preview-card">
+        {planDateLabel && <div className="preview-meta">{planDateLabel}</div>}
+        <span className="preview-chip">{typeLabel}</span>
+        <p className="preview-notes">{coachNotes}</p>
+      </div>
+    );
+  }
+
+  if (!parsed.ok) {
+    return (
+      <div className="preview-card preview-card--error">
+        {parsed.error}
+      </div>
+    );
+  }
+
+  const steps = (parsed.workoutDefinition.steps ?? []) as WorkoutStep[];
+
+  return (
+    <div className="preview-card">
+      {planDateLabel && <div className="preview-meta">{planDateLabel}</div>}
+      <span className="preview-chip">{typeLabel}</span>
+      {coachNotes.trim() && <p className="preview-notes">{coachNotes}</p>}
+      {parsed.programContent && (
+        <p className="preview-summary">{parsed.programContent}</p>
+      )}
+      {steps.length > 0 && (
+        <div className="preview-structure">
+          <div className="preview-structure-label">Antrenman yapısı</div>
+          <StepList steps={steps} />
+        </div>
+      )}
+    </div>
+  );
+}

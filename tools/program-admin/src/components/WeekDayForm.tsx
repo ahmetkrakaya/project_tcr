@@ -1,11 +1,14 @@
 import type { DayDraft, TrainingType } from "../lib/api";
 import { DAY_LABELS, dayDate, ymd } from "../lib/dates";
+import { ProgramPreviewCard } from "./ProgramPreviewCard";
 
 type Props = {
   weekStartMonday: Date;
   days: DayDraft[];
   trainingTypes: TrainingType[];
   disabled?: boolean;
+  locked?: boolean;
+  showInlinePreview?: boolean;
   onChange: (index: number, patch: Partial<DayDraft>) => void;
 };
 
@@ -14,8 +17,11 @@ export function WeekDayForm({
   days,
   trainingTypes,
   disabled,
+  locked,
+  showInlinePreview = true,
   onChange,
 }: Props) {
+  const fieldsDisabled = disabled || locked;
   return (
     <div className="day-grid">
       {days.map((day, index) => {
@@ -38,8 +44,12 @@ export function WeekDayForm({
                 Antrenman metni
                 <textarea
                   value={day.workout}
-                  disabled={disabled}
-                  placeholder="Örn: 45dk kolay veya REST"
+                  disabled={fieldsDisabled}
+                  placeholder={
+                    locked
+                      ? "Önce grup (ve performansta sporcu) seçin"
+                      : "Örn: 45dk kolay veya REST"
+                  }
                   onChange={(e) =>
                     onChange(index, { workout: e.target.value })
                   }
@@ -49,8 +59,12 @@ export function WeekDayForm({
                 Koç notu
                 <textarea
                   value={day.coachNotes}
-                  disabled={disabled}
-                  placeholder="Sporcuya gösterilecek not (opsiyonel)"
+                  disabled={fieldsDisabled}
+                  placeholder={
+                    locked
+                      ? "Önce grup (ve performansta sporcu) seçin"
+                      : "Sporcuya gösterilecek not (opsiyonel)"
+                  }
                   onChange={(e) =>
                     onChange(index, { coachNotes: e.target.value })
                   }
@@ -60,7 +74,7 @@ export function WeekDayForm({
                 Antrenman türü
                 <select
                   value={day.trainingTypeOverride ?? ""}
-                  disabled={disabled}
+                  disabled={fieldsDisabled}
                   onChange={(e) =>
                     onChange(index, {
                       trainingTypeOverride: e.target.value || null,
@@ -75,6 +89,18 @@ export function WeekDayForm({
                   ))}
                 </select>
               </label>
+              {showInlinePreview &&
+                (day.workout.trim() || day.coachNotes.trim()) && (
+                  <div className="day-inline-preview">
+                    <div className="day-inline-preview-label">Önizleme</div>
+                    <ProgramPreviewCard
+                      workoutText={day.workout}
+                      coachNotes={day.coachNotes}
+                      trainingTypeOverride={day.trainingTypeOverride}
+                      trainingTypes={trainingTypes}
+                    />
+                  </div>
+                )}
             </div>
           </div>
         );
