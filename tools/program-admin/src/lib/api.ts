@@ -20,16 +20,25 @@ export type TrainingType = {
   display_name: string;
 };
 
+export type WorkoutDefinition = {
+  steps?: unknown[];
+};
+
 export type DayDraft = {
   workout: string;
   coachNotes: string;
   trainingTypeOverride: string | null;
+  /** Kayıtlı yapılandırılmış antrenman; önizleme için (metin alanında gösterilmez). */
+  workoutDefinition?: WorkoutDefinition | null;
+  /** Sunucudaki kısa metin; UI'da gösterilmez, kayıtta antrenman korunması için. */
+  persistedCoachText?: string | null;
 };
 
 export type ProgramEntryRow = {
   plan_date: string;
   program_content: string | null;
   coach_notes: string | null;
+  workout_definition: WorkoutDefinition | null;
   training_types: { name: string; display_name: string } | null;
 };
 
@@ -100,7 +109,7 @@ export async function getWeeklyProgramEntries({
   let query = supabase
     .from("monthly_program_entries")
     .select(
-      "plan_date, program_content, coach_notes, training_types(display_name, name)",
+      "plan_date, program_content, coach_notes, workout_definition, training_types(display_name, name)",
     )
     .gte("plan_date", ymd(start))
     .lte("plan_date", ymd(end))
@@ -123,10 +132,14 @@ export async function getWeeklyProgramEntries({
       | null
       | undefined;
     const training_types = Array.isArray(rawTypes) ? rawTypes[0] ?? null : rawTypes ?? null;
+    const rawDef = row.workout_definition as WorkoutDefinition | WorkoutDefinition[] | null;
+    const workout_definition = Array.isArray(rawDef) ? rawDef[0] ?? null : rawDef ?? null;
+
     return {
       plan_date: row.plan_date as string,
       program_content: row.program_content as string | null,
       coach_notes: row.coach_notes as string | null,
+      workout_definition,
       training_types,
     };
   });
@@ -141,10 +154,20 @@ export function rowsToDayDrafts(
     const d = new Date(weekStartMonday);
     d.setDate(d.getDate() + i);
     const row = byDate.get(ymd(d));
+    const hasStructuredWorkout =
+      (row?.workout_definition?.steps?.length ?? 0) > 0;
+    const isRest =
+      !hasStructuredWorkout &&
+      (!row?.program_content ||
+        /^(rest|dinlenme)$/i.test(row.program_content.trim()));
+
     return {
-      workout: row?.program_content ?? "",
+      workout: "",
       coachNotes: row?.coach_notes ?? "",
       trainingTypeOverride: row?.training_types?.name ?? null,
+      workoutDefinition: hasStructuredWorkout ? row?.workout_definition ?? null : null,
+      persistedCoachText:
+        !isRest && row?.program_content ? row.program_content : null,
     };
   });
 }
@@ -153,7 +176,9 @@ export function dayDraftsToPayload(days: DayDraft[], weekStartMonday: Date) {
   return days.map((day, i) => {
     const d = new Date(weekStartMonday);
     d.setDate(d.getDate() + i);
-    const text = day.workout.trim();
+    const userText = day.workout.trim();
+    const preserved = day.persistedCoachText?.trim() ?? "";
+    const text = userText || preserved;
     const coachNotes = day.coachNotes.trim();
     return {
       plan_date: ymd(d),

@@ -1,6 +1,6 @@
 import type { DayDraft, TrainingType } from "../lib/api";
 import { DAY_LABELS, dayDate, ymd } from "../lib/dates";
-import { ProgramPreviewCard } from "./ProgramPreviewCard";
+import { dayHasPreviewContent, ProgramPreviewCard } from "./ProgramPreviewCard";
 
 type Props = {
   weekStartMonday: Date;
@@ -51,7 +51,11 @@ export function WeekDayForm({
                       : "Örn: 45dk kolay veya REST"
                   }
                   onChange={(e) =>
-                    onChange(index, { workout: e.target.value })
+                    onChange(index, {
+                      workout: e.target.value,
+                      workoutDefinition: null,
+                      persistedCoachText: null,
+                    })
                   }
                 />
               </label>
@@ -89,8 +93,7 @@ export function WeekDayForm({
                   ))}
                 </select>
               </label>
-              {showInlinePreview &&
-                (day.workout.trim() || day.coachNotes.trim()) && (
+              {showInlinePreview && dayHasPreviewContent(day) && (
                   <div className="day-inline-preview">
                     <div className="day-inline-preview-label">Önizleme</div>
                     <ProgramPreviewCard
@@ -98,6 +101,7 @@ export function WeekDayForm({
                       coachNotes={day.coachNotes}
                       trainingTypeOverride={day.trainingTypeOverride}
                       trainingTypes={trainingTypes}
+                      workoutDefinition={day.workoutDefinition}
                     />
                   </div>
                 )}

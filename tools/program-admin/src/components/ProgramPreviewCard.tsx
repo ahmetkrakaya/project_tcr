@@ -1,5 +1,5 @@
 import { parseCoachText } from "../lib/coach_text_parser";
-import type { TrainingType } from "../lib/api";
+import type { TrainingType, WorkoutDefinition } from "../lib/api";
 
 type WorkoutStep = {
   type?: string;
@@ -121,11 +121,19 @@ function StepNode({ step, depth }: { step: WorkoutStep; depth: number }) {
   return null;
 }
 
+function stepsFromDefinition(
+  def: WorkoutDefinition | null | undefined,
+): WorkoutStep[] {
+  if (!def?.steps || !Array.isArray(def.steps)) return [];
+  return def.steps as WorkoutStep[];
+}
+
 type Props = {
   workoutText: string;
   coachNotes: string;
   trainingTypeOverride: string | null;
   trainingTypes: TrainingType[];
+  workoutDefinition?: WorkoutDefinition | null;
   planDateLabel?: string;
 };
 
@@ -134,14 +142,18 @@ export function ProgramPreviewCard({
   coachNotes,
   trainingTypeOverride,
   trainingTypes,
+  workoutDefinition,
   planDateLabel,
 }: Props) {
-  const parsed = parseCoachText(workoutText);
   const typeLabel =
     trainingTypes.find((t) => t.name === trainingTypeOverride)?.display_name ??
     "Otomatik";
 
-  if (workoutText.trim() === "" || (parsed.ok && parsed.isRest)) {
+  const typedText = workoutText.trim();
+  const storedSteps = stepsFromDefinition(workoutDefinition);
+  const hasStoredWorkout = storedSteps.length > 0;
+
+  if (!typedText && !hasStoredWorkout) {
     if (!coachNotes.trim()) {
       return (
         <div className="preview-card preview-card--rest">
@@ -158,30 +170,62 @@ export function ProgramPreviewCard({
     );
   }
 
-  if (!parsed.ok) {
+  if (typedText) {
+    const parsed = parseCoachText(typedText);
+    if (!parsed.ok) {
+      return (
+        <div className="preview-card preview-card--error">{parsed.error}</div>
+      );
+    }
+    if (parsed.isRest) {
+      return (
+        <div className="preview-card">
+          {planDateLabel && <div className="preview-meta">{planDateLabel}</div>}
+          <span className="preview-chip">{typeLabel}</span>
+          {coachNotes.trim() && <p className="preview-notes">{coachNotes}</p>}
+          <div className="preview-card preview-card--rest" style={{ marginTop: 8 }}>
+            <span>😴</span> Dinlenme günü
+          </div>
+        </div>
+      );
+    }
+    const steps = (parsed.workoutDefinition.steps ?? []) as WorkoutStep[];
     return (
-      <div className="preview-card preview-card--error">
-        {parsed.error}
+      <div className="preview-card">
+        {planDateLabel && <div className="preview-meta">{planDateLabel}</div>}
+        <span className="preview-chip">{typeLabel}</span>
+        {coachNotes.trim() && <p className="preview-notes">{coachNotes}</p>}
+        {steps.length > 0 && (
+          <div className="preview-structure">
+            <div className="preview-structure-label">Antrenman yapısı</div>
+            <StepList steps={steps} />
+          </div>
+        )}
       </div>
     );
   }
-
-  const steps = (parsed.workoutDefinition.steps ?? []) as WorkoutStep[];
 
   return (
     <div className="preview-card">
       {planDateLabel && <div className="preview-meta">{planDateLabel}</div>}
       <span className="preview-chip">{typeLabel}</span>
       {coachNotes.trim() && <p className="preview-notes">{coachNotes}</p>}
-      {parsed.programContent && (
-        <p className="preview-summary">{parsed.programContent}</p>
-      )}
-      {steps.length > 0 && (
-        <div className="preview-structure">
-          <div className="preview-structure-label">Antrenman yapısı</div>
-          <StepList steps={steps} />
-        </div>
-      )}
+      <div className="preview-structure">
+        <div className="preview-structure-label">Antrenman yapısı</div>
+        <StepList steps={storedSteps} />
+      </div>
     </div>
+  );
+}
+
+export function dayHasPreviewContent(day: {
+  workout: string;
+  coachNotes: string;
+  workoutDefinition?: WorkoutDefinition | null;
+}): boolean {
+  return (
+    day.workout.trim().length > 0 ||
+    day.coachNotes.trim().length > 0 ||
+    stepsFromDefinition(day.workoutDefinition).length > 0
   );
 }

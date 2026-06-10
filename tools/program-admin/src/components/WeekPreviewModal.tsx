@@ -55,6 +55,7 @@ export function WeekPreviewModal({
                   coachNotes={day.coachNotes}
                   trainingTypeOverride={day.trainingTypeOverride}
                   trainingTypes={trainingTypes}
+                  workoutDefinition={day.workoutDefinition}
                 />
               </section>
             );

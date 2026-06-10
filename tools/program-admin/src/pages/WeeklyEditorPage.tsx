@@ -16,11 +16,22 @@ import {
 } from "../lib/api";
 import { mondayOf, weekTitle } from "../lib/dates";
 
+function dayHasDraftContent(day: DayDraft): boolean {
+  return (
+    day.workout.trim().length > 0 ||
+    day.coachNotes.trim().length > 0 ||
+    (day.workoutDefinition?.steps?.length ?? 0) > 0 ||
+    (day.persistedCoachText?.trim().length ?? 0) > 0
+  );
+}
+
 const emptyDays = (): DayDraft[] =>
   Array.from({ length: 7 }, () => ({
     workout: "",
     coachNotes: "",
     trainingTypeOverride: null,
+    workoutDefinition: null,
+    persistedCoachText: null,
   }));
 
 type GroupDraftSnapshot = {
@@ -80,6 +91,8 @@ export function WeeklyEditorPage() {
   const [trainingTypes, setTrainingTypes] = useState<TrainingType[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [members, setMembers] = useState<GroupMember[]>([]);
+  const [membersGroupId, setMembersGroupId] = useState<string | null>(null);
+  const [membersLoading, setMembersLoading] = useState(false);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [days, setDays] = useState<DayDraft[]>(emptyDays);
   const [dirty, setDirty] = useState(false);
@@ -144,6 +157,17 @@ export function WeeklyEditorPage() {
     () => Object.values(cacheWithCurrent).filter((s) => s.dirty).length,
     [cacheWithCurrent],
   );
+
+  const copySourceGroups = useMemo(
+    () =>
+      groups.filter(
+        (g) => g.group_type !== "performance" && g.id !== selectedGroupId,
+      ),
+    [groups, selectedGroupId],
+  );
+
+  const membersReady =
+    !isPerformance || (membersGroupId === selectedGroupId && !membersLoading);
 
   const loadWeekFromApi = useCallback(async () => {
     if (!selectedGroupId) return;
@@ -248,20 +272,36 @@ export function WeeklyEditorPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedGroupId) return;
+    if (!selectedGroupId) {
+      setMembers([]);
+      setMembersGroupId(null);
+      setMembersLoading(false);
+      return;
+    }
+
+    const groupId = selectedGroupId;
+    setMembers([]);
+    setMembersGroupId(null);
+    setMembersLoading(true);
+
     let cancelled = false;
     (async () => {
       try {
-        const m = await fetchGroupMembers(selectedGroupId);
-        if (cancelled) return;
+        const m = await fetchGroupMembers(groupId);
+        if (cancelled || groupId !== selectedGroupId) return;
         setMembers(m);
+        setMembersGroupId(groupId);
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && groupId === selectedGroupId) {
           setMessage({
             type: "error",
             text:
               err instanceof Error ? err.message : "Grup üyeleri yüklenemedi",
           });
+        }
+      } finally {
+        if (!cancelled && groupId === selectedGroupId) {
+          setMembersLoading(false);
         }
       }
     })();
@@ -304,6 +344,9 @@ export function WeeklyEditorPage() {
     stashCurrentDraft();
     setSelectedGroupId(groupId);
     setSelectedMemberIds([]);
+    setMembers([]);
+    setMembersGroupId(null);
+    setMembersLoading(target?.group_type === "performance");
     setMessage(null);
 
     if (target?.group_type === "performance") {
@@ -349,6 +392,52 @@ export function WeeklyEditorPage() {
       prev.map((d, i) => (i === index ? { ...d, ...patch } : d)),
     );
     setDirty(true);
+  }
+
+  async function copyFromOtherGroup(sourceGroupId: string) {
+    if (!selectedGroupId || !canEditProgram) return;
+
+    setMessage(null);
+    const cached = draftCacheRef.current[sourceGroupId];
+    if (cached?.days.some((d) => dayHasDraftContent(d))) {
+      setDays(cached.days.map((d) => ({ ...d })));
+      setDirty(true);
+      const name = groups.find((g) => g.id === sourceGroupId)?.name ?? "Grup";
+      setMessage({
+        type: "success",
+        text: `${name} taslağından kopyalandı (kaydetmeyi unutmayın)`,
+      });
+      return;
+    }
+
+    setLoadingWeek(true);
+    try {
+      const rows = await getWeeklyProgramEntries({
+        weekStartMonday: weekStart,
+        trainingGroupId: sourceGroupId,
+      });
+      if (rows.length === 0) {
+        setMessage({
+          type: "warning",
+          text: "Seçilen grupta bu hafta için kayıtlı program yok",
+        });
+        return;
+      }
+      setDays(rowsToDayDrafts(rows, weekStart));
+      setDirty(true);
+      const name = groups.find((g) => g.id === sourceGroupId)?.name ?? "Grup";
+      setMessage({
+        type: "success",
+        text: `${name} programından kopyalandı (kaydetmeyi unutmayın)`,
+      });
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Kopyalama başarısız",
+      });
+    } finally {
+      setLoadingWeek(false);
+    }
   }
 
   async function copyPreviousWeek() {
@@ -556,6 +645,29 @@ export function WeeklyEditorPage() {
           >
             Geçen haftadan kopyala
           </button>
+          {copySourceGroups.length > 0 && (
+            <label className="copy-group-select">
+              <span className="sr-only">Gruptan kopyala</span>
+              <select
+                defaultValue=""
+                disabled={loadingWeek || saving || !canEditProgram}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value) {
+                    void copyFromOtherGroup(value);
+                    e.target.value = "";
+                  }
+                }}
+              >
+                <option value="">Gruptan kopyala…</option>
+                {copySourceGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             type="button"
             className="btn btn-primary"
@@ -604,8 +716,12 @@ export function WeeklyEditorPage() {
             <span className="muted">
               Sporcular (birden fazla seçilirse aynı program hepsine atanır)
             </span>
+            {membersLoading && (
+              <span className="muted">Sporcular yükleniyor…</span>
+            )}
             <div className="member-chips">
-              {members.map((m) => (
+              {membersReady &&
+                members.map((m) => (
                 <button
                   key={m.user_id}
                   type="button"
@@ -615,7 +731,7 @@ export function WeeklyEditorPage() {
                   {m.userName}
                 </button>
               ))}
-              {members.length === 0 && (
+              {membersReady && members.length === 0 && (
                 <span className="muted">Bu grupta üye yok</span>
               )}
             </div>
