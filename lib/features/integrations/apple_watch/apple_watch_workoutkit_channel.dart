@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
-import '../../../core/utils/vdot_calculator.dart';
+import '../../workout/utils/segment_target_resolver.dart';
 import '../../workout/domain/entities/workout_entity.dart'
     show WorkoutDefinitionEntity, WorkoutSegmentEntity, WorkoutStepEntity;
 
@@ -102,50 +102,25 @@ class AppleWatchScheduledWorkoutPayload {
   }
 
   Map<String, dynamic> _segmentToJson(WorkoutSegmentEntity s) {
-    int? resolvedPaceMin;
-    int? resolvedPaceMax;
-
-    if (s.useVdotForPace == true && userVdot != null && userVdot! > 0) {
-      final paceRange = VdotCalculator.getPaceRangeForSegmentType(
-        userVdot!,
-        s.segmentType.name,
-        thresholdOffsetMinSeconds,
-        thresholdOffsetMaxSeconds,
-      );
-      if (paceRange != null) {
-        resolvedPaceMin = paceRange.$1;
-        resolvedPaceMax = paceRange.$2;
-      }
-    }
-
-    // Fallback: segment'te useVdotForPace açık değilse bile,
-    // training type offset'leri + kullanıcı VDOT'u varsa pace hesapla.
-    if (resolvedPaceMin == null &&
-        userVdot != null &&
-        userVdot! > 0 &&
-        (thresholdOffsetMinSeconds != null || thresholdOffsetMaxSeconds != null)) {
-      final paceRange = VdotCalculator.getPaceRangeForSegmentType(
-        userVdot!,
-        s.segmentType.name,
-        thresholdOffsetMinSeconds,
-        thresholdOffsetMaxSeconds,
-      );
-      if (paceRange != null) {
-        resolvedPaceMin = paceRange.$1;
-        resolvedPaceMax = paceRange.$2;
-      }
-    }
-
-    final fallbackMin = s.paceSecondsPerKmMin ?? s.customPaceSecondsPerKm ?? s.paceSecondsPerKm;
-    final fallbackMax = s.paceSecondsPerKmMax ?? fallbackMin;
-    final paceMinToSend = resolvedPaceMin ?? fallbackMin;
-    final paceMaxToSend = resolvedPaceMax ?? fallbackMax;
+    final paceRange = effectivePaceRange(
+      s,
+      userVdot: userVdot,
+      offsetMin: thresholdOffsetMinSeconds,
+      offsetMax: thresholdOffsetMaxSeconds,
+    );
+    final paceMinToSend = paceRange?.$1 ??
+        s.paceSecondsPerKmMin ??
+        s.customPaceSecondsPerKm ??
+        s.paceSecondsPerKm;
+    final paceMaxToSend = paceRange?.$2 ?? s.paceSecondsPerKmMax ?? paceMinToSend;
 
     return {
       'segmentType': s.segmentType.name,
       'targetType': s.targetType.name,
-      'target': s.target.name,
+      'target': performanceTargetToJson(s),
       'durationSeconds': s.durationSeconds,
+      'durationSecondsMin': s.durationSecondsMin,
+      'durationSecondsMax': s.durationSecondsMax,
       'distanceMeters': s.distanceMeters,
       'useVdotForPace': s.useVdotForPace,
       'customPaceSecondsPerKm': s.customPaceSecondsPerKm,

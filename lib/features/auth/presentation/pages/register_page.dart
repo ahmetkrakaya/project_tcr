@@ -13,6 +13,54 @@ import '../../../../core/ui/responsive.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
 
+/// Her kelimenin ilk harfini büyük yapan Türkçe karakter duyarlı formatter.
+class _TurkishTitleCaseFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final formatted = _toTurkishTitleCase(newValue.text);
+    return newValue.copyWith(
+      text: formatted,
+      selection: newValue.selection.copyWith(
+        baseOffset: newValue.selection.baseOffset.clamp(0, formatted.length),
+        extentOffset: newValue.selection.extentOffset.clamp(0, formatted.length),
+      ),
+    );
+  }
+
+  String _toTurkishTitleCase(String text) {
+    return text.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      final first = word[0];
+      final rest = word.substring(1);
+
+      final String upperFirst;
+      if (first == 'i') {
+        upperFirst = 'İ';
+      } else if (first == 'ı') {
+        upperFirst = 'I';
+      } else {
+        upperFirst = first.toUpperCase();
+      }
+
+      final lowerRest = StringBuffer();
+      for (final ch in rest.split('')) {
+        if (ch == 'İ') {
+          lowerRest.write('i');
+        } else if (ch == 'I') {
+          lowerRest.write('ı');
+        } else {
+          lowerRest.write(ch.toLowerCase());
+        }
+      }
+
+      return upperFirst + lowerRest.toString();
+    }).join(' ');
+  }
+}
+
 /// Register Page
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
@@ -152,6 +200,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         label: 'Ad',
                         hint: 'Adınız',
                         textCapitalization: TextCapitalization.words,
+                        inputFormatters: [_TurkishTitleCaseFormatter()],
                         textInputAction: TextInputAction.next,
                         onSubmitted: (_) {
                           // Ad alanında "next" basıldığında soyad alanına geç
@@ -176,6 +225,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         label: 'Soyad',
                         hint: 'Soyadınız',
                         textCapitalization: TextCapitalization.words,
+                        inputFormatters: [_TurkishTitleCaseFormatter()],
                         textInputAction: TextInputAction.next,
                         onSubmitted: (_) {
                           // Soyad alanında "next" basıldığında email alanına geç

@@ -81,20 +81,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       return;
     }
     // Yeni ürün → ürün detay
-    if (data['listing_id'] != null && type == 'listing_created') {
+    if (data['listing_id'] != null &&
+        (type == 'listing_created' ||
+            type == 'listing_back_in_stock' ||
+            type == 'listing_stock_updated' ||
+            type == 'listing_discount')) {
       context.goNamed(RouteNames.listingDetail, pathParameters: {
         'listingId': data['listing_id'] as String,
       });
-      return;
-    }
-    // Yeni sipariş → sipariş yönetimi
-    if (type == 'order_created') {
-      context.goNamed(RouteNames.ordersManagement);
-      return;
-    }
-    // Sipariş durumu → siparişlerim (sipariş durumu sayfası)
-    if (type == 'order_status_changed') {
-      context.goNamed(RouteNames.myOrders);
       return;
     }
     // Admin manuel bildirim -> target bazlı yönlendirme
@@ -402,7 +396,11 @@ class _NotificationTile extends StatelessWidget {
       case 'post_updated':
         return AppColors.info;
       case 'listing_created':
+      case 'listing_back_in_stock':
+      case 'listing_stock_updated':
         return AppColors.warning;
+      case 'listing_discount':
+        return AppColors.error;
       case 'order_created':
       case 'order_status_changed':
         return AppColors.success;
@@ -425,7 +423,11 @@ class _NotificationTile extends StatelessWidget {
       case 'post_updated':
         return Icons.article_outlined;
       case 'listing_created':
+      case 'listing_back_in_stock':
+      case 'listing_stock_updated':
         return Icons.shopping_bag_outlined;
+      case 'listing_discount':
+        return Icons.local_offer_outlined;
       case 'order_created':
       case 'order_status_changed':
         return Icons.receipt_long_outlined;

@@ -17,6 +17,12 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		F1A100010000000000000001 /* strava_alarm.wav in Resources */ = {isa = PBXBuildFile; fileRef = F1A200010000000000000001 /* strava_alarm.wav */; };
+		F1A100020000000000000002 /* strava_alarm_1.wav in Resources */ = {isa = PBXBuildFile; fileRef = F1A200020000000000000002 /* strava_alarm_1.wav */; };
+		F1A100030000000000000003 /* strava_alarm_2.wav in Resources */ = {isa = PBXBuildFile; fileRef = F1A200030000000000000003 /* strava_alarm_2.wav */; };
+		F1A100040000000000000004 /* strava_alarm_3.wav in Resources */ = {isa = PBXBuildFile; fileRef = F1A200040000000000000004 /* strava_alarm_3.wav */; };
+		F1A100050000000000000005 /* strava_alarm_4.wav in Resources */ = {isa = PBXBuildFile; fileRef = F1A200050000000000000005 /* strava_alarm_4.wav */; };
+		F1A100060000000000000006 /* strava_alarm_5.wav in Resources */ = {isa = PBXBuildFile; fileRef = F1A200060000000000000006 /* strava_alarm_5.wav */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +65,12 @@
 		7CBD75A89879A331A42E2E60 /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		8FDEF705822E0EA942CE6149 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 		97351E7D88D42316B5C171E4 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
+		F1A200010000000000000001 /* strava_alarm.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = strava_alarm.wav; sourceTree = "<group>"; };
+		F1A200020000000000000002 /* strava_alarm_1.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = strava_alarm_1.wav; sourceTree = "<group>"; };
+		F1A200030000000000000003 /* strava_alarm_2.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = strava_alarm_2.wav; sourceTree = "<group>"; };
+		F1A200040000000000000004 /* strava_alarm_3.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = strava_alarm_3.wav; sourceTree = "<group>"; };
+		F1A200050000000000000005 /* strava_alarm_4.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = strava_alarm_4.wav; sourceTree = "<group>"; };
+		F1A200060000000000000006 /* strava_alarm_5.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = strava_alarm_5.wav; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
 		97C146EE1CF9000F007C117D /* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -154,6 +166,12 @@
 				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
+				F1A200010000000000000001 /* strava_alarm.wav */,
+				F1A200020000000000000002 /* strava_alarm_1.wav */,
+				F1A200030000000000000003 /* strava_alarm_2.wav */,
+				F1A200040000000000000004 /* strava_alarm_3.wav */,
+				F1A200050000000000000005 /* strava_alarm_4.wav */,
+				F1A200060000000000000006 /* strava_alarm_5.wav */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -272,6 +290,12 @@
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 				2F7200845445F1168C1C2987 /* GoogleService-Info.plist in Resources */,
+				F1A100010000000000000001 /* strava_alarm.wav in Resources */,
+				F1A100020000000000000002 /* strava_alarm_1.wav in Resources */,
+				F1A100030000000000000003 /* strava_alarm_2.wav in Resources */,
+				F1A100040000000000000004 /* strava_alarm_3.wav in Resources */,
+				F1A100050000000000000005 /* strava_alarm_4.wav in Resources */,
+				F1A100060000000000000006 /* strava_alarm_5.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

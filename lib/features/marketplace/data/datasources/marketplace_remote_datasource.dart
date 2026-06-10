@@ -4,6 +4,7 @@ import '../../../../core/enums/gender.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../models/listing_model.dart';
 import '../models/order_model.dart';
+import '../models/stock_alert_model.dart';
 
 /// Marketplace Remote Data Source
 abstract class MarketplaceRemoteDataSource {
@@ -87,6 +88,36 @@ abstract class MarketplaceRemoteDataSource {
     String listingId,
     ListingGenderMode mode,
   );
+
+  /// İndirim bilgilerini güncelle (null = indirimi kaldır)
+  Future<void> updateListingDiscount(
+    String listingId, {
+    int? discountPercent,
+    DateTime? discountStartsAt,
+    DateTime? discountEndsAt,
+  });
+
+  /// Stok bildirimi aboneliği oluştur
+  Future<void> subscribeStockAlert(
+    String listingId, {
+    String? size,
+    ListingGender? gender,
+  });
+
+  /// Stok bildirimi aboneliğini kaldır
+  Future<void> unsubscribeStockAlert(
+    String listingId, {
+    String? size,
+    ListingGender? gender,
+  });
+
+  /// Kullanıcının bir ürün için aktif aboneliklerini getir
+  Future<List<StockAlertSubscription>> getUserStockAlertsForListing(
+    String listingId,
+  );
+
+  /// Admin: bekleyen stok taleplerini ürün bazında grupla
+  Future<List<ListingStockAlertGroup>> getPendingStockAlertGroups();
 }
 
 /// Marketplace Remote Data Source Implementation
@@ -111,7 +142,8 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           .select('''
             *,
             users!inner(first_name, last_name, avatar_url),
-            listing_images(image_url, sort_order)
+            listing_images(image_url, sort_order),
+            listing_stock_by_size(size, gender, quantity)
           ''')
           .eq('status', 'active');
 
@@ -136,6 +168,9 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
         final listingJson = json as Map<String, dynamic>;
         final userJson = listingJson['users'] as Map<String, dynamic>;
         final imagesJson = listingJson['listing_images'] as List<dynamic>?;
+        final stockRows = listingJson['listing_stock_by_size'] as List<dynamic>?;
+        final stock = ListingModel.stockFromRows(stockRows);
+        final discount = ListingModel.discountFromRow(listingJson);
 
         final sortedImageUrls = imagesJson != null
             ? () {
@@ -171,12 +206,17 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           status: ListingStatus.fromString(listingJson['status'] as String),
           viewCount: listingJson['view_count'] as int? ?? 0,
           stockQuantity: listingJson['stock_quantity'] as int?,
+          stockBySize: stock.stockBySize,
           stockGenderMode: listingJson['stock_gender_mode'] != null
               ? ListingGenderMode.fromString(listingJson['stock_gender_mode'] as String)
               : ListingGenderMode.unisex,
+          stockBySizeAndGender: stock.stockBySizeAndGender,
           expiresAt: listingJson['expires_at'] != null
               ? DateTime.parse(listingJson['expires_at'] as String)
               : null,
+          discountPercent: discount.discountPercent,
+          discountStartsAt: discount.discountStartsAt,
+          discountEndsAt: discount.discountEndsAt,
           imageUrls: sortedImageUrls,
           primaryImageUrl: sortedImageUrls.isNotEmpty ? sortedImageUrls.first : null,
           createdAt: DateTime.parse(listingJson['created_at'] as String),
@@ -286,6 +326,8 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
         // Stok kontrolü başarısız olursa devam et
       }
 
+      final discount = ListingModel.discountFromRow(listingJson);
+
       return ListingModel(
         id: listingJson['id'] as String,
         sellerId: listingJson['seller_id'] as String,
@@ -312,6 +354,9 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
         expiresAt: listingJson['expires_at'] != null
             ? DateTime.parse(listingJson['expires_at'] as String)
             : null,
+        discountPercent: discount.discountPercent,
+        discountStartsAt: discount.discountStartsAt,
+        discountEndsAt: discount.discountEndsAt,
         imageUrls: sortedImageUrls,
         primaryImageUrl: sortedImageUrls.isNotEmpty ? sortedImageUrls.first : null,
         isFavorite: isFavorite,
@@ -345,6 +390,7 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
         final listingJson = json as Map<String, dynamic>;
         final userJson = listingJson['users'] as Map<String, dynamic>;
         final imagesJson = listingJson['listing_images'] as List<dynamic>?;
+        final discount = ListingModel.discountFromRow(listingJson);
 
         final sortedImageUrls = imagesJson != null
             ? () {
@@ -383,6 +429,9 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           expiresAt: listingJson['expires_at'] != null
               ? DateTime.parse(listingJson['expires_at'] as String)
               : null,
+          discountPercent: discount.discountPercent,
+          discountStartsAt: discount.discountStartsAt,
+          discountEndsAt: discount.discountEndsAt,
           imageUrls: sortedImageUrls,
           primaryImageUrl: sortedImageUrls.isNotEmpty ? sortedImageUrls.first : null,
           createdAt: DateTime.parse(listingJson['created_at'] as String),
@@ -444,12 +493,13 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
         throw ServerException(message: 'Kullanıcı giriş yapmamış', code: 'UNAUTHORIZED');
       }
 
-      // İlan güncelle
+      // İlan güncelle (seller_id hariç — boş string UUID hatasını önler)
+      final updateData = Map<String, dynamic>.from(listing.toJson())
+        ..remove('seller_id');
       await _supabase
           .from('marketplace_listings')
-          .update(listing.toJson())
-          .eq('id', listing.id)
-          .eq('seller_id', _currentUserId!);
+          .update(updateData)
+          .eq('id', listing.id);
 
       // Görselleri güncelle (varsa)
       if (imageUrls != null) {
@@ -619,6 +669,7 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
         final listingJson = json as Map<String, dynamic>;
         final userJson = listingJson['users'] as Map<String, dynamic>;
         final imagesJson = listingJson['listing_images'] as List<dynamic>?;
+        final discount = ListingModel.discountFromRow(listingJson);
 
         final sortedImageUrls = imagesJson != null
             ? () {
@@ -654,6 +705,9 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           stockGenderMode: listingJson['stock_gender_mode'] != null
               ? ListingGenderMode.fromString(listingJson['stock_gender_mode'] as String)
               : ListingGenderMode.unisex,
+          discountPercent: discount.discountPercent,
+          discountStartsAt: discount.discountStartsAt,
+          discountEndsAt: discount.discountEndsAt,
           imageUrls: sortedImageUrls,
           primaryImageUrl: sortedImageUrls.isNotEmpty ? sortedImageUrls.first : null,
           status: ListingStatus.fromString(listingJson['status'] as String),
@@ -1282,6 +1336,181 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
       throw ServerException(
         message: 'Stok gender modu güncellenemedi: $e',
       );
+    }
+  }
+
+  @override
+  Future<void> updateListingDiscount(
+    String listingId, {
+    int? discountPercent,
+    DateTime? discountStartsAt,
+    DateTime? discountEndsAt,
+  }) async {
+    try {
+      if (_currentUserId == null) {
+        throw ServerException(message: 'Kullanıcı giriş yapmamış', code: 'UNAUTHORIZED');
+      }
+
+      await _supabase.from('marketplace_listings').update({
+        'discount_percent': discountPercent,
+        'discount_starts_at': discountStartsAt?.toUtc().toIso8601String(),
+        'discount_ends_at': discountEndsAt?.toUtc().toIso8601String(),
+      }).eq('id', listingId);
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'İndirim güncellenemedi: $e');
+    }
+  }
+
+  @override
+  Future<void> subscribeStockAlert(
+    String listingId, {
+    String? size,
+    ListingGender? gender,
+  }) async {
+    try {
+      if (_currentUserId == null) {
+        throw ServerException(message: 'Kullanıcı giriş yapmamış', code: 'UNAUTHORIZED');
+      }
+
+      await _supabase.from('listing_stock_alerts').upsert({
+        'listing_id': listingId,
+        'user_id': _currentUserId!,
+        'size': size,
+        'gender': gender?.value,
+        'notified_at': null,
+      }, onConflict: 'listing_id,user_id,size,gender');
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Stok bildirimi kaydedilemedi: $e');
+    }
+  }
+
+  @override
+  Future<void> unsubscribeStockAlert(
+    String listingId, {
+    String? size,
+    ListingGender? gender,
+  }) async {
+    try {
+      if (_currentUserId == null) {
+        throw ServerException(message: 'Kullanıcı giriş yapmamış', code: 'UNAUTHORIZED');
+      }
+
+      var query = _supabase
+          .from('listing_stock_alerts')
+          .delete()
+          .eq('listing_id', listingId)
+          .eq('user_id', _currentUserId!);
+
+      if (size == null) {
+        query = query.isFilter('size', null);
+      } else {
+        query = query.eq('size', size);
+      }
+
+      if (gender == null) {
+        query = query.isFilter('gender', null);
+      } else {
+        query = query.eq('gender', gender.value);
+      }
+
+      await query;
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Stok bildirimi kaldırılamadı: $e');
+    }
+  }
+
+  @override
+  Future<List<StockAlertSubscription>> getUserStockAlertsForListing(
+    String listingId,
+  ) async {
+    try {
+      if (_currentUserId == null) return [];
+
+      final response = await _supabase
+          .from('listing_stock_alerts')
+          .select('id, listing_id, size, gender')
+          .eq('listing_id', listingId)
+          .eq('user_id', _currentUserId!)
+          .isFilter('notified_at', null);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data
+          .map((row) => StockAlertSubscription.fromJson(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  @override
+  Future<List<ListingStockAlertGroup>> getPendingStockAlertGroups() async {
+    try {
+      final response = await _supabase
+          .from('listing_stock_alerts')
+          .select('''
+            id,
+            listing_id,
+            user_id,
+            size,
+            gender,
+            created_at,
+            users!inner(first_name, last_name, avatar_url),
+            marketplace_listings!inner(
+              title,
+              listing_images(image_url, sort_order)
+            )
+          ''')
+          .isFilter('notified_at', null)
+          .order('created_at', ascending: false);
+
+      final List<dynamic> rows = response as List<dynamic>;
+      final grouped = <String, ListingStockAlertGroup>{};
+
+      for (final row in rows) {
+        final map = row as Map<String, dynamic>;
+        final listingId = map['listing_id'] as String;
+        final listing = map['marketplace_listings'] as Map<String, dynamic>;
+        final title = listing['title'] as String? ?? 'Ürün';
+        final images = listing['listing_images'] as List<dynamic>? ?? [];
+        images.sort((a, b) =>
+            (a['sort_order'] as int? ?? 0).compareTo(b['sort_order'] as int? ?? 0));
+        final imageUrl =
+            images.isNotEmpty ? images.first['image_url'] as String? : null;
+
+        final request = StockAlertRequest.fromJson(map);
+        final existing = grouped[listingId];
+        if (existing == null) {
+          grouped[listingId] = ListingStockAlertGroup(
+            listingId: listingId,
+            listingTitle: title,
+            imageUrl: imageUrl,
+            alertCount: 1,
+            requests: [request],
+          );
+        } else {
+          grouped[listingId] = ListingStockAlertGroup(
+            listingId: listingId,
+            listingTitle: title,
+            imageUrl: imageUrl,
+            alertCount: existing.alertCount + 1,
+            requests: [...existing.requests, request],
+          );
+        }
+      }
+
+      final groups = grouped.values.toList()
+        ..sort((a, b) => b.alertCount.compareTo(a.alertCount));
+      return groups;
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Stok talepleri yüklenemedi: $e');
     }
   }
 }

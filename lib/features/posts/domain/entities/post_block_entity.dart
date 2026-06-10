@@ -68,6 +68,9 @@ enum PostBlockType {
   /// Görsel
   image,
 
+  /// Harici bağlantı
+  link,
+
   /// Yarış sonuçları
   raceResults;
 
@@ -97,6 +100,8 @@ enum PostBlockType {
         return PostBlockType.divider;
       case 'image':
         return PostBlockType.image;
+      case 'link':
+        return PostBlockType.link;
       case 'race_results':
         return PostBlockType.raceResults;
       default:
@@ -130,6 +135,8 @@ enum PostBlockType {
         return 'divider';
       case PostBlockType.image:
         return 'image';
+      case PostBlockType.link:
+        return 'link';
       case PostBlockType.raceResults:
         return 'race_results';
     }
@@ -161,6 +168,8 @@ enum PostBlockType {
         return 'Ayırıcı';
       case PostBlockType.image:
         return 'Görsel';
+      case PostBlockType.link:
+        return 'Link';
       case PostBlockType.raceResults:
         return 'Yarış Sonuçları';
     }
@@ -192,6 +201,8 @@ enum PostBlockType {
         return '#BDBDBD'; // Neutral 400
       case PostBlockType.image:
         return '#424242'; // Neutral
+      case PostBlockType.link:
+        return '#1976D2'; // Info (Mavi)
       case PostBlockType.raceResults:
         return '#1E3A5F'; // Primary
     }
@@ -223,6 +234,8 @@ enum PostBlockType {
         return '';
       case PostBlockType.image:
         return '🖼️';
+      case PostBlockType.link:
+        return '🔗';
       case PostBlockType.raceResults:
         return '🏆';
     }

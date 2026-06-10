@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/errors/exceptions.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/loading_widget.dart';
@@ -29,6 +28,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _searchController = TextEditingController();
+  bool _isPendingUsersExpanded = false;
 
   @override
   void initState() {
@@ -44,6 +44,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
       if (ref.read(isAdminProvider)) {
         ref.read(pendingUsersProvider.future);
         ref.read(allPendingJoinRequestsProvider.future);
+        ref.read(unassignedUsersProvider.future);
       }
     });
   }
@@ -64,39 +65,73 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(isAdminProvider);
 
-    int joinRequestCount = 0;
+    int groupRequestCount = 0;
     int pendingUserCount = 0;
+    int unassignedUserCount = 0;
     if (isAdmin) {
-      joinRequestCount =
+      groupRequestCount =
           ref.watch(allPendingJoinRequestsProvider).valueOrNull?.length ?? 0;
       pendingUserCount =
           ref.watch(pendingUsersProvider).valueOrNull?.length ?? 0;
+      unassignedUserCount = ref.watch(unassignedUsersBadgeCountProvider);
     }
 
     return Scaffold(
       appBar: AppBar(
-        leading: isAdmin && _tabController.index == 1
+        leading: isAdmin && _tabController.index == 0
             ? IconButton(
-                icon: const Icon(Icons.speed),
-                tooltip: 'VDOT Eşik Değerleri',
-                onPressed: () =>
-                    context.pushNamed(RouteNames.vdotThresholdList),
+                tooltip: 'Grup Talepleri',
+                onPressed: () => context.pushNamed(RouteNames.groupRequests),
+                icon: groupRequestCount > 0
+                    ? Badge(
+                        label: Text(
+                          groupRequestCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        backgroundColor: AppColors.warning,
+                        child: const Icon(Icons.inbox_outlined),
+                      )
+                    : const Icon(Icons.inbox_outlined),
               )
-            : null,
+            : isAdmin && _tabController.index == 1
+                ? IconButton(
+                    icon: const Icon(Icons.speed),
+                    tooltip: 'VDOT Eşik Değerleri',
+                    onPressed: () =>
+                        context.pushNamed(RouteNames.vdotThresholdList),
+                  )
+                : null,
         title: const Text('Gruplar ve Üyeler'),
         bottom: TabBar(
           controller: _tabController,
           tabs: [
-            _BadgeTab(label: 'Gruplar', count: joinRequestCount),
+            const Tab(text: 'Gruplar'),
             _BadgeTab(label: 'Üyeler', count: pendingUserCount),
           ],
         ),
         actions: [
           if (isAdmin && _tabController.index == 0)
             IconButton(
-              icon: const Icon(Icons.group_off),
               tooltip: 'Grupsuz Üyeler',
               onPressed: () => context.pushNamed(RouteNames.unassignedMembers),
+              icon: unassignedUserCount > 0
+                  ? Badge(
+                      label: Text(
+                        unassignedUserCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      backgroundColor: AppColors.warning,
+                      child: const Icon(Icons.group_off),
+                    )
+                  : const Icon(Icons.group_off),
             ),
           if (isAdmin && _tabController.index == 0)
             IconButton(
@@ -116,6 +151,12 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
               tooltip: 'Etkinlik Raporu',
               onPressed: () => context.pushNamed(RouteNames.eventReport),
             ),
+          if (isAdmin && _tabController.index == 1)
+            IconButton(
+              icon: const Icon(Icons.person_off_outlined),
+              tooltip: 'Engellenen ve Reddedilenler',
+              onPressed: () => context.pushNamed(RouteNames.bannedRejectedUsers),
+            ),
         ],
       ),
       body: TabBarView(
@@ -130,9 +171,10 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
 
   Widget _buildGroupsTab() {
     final groupsAsync = ref.watch(allGroupsProvider);
-    final joinRequestsAsync = ref.watch(isAdminProvider)
-        ? ref.watch(allPendingJoinRequestsProvider)
-        : null;
+    final pendingRequestsAsync = ref.watch(userPendingJoinRequestsProvider);
+    final pendingGroupIds = (pendingRequestsAsync.valueOrNull ?? [])
+        .map((r) => r.groupId)
+        .toSet();
     // Sadece loading state için watch et, her build'de yeniden hesaplama yapma
     final membershipState = ref.watch(groupMembershipProvider);
     final isLoadingMembership = membershipState is AsyncLoading;
@@ -143,20 +185,9 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
         final userGroups = groups.where((g) => g.isUserMember).toList();
         final otherGroups = groups.where((g) => !g.isUserMember).toList();
 
-        // Liste item'larını oluştur - Bekleyen Katılım Talepleri en üstte (admin)
         final items = <_GroupListItem>[];
-        if (ref.read(isAdminProvider) &&
-            joinRequestsAsync?.value != null &&
-            joinRequestsAsync!.value!.isNotEmpty) {
-          final joinRequests = joinRequestsAsync.value!;
-          items.add(_GroupListItem.joinRequestsHeader(count: joinRequests.length));
-          for (final r in joinRequests) {
-            items.add(_GroupListItem.joinRequest(r));
-          }
-          items.add(_GroupListItem.spacer());
-        }
 
-        if (groups.isEmpty && items.isEmpty) {
+        if (groups.isEmpty) {
           return const EmptyStateWidget(
             icon: Icons.groups_outlined,
             title: 'Henüz grup yok',
@@ -170,7 +201,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
             title: 'Gruplarım',
             iconColor: AppColors.success,
           ));
-          items.addAll(userGroups.map((g) => _GroupListItem.group(g, true)));
+          items.addAll(userGroups.map((g) => _GroupListItem.group(g)));
           if (otherGroups.isNotEmpty) {
             items.add(_GroupListItem.spacer());
           }
@@ -182,7 +213,14 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
             title: 'Diğer Gruplar',
             iconColor: AppColors.neutral500,
           ));
-          items.addAll(otherGroups.map((g) => _GroupListItem.group(g, false)));
+          items.addAll(
+            otherGroups.map(
+              (g) => _GroupListItem.group(
+                g,
+                hasPendingRequest: pendingGroupIds.contains(g.id),
+              ),
+            ),
+          );
         }
 
         return RefreshIndicator(
@@ -193,7 +231,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
             }
           },
           child: ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.only(top: 8, bottom: 24),
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
@@ -201,12 +239,8 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                 context: context,
                 ref: ref,
                 isLoadingMembership: isLoadingMembership,
-                onJoinLeave: (groupId, isMember) =>
-                    _handleJoinLeave(context, ref, groupId, isMember),
-                onApproveJoinRequest: (requestId, groupId) =>
-                    _handleApproveJoinRequest(context, ref, requestId, groupId),
-                onRejectJoinRequest: (requestId, groupId) =>
-                    _handleRejectJoinRequest(context, ref, requestId, groupId),
+                onRequestJoin: (groupId) =>
+                    _handleRequestJoin(context, ref, groupId),
               );
             },
           ),
@@ -301,14 +335,19 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
 
                 if (filteredPendingUsers.isNotEmpty) {
                   final pendingData = pendingUsersAsync?.value ?? [];
-                  items.add(_UserListItem.header(
+                  items.add(_UserListItem.collapsibleHeader(
                     icon: Icons.pending_actions,
                     title: 'Onay Bekleyenler',
                     count: filteredPendingUsers.length,
                     totalCount: searchQuery.isNotEmpty ? pendingData.length : null,
                     iconColor: AppColors.warning,
+                    isExpanded: _isPendingUsersExpanded,
                   ));
-                  items.addAll(filteredPendingUsers.map((u) => _UserListItem.user(u, true)));
+                  if (_isPendingUsersExpanded) {
+                    items.addAll(
+                      filteredPendingUsers.map((u) => _UserListItem.user(u, true)),
+                    );
+                  }
                 }
 
                 if (filteredUsers.isNotEmpty) {
@@ -334,9 +373,14 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                       context: context,
                       ref: ref,
                       onApproveUser: (userId) => _handleApproveUser(context, ref, userId),
+                      onRejectUser: (userId) => _handleRejectUser(context, ref, userId),
                       onDeactivateUser: (userId) => _handleDeactivateUser(context, ref, userId),
                       onShowRoleChangeDialog: (user) => _showRoleChangeDialog(context, ref, user),
-                      onAssignToGroup: (user) => _showAssignToGroupDialog(context, ref, user),
+                      onTogglePendingSection: () {
+                        setState(() {
+                          _isPendingUsersExpanded = !_isPendingUsersExpanded;
+                        });
+                      },
                     );
                   },
                 );
@@ -395,232 +439,14 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
     }
   }
 
-  void _handleApproveJoinRequest(
-    BuildContext context,
-    WidgetRef ref,
-    String requestId,
-    String groupId,
-  ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await ref.read(joinRequestActionProvider.notifier).approveRequest(
-            requestId,
-            groupId,
-          );
-      ref.invalidate(allPendingJoinRequestsProvider);
-      if (context.mounted) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Katılım talebi onaylandı'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Onay sırasında hata: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
-  }
-
-  void _handleRejectJoinRequest(
-    BuildContext context,
-    WidgetRef ref,
-    String requestId,
-    String groupId,
-  ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await ref.read(joinRequestActionProvider.notifier).rejectRequest(
-            requestId,
-            groupId,
-          );
-      ref.invalidate(allPendingJoinRequestsProvider);
-      if (context.mounted) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Katılım talebi reddedildi'),
-            backgroundColor: AppColors.neutral600,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Reddetme sırasında hata: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showAssignToGroupDialog(
-    BuildContext context,
-    WidgetRef ref,
-    UserEntity user,
-  ) async {
-    final groupsAsync = await ref.read(allGroupsProvider.future);
-    if (groupsAsync.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Henüz grup oluşturulmamış')),
-        );
-      }
-      return;
-    }
-
-    if (!context.mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.8,
-        expand: false,
-        builder: (ctx, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.neutral300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  '${user.fullName} - Gruba Ata',
-                  style: AppTypography.titleLarge,
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemCount: groupsAsync.length,
-                  itemBuilder: (ctx, index) {
-                    final group = groupsAsync[index];
-                    return ListTile(
-                      leading: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: _parseGroupColor(group.color)
-                              .withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          Icons.groups,
-                          color: _parseGroupColor(group.color),
-                          size: 20,
-                        ),
-                      ),
-                      title: Row(
-                        children: [
-                          Flexible(child: Text(group.name)),
-                          if (group.isPerformanceGroup) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 1,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.secondary.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                              child: Text(
-                                'P',
-                                style: AppTypography.labelSmall.copyWith(
-                                  color: AppColors.secondary,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      subtitle: group.targetDistance != null
-                          ? Text('Hedef: ${group.targetDistance}')
-                          : null,
-                      onTap: () async {
-                        Navigator.pop(ctx);
-                        try {
-                          await ref.read(memberTransferProvider.notifier).transferMember(
-                                user.id,
-                                group.id,
-                              );
-                          ref.invalidate(activeUsersProvider);
-                          ref.invalidate(allGroupsProvider);
-                          ref.invalidate(unassignedUsersProvider);
-                          if (context.mounted) {
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '${user.fullName} "${group.name}" grubuna atandı',
-                                ),
-                                backgroundColor: AppColors.success,
-                              ),
-                            );
-                          }
-                        } catch (_) {
-                          if (context.mounted) {
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Gruba atama başarısız. Lütfen tekrar deneyin.'),
-                                backgroundColor: AppColors.error,
-                              ),
-                            );
-                          }
-                        }
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Color _parseGroupColor(String colorHex) {
-    try {
-      final hex = colorHex.replaceFirst('#', '');
-      return Color(int.parse('FF$hex', radix: 16));
-    } catch (_) {
-      return AppColors.primary;
-    }
-  }
-
-  void _handleDeactivateUser(BuildContext context, WidgetRef ref, String userId) async {
+  void _handleRejectUser(BuildContext context, WidgetRef ref, String userId) async {
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Kullanıcıyı Pasifleştir'),
+        title: const Text('Üyelik Başvurusunu Reddet'),
         content: const Text(
-          'Bu kullanıcıyı pasifleştirmek istediğinizden emin misiniz? Kullanıcı giriş yapamayacak ve uygulamayı kullanamayacaktır.',
+          'Bu kullanıcının başvurusunu reddetmek istediğinizden emin misiniz? Kullanıcı "Reddedilenler" listesine taşınacak.',
         ),
         actions: [
           TextButton(
@@ -630,7 +456,43 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text(
-              'Pasifleştir',
+              'Reddet',
+              style: TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await ref.read(userApprovalProvider.notifier).rejectUser(userId);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Başvuru reddedildi'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+    }
+  }
+
+  void _handleDeactivateUser(BuildContext context, WidgetRef ref, String userId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Kullanıcıyı Banla'),
+        content: const Text(
+          'Bu kullanıcıyı engellemek istediğinizden emin misiniz? Kullanıcı giriş yapamayacak ve "Engellenenler" listesine taşınacaktır.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              'Banla',
               style: TextStyle(color: AppColors.error),
             ),
           ),
@@ -643,7 +505,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
 
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Kullanıcı pasifleştirildi'),
+          content: Text('Kullanıcı banlandı'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -803,150 +665,53 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
     );
   }
 
-  void _handleJoinLeave(BuildContext context, WidgetRef ref, String groupId, bool isMember) async {
-    final notifier = ref.read(groupMembershipProvider.notifier);
-
-    if (isMember) {
-      // Gruptan ayrıl
-      final confirmed = await _showLeaveConfirmation(context);
-      if (confirmed) {
-        await notifier.leaveGroup(groupId);
-      }
-    } else {
-      // Gruba katıl - performans grubu ise talep gönderilir
-      try {
-        // Grubun tipini kontrol et
-        final groups = ref.read(allGroupsProvider).value ?? [];
-        final group = groups.where((g) => g.id == groupId).firstOrNull;
-        final isPerformance = group?.isPerformanceGroup ?? false;
-
-        if (isPerformance) {
-          // Bekleyen talep var mı kontrol et
-          final dataSource = ref.read(groupDataSourceProvider);
-          final hasPending = await dataSource.hasUserPendingRequest(groupId);
-          if (hasPending) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Bu grup için zaten bekleyen bir talebiniz var'),
-                  backgroundColor: AppColors.warning,
-                ),
-              );
-            }
-            return;
-          }
-        }
-
-        await notifier.joinGroup(groupId);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(isPerformance
-                  ? 'Katılım talebi gönderildi. Admin onayı bekleniyor.'
-                  : 'Gruba katıldınız'),
-              backgroundColor: AppColors.success,
-            ),
-          );
-          if (isPerformance) {
-            ref.invalidate(userPendingJoinRequestsProvider);
-            ref.invalidate(hasUserPendingRequestProvider(groupId));
-          }
-        }
-      } on UserAlreadyInGroupException catch (e) {
-        if (context.mounted) {
-          _showAlreadyInGroupDialog(context, ref, e, targetGroupId: groupId);
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Gruba katılırken hata: $e'),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
-      }
-    }
-  }
-
-  void _showAlreadyInGroupDialog(
+  void _handleRequestJoin(
     BuildContext context,
     WidgetRef ref,
-    UserAlreadyInGroupException e, {
-    required String targetGroupId,
-  }) {
-    final groupName = e.currentGroupName ?? 'mevcut grup';
-    final currentGroupId = e.currentGroupId;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Zaten bir gruba üyesiniz'),
-        content: Text(
-          'Şu an "$groupName" grubuna üyesiniz. Başka bir gruba geçmek için önce bu gruptan ayrılmalısınız.',
-        ),
-        actions: [
-          if (currentGroupId != null)
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                final notifier = ref.read(groupMembershipProvider.notifier);
-                try {
-                  await notifier.leaveGroup(currentGroupId);
-                  await notifier.joinGroup(targetGroupId);
-                  if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(
-                        content: Text('Grup değiştirildi, yeni gruba katıldınız'),
-                        backgroundColor: AppColors.success,
-                      ),
-                    );
-                  }
-                } catch (err) {
-                  if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      SnackBar(
-                        content: Text('İşlem sırasında hata: $err'),
-                        backgroundColor: AppColors.error,
-                      ),
-                    );
-                  }
-                }
-              },
-              child: const Text('Çıkıp bu gruba katıl'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Kapat'),
+    String groupId,
+  ) async {
+    final dataSource = ref.read(groupDataSourceProvider);
+    final hasPending = await dataSource.hasUserPendingRequest(groupId);
+    if (hasPending) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Bu grup için zaten bekleyen bir talebiniz var'),
+            backgroundColor: AppColors.warning,
           ),
-        ],
-      ),
-    );
-  }
+        );
+      }
+      return;
+    }
 
-  Future<bool> _showLeaveConfirmation(BuildContext context) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Gruptan Ayrıl'),
-            content: const Text(
-              'Bu gruptan ayrılmak istediğinizden emin misiniz?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('İptal'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(
-                  'Ayrıl',
-                  style: TextStyle(color: AppColors.error),
-                ),
-              ),
-            ],
+    final groups = ref.read(allGroupsProvider).value ?? [];
+    final isTransfer = groups.any((g) => g.isUserMember);
+    final message = isTransfer
+        ? 'Grup değişim talebi gönderildi. Admin onayı bekleniyor.'
+        : 'Katılım talebi gönderildi. Admin onayı bekleniyor.';
+
+    try {
+      await ref.read(groupMembershipProvider.notifier).joinGroup(groupId);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: AppColors.success,
           ),
-        ) ??
-        false;
+        );
+        ref.invalidate(userPendingJoinRequestsProvider);
+        ref.invalidate(hasUserPendingRequestProvider(groupId));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Talep gönderilirken hata: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -954,46 +719,28 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
 class _GroupListItem {
   final _ItemType type;
   final TrainingGroupEntity? group;
-  final GroupJoinRequestEntity? joinRequest;
-  final bool? isUserMember;
+  final bool hasPendingRequest;
   final IconData? icon;
   final String? title;
   final Color? iconColor;
-  final int? count;
 
   _GroupListItem._({
     required this.type,
     this.group,
-    this.joinRequest,
-    this.isUserMember,
+    this.hasPendingRequest = false,
     this.icon,
     this.title,
     this.iconColor,
-    this.count,
   });
 
-  factory _GroupListItem.group(TrainingGroupEntity group, bool isUserMember) {
+  factory _GroupListItem.group(
+    TrainingGroupEntity group, {
+    bool hasPendingRequest = false,
+  }) {
     return _GroupListItem._(
       type: _ItemType.group,
       group: group,
-      isUserMember: isUserMember,
-    );
-  }
-
-  factory _GroupListItem.joinRequestsHeader({required int count}) {
-    return _GroupListItem._(
-      type: _ItemType.joinRequestsHeader,
-      icon: Icons.group_add,
-      title: 'Bekleyen Katılım Talepleri',
-      iconColor: AppColors.warning,
-      count: count,
-    );
-  }
-
-  factory _GroupListItem.joinRequest(GroupJoinRequestEntity request) {
-    return _GroupListItem._(
-      type: _ItemType.joinRequest,
-      joinRequest: request,
+      hasPendingRequest: hasPendingRequest,
     );
   }
 
@@ -1018,51 +765,21 @@ class _GroupListItem {
     required BuildContext context,
     required WidgetRef ref,
     required bool isLoadingMembership,
-    required void Function(String groupId, bool isMember) onJoinLeave,
-    void Function(String requestId, String groupId)? onApproveJoinRequest,
-    void Function(String requestId, String groupId)? onRejectJoinRequest,
+    required void Function(String groupId) onRequestJoin,
   }) {
     switch (type) {
-      case _ItemType.joinRequestsHeader:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon!, size: 20, color: iconColor),
-                const SizedBox(width: 8),
-                Text(
-                  '$title (${count ?? 0})',
-                  style: AppTypography.titleMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
-        );
-      case _ItemType.joinRequest:
-        return _buildJoinRequestCard(
-          context,
-          ref,
-          joinRequest!,
-          onApproveJoinRequest ?? (_, __) {},
-          onRejectJoinRequest ?? (_, __) {},
-        );
       case _ItemType.group:
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: GroupCard(
-            key: ValueKey('group_${group!.id}'),
-            group: group!,
-            onTap: () => context.pushNamed(
-              RouteNames.groupDetail,
-              pathParameters: {'groupId': group!.id},
-            ),
-            onJoinLeave: () => onJoinLeave(group!.id, isUserMember!),
-            isLoading: isLoadingMembership,
+        final g = group!;
+        return GroupCard(
+          key: ValueKey('group_${g.id}'),
+          group: g,
+          onTap: () => context.pushNamed(
+            RouteNames.groupDetail,
+            pathParameters: {'groupId': g.id},
           ),
+          onRequestJoin: g.isUserMember ? null : () => onRequestJoin(g.id),
+          hasPendingRequest: hasPendingRequest,
+          isLoading: isLoadingMembership,
         );
       case _ItemType.header:
         return _SectionHeader(
@@ -1071,75 +788,13 @@ class _GroupListItem {
           iconColor: iconColor!,
         );
       case _ItemType.spacer:
-        return const SizedBox(height: 12);
+        return const SizedBox(height: 24);
     }
-  }
-
-  static Widget _buildJoinRequestCard(
-    BuildContext context,
-    WidgetRef ref,
-    GroupJoinRequestEntity request,
-    void Function(String requestId, String groupId) onApprove,
-    void Function(String requestId, String groupId) onReject,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.warningContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          UserAvatar(
-            size: 40,
-            name: request.userName,
-            imageUrl: request.userAvatarUrl,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  request.userName,
-                  style: AppTypography.titleSmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  '${request.groupName ?? "Grup"} • Talep: ${_formatJoinRequestDate(request.requestedAt)}',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.check_circle, color: AppColors.success),
-            tooltip: 'Onayla',
-            onPressed: () => onApprove(request.id, request.groupId),
-          ),
-          IconButton(
-            icon: const Icon(Icons.cancel, color: AppColors.error),
-            tooltip: 'Reddet',
-            onPressed: () => onReject(request.id, request.groupId),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _formatJoinRequestDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
   }
 }
 
 enum _ItemType {
   group,
-  joinRequestsHeader,
-  joinRequest,
   header,
   spacer,
 }
@@ -1154,6 +809,7 @@ class _UserListItem {
   final Color? iconColor;
   final int? count;
   final int? totalCount;
+  final bool? isExpanded;
 
   _UserListItem._({
     required this.type,
@@ -1164,6 +820,7 @@ class _UserListItem {
     this.iconColor,
     this.count,
     this.totalCount,
+    this.isExpanded,
   });
 
   factory _UserListItem.user(UserEntity user, bool isPending) {
@@ -1191,6 +848,25 @@ class _UserListItem {
     );
   }
 
+  factory _UserListItem.collapsibleHeader({
+    required IconData icon,
+    required String title,
+    required Color iconColor,
+    required int count,
+    required bool isExpanded,
+    int? totalCount,
+  }) {
+    return _UserListItem._(
+      type: _UserItemType.collapsibleHeader,
+      icon: icon,
+      title: title,
+      iconColor: iconColor,
+      count: count,
+      totalCount: totalCount,
+      isExpanded: isExpanded,
+    );
+  }
+
   factory _UserListItem.spacer() {
     return _UserListItem._(type: _UserItemType.spacer);
   }
@@ -1199,14 +875,15 @@ class _UserListItem {
     required BuildContext context,
     required WidgetRef ref,
     required void Function(String userId) onApproveUser,
+    required void Function(String userId) onRejectUser,
     required void Function(String userId) onDeactivateUser,
     required void Function(UserEntity user) onShowRoleChangeDialog,
-    void Function(UserEntity user)? onAssignToGroup,
+    VoidCallback? onTogglePendingSection,
   }) {
     switch (type) {
       case _UserItemType.user:
         if (isPending!) {
-          return _buildPendingUserCard(context, ref, user!, onApproveUser);
+          return _buildPendingUserCard(context, ref, user!, onApproveUser, onRejectUser);
         } else {
           return _buildUserCard(
             context,
@@ -1214,7 +891,6 @@ class _UserListItem {
             user!,
             onDeactivateUser,
             onShowRoleChangeDialog,
-            onAssignToGroup,
           );
         }
       case _UserItemType.header:
@@ -1240,6 +916,45 @@ class _UserListItem {
             const SizedBox(height: 12),
           ],
         );
+      case _UserItemType.collapsibleHeader:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTogglePendingSection,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        icon!,
+                        size: 20,
+                        color: iconColor!,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '$title (${count!}${totalCount != null ? ' / $totalCount' : ''})',
+                          style: AppTypography.titleMedium.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        isExpanded! ? Icons.expand_less : Icons.expand_more,
+                        color: AppColors.neutral500,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (isExpanded!) const SizedBox(height: 12),
+          ],
+        );
       case _UserItemType.spacer:
         return const SizedBox(height: 32);
     }
@@ -1251,7 +966,6 @@ class _UserListItem {
     UserEntity user,
     void Function(String userId) onDeactivateUser,
     void Function(UserEntity user) onShowRoleChangeDialog,
-    void Function(UserEntity user)? onAssignToGroup,
   ) {
     final isAdmin = ref.watch(isAdminProvider);
     final approvalState = ref.watch(userApprovalProvider);
@@ -1260,8 +974,6 @@ class _UserListItem {
     final isNotSelf = currentUser?.id != user.id;
     // Rol değiştirme ve pasifleştirme: admin kullanıcılara uygulanamaz
     final canManage = isAdmin && isNotSelf && !user.isAdmin;
-    // Grup ataması: admin kullanıcılara da yapılabilir
-    final canAssignGroup = isAdmin && isNotSelf;
     final isLoading = approvalState.isLoading || roleUpdateState.isLoading;
 
     // Kullanıcının ana rolünü belirle (super_admin > coach > member)
@@ -1270,8 +982,6 @@ class _UserListItem {
         : user.isCoach
             ? 'coach'
             : 'member';
-
-    final showActions = canManage || canAssignGroup;
 
     return Material(
       color: Colors.transparent,
@@ -1318,7 +1028,7 @@ class _UserListItem {
                 ),
               ),
               // Action butonları
-              if (showActions) ...[
+              if (canManage) ...[
                 const SizedBox(width: 8),
                 isLoading
                     ? const SizedBox(
@@ -1329,39 +1039,25 @@ class _UserListItem {
                     : Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (onAssignToGroup != null && canAssignGroup)
-                            _buildActionButton(
-                              context: context,
-                              ref: ref,
-                              user: user,
-                              icon: Icons.group_add,
-                              color: AppColors.secondary,
-                              tooltip: 'Gruba Ata',
-                              onPressed: () => onAssignToGroup(user),
-                            ),
-                          if (onAssignToGroup != null && canAssignGroup && canManage)
-                            const SizedBox(width: 4),
-                          if (canManage)
-                            _buildActionButton(
-                              context: context,
-                              ref: ref,
-                              user: user,
-                              icon: Icons.admin_panel_settings,
-                              color: AppColors.primary,
-                              tooltip: 'Rolü Değiştir',
-                              onPressed: () => onShowRoleChangeDialog(user),
-                            ),
-                          if (canManage) const SizedBox(width: 4),
-                          if (canManage)
-                            _buildActionButton(
-                              context: context,
-                              ref: ref,
-                              user: user,
-                              icon: Icons.block,
-                              color: AppColors.error,
-                              tooltip: 'Kullanıcıyı Pasifleştir',
-                              onPressed: () => onDeactivateUser(user.id),
-                            ),
+                          _buildActionButton(
+                            context: context,
+                            ref: ref,
+                            user: user,
+                            icon: Icons.admin_panel_settings,
+                            color: AppColors.primary,
+                            tooltip: 'Rolü Değiştir',
+                            onPressed: () => onShowRoleChangeDialog(user),
+                          ),
+                          const SizedBox(width: 4),
+                          _buildActionButton(
+                            context: context,
+                            ref: ref,
+                            user: user,
+                            icon: Icons.block,
+                            color: AppColors.error,
+                            tooltip: 'Kullanıcıyı Banla',
+                            onPressed: () => onDeactivateUser(user.id),
+                          ),
                         ],
                       ),
               ],
@@ -1377,6 +1073,7 @@ class _UserListItem {
     WidgetRef ref,
     UserEntity user,
     void Function(String userId) onApproveUser,
+    void Function(String userId) onRejectUser,
   ) {
     final approvalState = ref.watch(userApprovalProvider);
 
@@ -1392,6 +1089,8 @@ class _UserListItem {
         title: Text(
           user.fullName,
           style: AppTypography.titleSmall,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         trailing: approvalState.isLoading
             ? const SizedBox(
@@ -1399,14 +1098,22 @@ class _UserListItem {
                 height: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            : ElevatedButton.icon(
-                onPressed: () => onApproveUser(user.id),
-                icon: const Icon(Icons.check, size: 18),
-                label: const Text('Onayla'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                  foregroundColor: Colors.white,
-                ),
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.cancel, color: AppColors.error),
+                    tooltip: 'Reddet',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => onRejectUser(user.id),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.check_circle, color: AppColors.success),
+                    tooltip: 'Onayla',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => onApproveUser(user.id),
+                  ),
+                ],
               ),
       ),
     );
@@ -1449,6 +1156,7 @@ class _UserListItem {
 enum _UserItemType {
   user,
   header,
+  collapsibleHeader,
   spacer,
 }
 
@@ -1466,21 +1174,26 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 20,
-          color: iconColor,
-        ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: AppTypography.titleMedium.copyWith(
-            fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: iconColor),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: AppTypography.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+        ],
+      ),
     );
   }
 }

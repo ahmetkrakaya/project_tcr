@@ -516,6 +516,13 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildEventCard(BuildContext context, EventEntity event) {
+    final trainingRoutes = event.eventType == EventType.training
+        ? ref.watch(eventRouteOptionsProvider(event.id)).valueOrNull
+        : null;
+    final locationText = (trainingRoutes != null && trainingRoutes.length >= 2)
+        ? trainingRoutes.map((r) => r.displayName).join(' · ')
+        : event.locationName;
+
     return AppCard(
       padding: EdgeInsets.zero,
       elevation: 2,
@@ -679,7 +686,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                           fontSize: 11,
                         ),
                       ),
-                      if (event.locationName != null) ...[
+                      if (locationText != null) ...[
                         const SizedBox(width: 8),
                         const Icon(
                           Icons.location_on_outlined,
@@ -689,7 +696,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            event.locationName!,
+                            locationText,
                             style: AppTypography.labelSmall.copyWith(
                               color: AppColors.neutral500,
                               fontSize: 11,

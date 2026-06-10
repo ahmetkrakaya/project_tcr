@@ -7,8 +7,8 @@ import 'package:fit_tool/fit_tool.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../../../core/utils/vdot_calculator.dart';
 import '../domain/entities/workout_entity.dart';
+import '../utils/segment_target_resolver.dart';
 import 'models/workout_model.dart';
 
 /// FIT, TCX ve JSONV2 formatında antrenman export servisi
@@ -35,51 +35,13 @@ class WorkoutExportService {
     return out;
   }
 
-  /// Pace aralığını hesapla (VDOT modu veya manuel).
-  /// Dönen tuple: (hızlı pace, yavaş pace) saniye/km cinsinden.
   (int, int)? _getEffectivePaceRange(
     WorkoutSegmentEntity s,
     double? userVdot, {
     int? offsetMin,
     int? offsetMax,
-  }) {
-    // Segment VDOT modu açıksa ve target pace ise VDOT'tan hesapla
-    if (s.target == WorkoutTarget.pace &&
-        s.useVdotForPace == true &&
-        userVdot != null &&
-        userVdot > 0) {
-      final paceRange = VdotCalculator.getPaceRangeForSegmentType(
-        userVdot,
-        s.segmentType.name,
-        offsetMin,
-        offsetMax,
-      );
-      if (paceRange != null) return (paceRange.$1, paceRange.$2);
-    }
-
-    // Manuel pace (target == pace ise)
-    if (s.target == WorkoutTarget.pace) {
-      final paceMin = s.paceSecondsPerKmMin ?? s.customPaceSecondsPerKm ?? s.paceSecondsPerKm;
-      final paceMax = s.paceSecondsPerKmMax ?? paceMin;
-      if (paceMin != null) return (paceMin, paceMax!);
-    }
-
-    // Fallback: segment'te pace hedefi olmasa bile,
-    // training type offset'leri + kullanıcı VDOT'u varsa pace hesapla.
-    if (userVdot != null &&
-        userVdot > 0 &&
-        (offsetMin != null || offsetMax != null)) {
-      final paceRange = VdotCalculator.getPaceRangeForSegmentType(
-        userVdot,
-        s.segmentType.name,
-        offsetMin,
-        offsetMax,
-      );
-      if (paceRange != null) return (paceRange.$1, paceRange.$2);
-    }
-
-    return null;
-  }
+  }) =>
+      effectivePaceRange(s, userVdot: userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
 
   /// FIT dosyası oluşturur (Garmin vb.)
   Uint8List exportToFit(

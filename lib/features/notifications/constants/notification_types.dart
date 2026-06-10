@@ -12,11 +12,15 @@ class NotificationTypes {
   static const String postCreated = 'post_created';
   static const String postUpdated = 'post_updated';
   static const String listingCreated = 'listing_created';
+  static const String listingBackInStock = 'listing_back_in_stock';
+  static const String listingStockUpdated = 'listing_stock_updated';
+  static const String listingDiscount = 'listing_discount';
   static const String orderCreated = 'order_created';
   static const String orderStatusChanged = 'order_status_changed';
   static const String newMemberPending = 'new_member_pending';
   static const String birthdayReminder = 'birthday_reminder';
   static const String adminManual = 'admin_manual';
+  static const String engagementExcuseRequest = 'engagement_excuse_request';
 
   static const List<String> all = [
     eventCreated,
@@ -27,11 +31,15 @@ class NotificationTypes {
     postCreated,
     postUpdated,
     listingCreated,
+    listingBackInStock,
+    listingStockUpdated,
+    listingDiscount,
     orderCreated,
     orderStatusChanged,
     newMemberPending,
     birthdayReminder,
     adminManual,
+    engagementExcuseRequest,
   ];
 
   static String label(String type) {
@@ -52,6 +60,12 @@ class NotificationTypes {
         return 'Duyuru güncellendi';
       case listingCreated:
         return 'Yeni ürün';
+      case listingBackInStock:
+        return 'Gelince haber ver';
+      case listingStockUpdated:
+        return 'Stok güncellendi';
+      case listingDiscount:
+        return 'İndirim';
       case orderCreated:
         return 'Yeni sipariş';
       case orderStatusChanged:
@@ -62,6 +76,8 @@ class NotificationTypes {
         return 'Doğum günü hatırlatma';
       case adminManual:
         return 'Yönetici bildirimi';
+      case engagementExcuseRequest:
+        return 'Mazaret bildirimi';
       default:
         return type;
     }
@@ -98,8 +114,9 @@ class NotificationCategories {
       case market:
         return [
           NotificationTypes.listingCreated,
-          NotificationTypes.orderCreated,
-          NotificationTypes.orderStatusChanged,
+          NotificationTypes.listingBackInStock,
+          NotificationTypes.listingStockUpdated,
+          NotificationTypes.listingDiscount,
         ];
       case birthday:
         return [NotificationTypes.birthdayReminder];

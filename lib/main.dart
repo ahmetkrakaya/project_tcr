@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
@@ -23,6 +23,9 @@ import 'core/notifications/notification_handler.dart';
 import 'core/permissions/app_permissions.dart';
 import 'features/auth/presentation/providers/auth_notifier.dart' as auth_providers;
 import 'shared/providers/auth_provider.dart';
+import 'core/services/app_open_tracker.dart';
+import 'core/ui/keyboard_dismisser.dart';
+import 'features/events/presentation/widgets/engagement_excuse_gate.dart';
 
 import 'firebase_options.dart';
 
@@ -34,12 +37,10 @@ Future<void> main() async {
     // Firebase
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-    // Bildirim ve izinler sadece mobilde (web'de desteklenmiyor)
-    if (!kIsWeb) {
-      await FcmService.requestPermission();
-      await AppPermissions.requestMediaPermissions();
-      await initNotificationHandler(invokeNotificationNavigation);
-    }
+    // Bildirim ve izinler (mobil)
+    await FcmService.requestPermission();
+    await AppPermissions.requestMediaPermissions();
+    await initNotificationHandler(invokeNotificationNavigation);
 
     // Initialize date formatting for Turkish locale
     await initializeDateFormatting('tr_TR', null);
@@ -50,51 +51,47 @@ Future<void> main() async {
       anonKey: AppConstants.supabaseAnonKey,
     );
 
-    // FCM token: giriş yapmış kullanıcı varsa hemen yaz, token değişince güncelle (sadece mobil)
-    if (!kIsWeb) {
-      if (Supabase.instance.client.auth.currentUser != null) {
-        await FcmService.refreshAndSaveToken();
+    // FCM token: giriş yapmış kullanıcı varsa hemen yaz, token değişince güncelle
+    if (Supabase.instance.client.auth.currentUser != null) {
+      await FcmService.refreshAndSaveToken();
+      unawaited(AppOpenTracker.recordIfNeeded());
+    }
+    FcmService.onTokenRefresh.listen((token) => FcmService.saveTokenToSupabase(token));
+    Supabase.instance.client.auth.onAuthStateChange.listen((event) {
+      if (event.session != null) {
+        FcmService.refreshAndSaveToken();
+        unawaited(AppOpenTracker.recordIfNeeded());
       }
-      FcmService.onTokenRefresh.listen((token) => FcmService.saveTokenToSupabase(token));
-      Supabase.instance.client.auth.onAuthStateChange.listen((event) {
-        if (event.session != null) FcmService.refreshAndSaveToken();
-      });
-    }
+    });
 
-    // Sadece dikey (portrait) yönlendirme - mobilde App Store yayını için
-    if (!kIsWeb) {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]);
-    }
+    // Sadece dikey (portrait) yönlendirme - App Store yayını için
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
 
-    // Set system UI overlay style (sadece mobil)
-    if (!kIsWeb) {
-      SystemChrome.setSystemUIOverlayStyle(
-        const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          systemNavigationBarColor: Colors.white,
-          systemNavigationBarIconBrightness: Brightness.dark,
-        ),
-      );
-    }
+    // Set system UI overlay style
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+    );
 
     // Deep link ile açıldıysa hemen yakala (2 sn bekleyince intent kaybolabiliyor)
-    if (!kIsWeb) {
-      final initialUri = await getInitialUri();
-      final path = parseUriToAppPath(initialUri);
-      if (path != null) {
-        setPendingDeepLinkPath(path);
-        if (kDebugMode) debugPrint('TCR_DEEPLINK main: pending path set -> $path');
-      } else if (kDebugMode) {
-        debugPrint('TCR_DEEPLINK main: no initial uri or parse failed');
-      }
-
-      // Uygulama ikonu kısayol menüsü (Quick Actions / App Shortcuts)
-      const quickActions = QuickActions();
-      initAppShortcuts(quickActions);
+    final initialUri = await getInitialUri();
+    final path = parseUriToAppPath(initialUri);
+    if (path != null) {
+      setPendingDeepLinkPath(path);
+      if (kDebugMode) debugPrint('TCR_DEEPLINK main: pending path set -> $path');
+    } else if (kDebugMode) {
+      debugPrint('TCR_DEEPLINK main: no initial uri or parse failed');
     }
+
+    // Uygulama ikonu kısayol menüsü (Quick Actions / App Shortcuts)
+    const quickActions = QuickActions();
+    initAppShortcuts(quickActions);
 
     runApp(
       const ProviderScope(
@@ -175,12 +172,10 @@ class _DeepLinkListenerState extends State<_DeepLinkListener> {
   @override
   void initState() {
     super.initState();
-    if (!kIsWeb) {
-      _linkSub = uriLinkStream.listen((Uri uri) {
-        final path = parseUriToAppPath(uri);
-        if (path != null) widget.router.go(path);
-      });
-    }
+    _linkSub = uriLinkStream.listen((Uri uri) {
+      final path = parseUriToAppPath(uri);
+      if (path != null) widget.router.go(path);
+    });
   }
 
   @override
@@ -195,7 +190,6 @@ class _DeepLinkListenerState extends State<_DeepLinkListener> {
 
 /// Auth ve admin durumuna göre ikon kısayollarını günceller (sadece mobil).
 void _updateAppShortcuts(WidgetRef ref) {
-  if (kIsWeb) return;
   final authState = ref.read(auth_providers.authNotifierProvider);
   final isAuthenticated = authState is auth_providers.AuthAuthenticated;
   final isAdmin = isAuthenticated && ref.read(auth_providers.isAdminProvider);
@@ -244,39 +238,38 @@ class TCRApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
 
-    // Bildirim tıklanınca yönlendirme callback'i (sadece mobil)
-    if (!kIsWeb) {
-      setNotificationNavigationCallback((message) {
-        navigateFromNotification(router, message);
-      });
-      // Uygulama kapalıyken bildirimle açıldıysa ilk mesajı işle
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        handleInitialMessage();
-      });
-      // İkon kısayolları: auth/admin değişince güncelle
-      ref.listen<auth_providers.AuthState>(auth_providers.authNotifierProvider, (_, __) {
-        _updateAppShortcuts(ref);
-      });
-      ref.listen<bool>(auth_providers.isAdminProvider, (_, __) {
-        _updateAppShortcuts(ref);
-      });
-      // İlk mount'ta bir kez set et
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _updateAppShortcuts(ref);
-      });
-    }
+    // Bildirim tıklanınca yönlendirme callback'i
+    setNotificationNavigationCallback((message) {
+      navigateFromNotification(router, message);
+    });
+    // Uygulama kapalıyken bildirimle açıldıysa ilk mesajı işle
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      handleInitialMessage();
+    });
+    // İkon kısayolları: auth/admin değişince güncelle
+    ref.listen<auth_providers.AuthState>(auth_providers.authNotifierProvider, (_, __) {
+      _updateAppShortcuts(ref);
+    });
+    ref.listen<bool>(auth_providers.isAdminProvider, (_, __) {
+      _updateAppShortcuts(ref);
+    });
+    // İlk mount'ta bir kez set et
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateAppShortcuts(ref);
+    });
 
-    return _DeepLinkListener(
+    return _AppActivityListener(
+      child: _DeepLinkListener(
       router: router,
       child: MaterialApp.router(
-      title: AppConstants.appFullName,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      themeMode: ThemeMode.light,
-      routerConfig: router,
-      // Localization settings for Turkish
-      locale: const Locale('tr', 'TR'),
-      supportedLocales: const [
+        title: AppConstants.appFullName,
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        themeMode: ThemeMode.light,
+        routerConfig: router,
+        // Localization settings for Turkish
+        locale: const Locale('tr', 'TR'),
+        supportedLocales: const [
         Locale('tr', 'TR'),
         Locale('en', 'US'),
       ],
@@ -293,16 +286,56 @@ class TCRApp extends ConsumerWidget {
         final rawScale = width / baseWidth;
         final textScale = rawScale.clamp(0.8, 1.0);
 
-        return _AuthLinkErrorListener(
-          child: MediaQuery(
-            data: mq.copyWith(
-              textScaler: TextScaler.linear(textScale),
+        return KeyboardDismisser(
+          child: _AuthLinkErrorListener(
+            child: EngagementExcuseGate(
+              child: MediaQuery(
+                data: mq.copyWith(
+                  textScaler: TextScaler.linear(textScale),
+                ),
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
-            child: child ?? const SizedBox.shrink(),
           ),
         );
       },
       ),
+    ),
     );
   }
+}
+
+/// Uygulama ön plana geldiğinde son kullanım zamanını günceller.
+class _AppActivityListener extends StatefulWidget {
+  const _AppActivityListener({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_AppActivityListener> createState() => _AppActivityListenerState();
+}
+
+class _AppActivityListenerState extends State<_AppActivityListener>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(AppOpenTracker.touchActivityIfNeeded());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

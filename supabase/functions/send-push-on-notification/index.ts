@@ -114,11 +114,24 @@ async function sendFcm(
 
   const chatKey = getChatGroupKey(record);
 
+  const isStravaWatch = record.type === "strava_watch_run";
+
   const android: Record<string, unknown> = {
     priority: "high",
   };
 
-  if (chatKey) {
+  if (isStravaWatch) {
+    const soundRaw = record.data && typeof record.data === "object"
+      ? (record.data as Record<string, unknown>).sound
+      : null;
+    const soundName = typeof soundRaw === "string" && soundRaw.startsWith("strava_alarm")
+      ? soundRaw
+      : "strava_alarm_1";
+    android["notification"] = {
+      channel_id: "strava_watch_channel_v2",
+      sound: soundName,
+    };
+  } else if (chatKey) {
     const collapseId = `chat-${chatKey}-${record.user_id}`;
     android["collapse_key"] = collapseId;
     android["notification"] = {
@@ -127,10 +140,19 @@ async function sendFcm(
     };
   }
 
-  const aps: Record<string, unknown> = { sound: "default" };
+  let aps: Record<string, unknown> = { sound: "default" };
+  if (isStravaWatch) {
+    const soundRaw = record.data && typeof record.data === "object"
+      ? (record.data as Record<string, unknown>).sound
+      : null;
+    const soundName = typeof soundRaw === "string" && soundRaw.startsWith("strava_alarm")
+      ? soundRaw
+      : "strava_alarm_1";
+    aps = { sound: `${soundName}.wav` };
+  }
   const apnsHeaders: Record<string, string> = {};
 
-  if (chatKey) {
+  if (!isStravaWatch && chatKey) {
     const collapseId = `chat-${chatKey}-${record.user_id}`;
     apnsHeaders["apns-collapse-id"] = collapseId;
     aps["thread-id"] = `chat-${chatKey}`;

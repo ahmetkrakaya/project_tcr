@@ -10,7 +10,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../domain/entities/activity_entity.dart';
-import '../../presentation/providers/activity_provider.dart';
+import '../providers/activity_provider.dart';
 import '../../../integrations/domain/entities/integration_entity.dart';
 import '../../../integrations/presentation/providers/strava_provider.dart' show stravaNotifierProvider;
 

@@ -124,10 +124,24 @@ class _AdminMonthlyProgramUploadPageState
             .toList();
       });
       if (!mounted) return;
+      final importedMonths = (response['imported_month_keys'] as List?)
+              ?.whereType<String>()
+              .toList() ??
+          const <String>[];
+
+      // Import başarılıysa cache'leri kır; antrenman görünümü restart beklemesin.
+      if (_errors.isEmpty) {
+        // Family provider'ların tüm instance'larını invalidate et (çok ay import edilebilir).
+        ref.invalidate(userMonthlyProgramsForWindowProvider);
+        ref.invalidate(userMonthlyProgramsForMonthProvider);
+        ref.invalidate(adminMonthlyProgramsForMonthProvider);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_errors.isEmpty
-              ? 'Import tamamlandı: $_acceptedRows satır'
+              ? (importedMonths.isEmpty
+                  ? 'Import tamamlandı: $_acceptedRows satır'
+                  : 'Import tamamlandı: $_acceptedRows satır (${importedMonths.join(", ")})')
               : 'Import hatalı: ${_errors.length} satır hatası'),
         ),
       );

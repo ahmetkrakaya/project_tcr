@@ -15,8 +15,32 @@ import '../providers/carpool_provider.dart';
 import 'create_carpool_offer_sheet.dart';
 import 'carpool_request_sheet.dart';
 
+/// Ortak yolculuk aksiyon butonu — dolu, outline yok, aynı köşe kıvrımı
+Widget carpoolFilledActionButton({
+  required VoidCallback? onPressed,
+  required IconData icon,
+  required String label,
+  required Color backgroundColor,
+  Color foregroundColor = Colors.white,
+}) {
+  return FilledButton.icon(
+    onPressed: onPressed,
+    icon: Icon(icon, size: 18),
+    label: Text(label),
+    style: FilledButton.styleFrom(
+      backgroundColor: backgroundColor,
+      foregroundColor: foregroundColor,
+      disabledBackgroundColor: backgroundColor.withValues(alpha: 0.38),
+      disabledForegroundColor: foregroundColor.withValues(alpha: 0.72),
+      elevation: 0,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+  );
+}
+
 /// Etkinlik için carpool bölümü
-class EventCarpoolSection extends ConsumerWidget {
+class EventCarpoolSection extends ConsumerStatefulWidget {
   final String eventId;
 
   const EventCarpoolSection({
@@ -25,7 +49,63 @@ class EventCarpoolSection extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EventCarpoolSection> createState() =>
+      EventCarpoolSectionState();
+}
+
+/// Dışarıdan (alt bar, katılım sonrası) ortak yolculuk açmak için
+typedef EventCarpoolSectionState = _EventCarpoolSectionState;
+
+class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
+  String get eventId => widget.eventId;
+
+  /// İlan listesi sheet'ini aç
+  Future<void> openOffersSheet() async {
+    final offers =
+        await ref.read(eventCarpoolOffersProvider(eventId).future);
+    if (!mounted) return;
+    final currentUser = ref.read(currentUserProfileProvider);
+    final participants =
+        await ref.read(eventParticipantsProvider(eventId).future);
+    final event = await ref.read(eventByIdProvider(eventId).future);
+
+    final isParticipating = currentUser != null &&
+        participants.any(
+          (p) => p.userId == currentUser.id && p.status == RsvpStatus.going,
+        );
+    final eventEndTime = event.startTime.add(const Duration(hours: 2));
+    final isEventFinished = DateTime.now().isAfter(eventEndTime);
+    final currentUserId = currentUser?.id;
+    final hasAcceptedRequest = offers.any(
+      (offer) => offer.requests.any(
+        (req) =>
+            req.passengerId == currentUserId && req.isAccepted,
+      ),
+    );
+    final hasActiveOffer = offers.any(
+      (offer) => offer.driverId == currentUserId && offer.isActive,
+    );
+
+    if (!mounted) return;
+    _showCarpoolListSheet(
+      context,
+      ref,
+      offers,
+      currentUserId,
+      isParticipating: isParticipating,
+      isEventFinished: isEventFinished,
+      hasAcceptedRequest: hasAcceptedRequest,
+      hasActiveOffer: hasActiveOffer,
+    );
+  }
+
+  void openCreateOfferSheet() {
+    CreateCarpoolOfferSheet.show(context, eventId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final eventAsync = ref.watch(eventByIdProvider(eventId));
     
     // Geçmiş etkinliklerde veya katılım aksiyonuna izin verilmeyen etkinliklerde hiçbir şey gösterme
@@ -91,174 +171,223 @@ class EventCarpoolSection extends ConsumerWidget {
       orElse: () => false,
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final canCreateOffer = !isEventFinished &&
+        isParticipating &&
+        !hasAcceptedRequest &&
+        !hasActiveOffer;
+
+    return offersAsync.when(
+      data: (offers) => _buildProminentCard(
+        context,
+        ref,
+        offers: offers,
+        isParticipating: isParticipating,
+        isEventFinished: isEventFinished,
+        hasAcceptedRequest: hasAcceptedRequest,
+        hasActiveOffer: hasActiveOffer,
+        canCreateOffer: canCreateOffer,
+      ),
+      loading: () => _buildProminentCardSkeleton(),
+      error: (_, __) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.errorContainer,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.directions_car,
-                  size: 20,
-                  color: AppColors.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Ortak Yolculuk',
-                  style: AppTypography.titleMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            // Yeni offer oluştur butonu
-            // Kontroller: katılıyor mu, etkinlik bitmiş mi, onaylanmış mı, aktif ilanı var mı
-            if (!isEventFinished && isParticipating && !hasAcceptedRequest && !hasActiveOffer)
-              TextButton.icon(
-                onPressed: () => _showCreateOfferSheet(context, ref),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('İlan Ver'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                ),
+            const Icon(Icons.error_outline, color: AppColors.error),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Ortak yolculuk bilgileri yüklenemedi',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.error),
               ),
+            ),
           ],
         ),
-        const SizedBox(height: 12),
-        offersAsync.when(
-          data: (offers) {
-            if (offers.isEmpty) {
-              return _buildEmptyState(context, ref);
-            }
-            // Araçları göster butonu
-            return InkWell(
-              onTap: () => _showCarpoolListSheet(
-                context,
-                ref,
-                offers,
-                currentUserId,
-                isParticipating: isParticipating,
-                isEventFinished: isEventFinished,
-                hasAcceptedRequest: hasAcceptedRequest,
-                hasActiveOffer: hasActiveOffer,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  Widget _buildProminentCardSkeleton() {
+    return Container(
+      height: 140,
+      decoration: BoxDecoration(
+        color: AppColors.neutral100,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      alignment: Alignment.center,
+      child: const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+    );
+  }
+
+  Widget _buildProminentCard(
+    BuildContext context,
+    WidgetRef ref, {
+    required List<CarpoolOfferEntity> offers,
+    required bool isParticipating,
+    required bool isEventFinished,
+    required bool hasAcceptedRequest,
+    required bool hasActiveOffer,
+    required bool canCreateOffer,
+  }) {
+    final offerCount = offers.length;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.1),
+            AppColors.tertiary.withValues(alpha: 0.06),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.neutral100,
+                  color: Colors.white.withValues(alpha: 0.85),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.neutral200),
                 ),
-                child: Row(
+                child: const Icon(
+                  Icons.directions_car,
+                  color: AppColors.primary,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.directions_car,
-                        color: AppColors.primary,
-                        size: 24,
+                    Text(
+                      'Ortak Yolculuk',
+                      style: AppTypography.titleMedium.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${offers.length} Araç İlanı',
-                            style: AppTypography.titleSmall.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Araçları görüntülemek için tıklayın',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral500,
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 4),
+                    Text(
+                      'Arabanı paylaş veya etkinliğe giden yol arkadaşlarını bul',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.neutral600,
+                        height: 1.35,
                       ),
-                    ),
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16,
-                      color: AppColors.neutral400,
                     ),
                   ],
                 ),
               ),
-            );
-          },
-          loading: () => const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-          error: (error, _) => Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.errorContainer,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.error_outline, color: AppColors.error),
-                const SizedBox(width: 12),
-                Expanded(
+              if (offerCount > 0)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   child: Text(
-                    'Carpool bilgileri yüklenemedi',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.error,
+                    '$offerCount ilan',
+                    style: AppTypography.labelSmall.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
                     ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (!isParticipating)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'Katıldıktan sonra yolculuk ilanı verebilir veya mevcut ilanlara başvurabilirsin.',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.neutral600,
+                ),
+              ),
+            )
+          else if (hasActiveOffer)
+            _buildStatusBanner(
+              'Aktif araç ilanın var. İlanını listeden yönetebilirsin.',
+              Icons.check_circle,
+              AppColors.success,
+            )
+          else if (hasAcceptedRequest)
+            _buildStatusBanner(
+              'Onaylanmış bir yolculuğun var.',
+              Icons.check_circle,
+              AppColors.success,
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: carpoolFilledActionButton(
+                    onPressed: isParticipating ? openOffersSheet : null,
+                    icon: Icons.search,
+                    label: offerCount > 0
+                        ? '$offerCount İlan Gör'
+                        : 'İlanlara Bak',
+                    backgroundColor: AppColors.tertiary,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: carpoolFilledActionButton(
+                    onPressed: canCreateOffer ? openCreateOfferSheet : null,
+                    icon: Icons.add_road,
+                    label: 'İlan Ver',
+                    backgroundColor: AppColors.primary,
                   ),
                 ),
               ],
             ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
+  Widget _buildStatusBanner(String text, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.neutral100,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.neutral200),
+        color: Colors.white.withValues(alpha: 0.75),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Icon(
-            Icons.directions_car_outlined,
-            size: 48,
-            color: AppColors.neutral400,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Henüz ortak yolculuk ilanı yok',
-            style: AppTypography.titleSmall.copyWith(
-              color: AppColors.neutral600,
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral700),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'İlk ilanı sen vererek diğer katılımcılara yardımcı olabilirsin',
-            textAlign: TextAlign.center,
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral500,
-            ),
+          TextButton(
+            onPressed: openOffersSheet,
+            child: const Text('Görüntüle'),
           ),
         ],
       ),
@@ -363,7 +492,7 @@ class EventCarpoolSection extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '${offer.availableSeats}/${offer.totalSeats}',
+                    '${offer.occupiedSeats}/${offer.totalSeats}',
                     style: AppTypography.labelMedium.copyWith(
                       color: offer.isFull
                           ? AppColors.error
@@ -607,10 +736,6 @@ class EventCarpoolSection extends ConsumerWidget {
     );
   }
 
-  void _showCreateOfferSheet(BuildContext context, WidgetRef ref) {
-    CreateCarpoolOfferSheet.show(context, eventId);
-  }
-
   void _showCarpoolListSheet(
     BuildContext context,
     WidgetRef ref,
@@ -700,32 +825,63 @@ class EventCarpoolSection extends ConsumerWidget {
                     isFullWidth: true,
                     onPressed: () {
                       Navigator.pop(context);
-                      _showCreateOfferSheet(context, ref);
+                      openCreateOfferSheet();
                     },
                   ),
                 ),
               // Araç listesi
               Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: offers.length,
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildOfferCard(
-                        context,
-                        ref,
-                        offers[index],
-                        currentUserId,
-                        isParticipating: isParticipating,
-                        isEventFinished: isEventFinished,
-                        hasAcceptedRequest: hasAcceptedRequest,
-                        hasActiveOffer: hasActiveOffer,
+                child: offers.isEmpty
+                    ? ListView(
+                        controller: scrollController,
+                        padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                        children: [
+                          Icon(
+                            Icons.directions_car_outlined,
+                            size: 56,
+                            color: AppColors.neutral300,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Henüz yolculuk ilanı yok',
+                            textAlign: TextAlign.center,
+                            style: AppTypography.titleSmall.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.neutral700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Şu an paylaşılan bir araç bulunmuyor. '
+                            'Daha sonra tekrar bakabilirsin.',
+                            textAlign: TextAlign.center,
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.neutral500,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: offers.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _buildOfferCard(
+                              context,
+                              ref,
+                              offers[index],
+                              currentUserId,
+                              isParticipating: isParticipating,
+                              isEventFinished: isEventFinished,
+                              hasAcceptedRequest: hasAcceptedRequest,
+                              hasActiveOffer: hasActiveOffer,
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
             ],
           ),
@@ -881,6 +1037,156 @@ class EventCarpoolSection extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Ortak yolculuk tanıtımı ve dış erişim (etkinlik detayı alt bar vb.)
+class EventCarpoolActions {
+  EventCarpoolActions._();
+
+  static final Set<String> _introShownEventIds = {};
+
+  static void scrollToSection(GlobalKey<EventCarpoolSectionState> key) {
+    final ctx = key.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+      alignment: 0.08,
+    );
+  }
+
+  static Future<void> openBrowse(
+    BuildContext context,
+    GlobalKey<EventCarpoolSectionState> key,
+  ) async {
+    final state = key.currentState;
+    if (state != null) {
+      await state.openOffersSheet();
+      return;
+    }
+    scrollToSection(key);
+  }
+
+  static void openCreate(
+    BuildContext context,
+    GlobalKey<EventCarpoolSectionState> key,
+    String eventId,
+  ) {
+    final state = key.currentState;
+    if (state != null) {
+      state.openCreateOfferSheet();
+      return;
+    }
+    CreateCarpoolOfferSheet.show(context, eventId);
+  }
+
+  /// Katılım sonrası bir kez tanıtım sheet'i göster
+  static Future<void> showIntroAfterJoin(
+    BuildContext context,
+    GlobalKey<EventCarpoolSectionState> carpoolKey,
+    String eventId,
+  ) async {
+    if (_introShownEventIds.contains(eventId)) return;
+    _introShownEventIds.add(eventId);
+    if (!context.mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final bottomInset = MediaQuery.paddingOf(sheetContext).bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.directions_car,
+                  size: 36,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Ortak Yolculuk',
+                style: AppTypography.titleLarge.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Etkinliğe katıldın! Arabanı paylaşabilir veya diğer '
+                'katılımcıların araç ilanlarına başvurabilirsin.',
+                textAlign: TextAlign.center,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.neutral600,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: carpoolFilledActionButton(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    final state = carpoolKey.currentState;
+                    state?.openCreateOfferSheet();
+                  },
+                  icon: Icons.add_road,
+                  label: 'İlan Ver',
+                  backgroundColor: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: carpoolFilledActionButton(
+                  onPressed: () async {
+                    Navigator.pop(sheetContext);
+                    await openBrowse(context, carpoolKey);
+                  },
+                  icon: Icons.search,
+                  label: 'İlanlara Bak',
+                  backgroundColor: AppColors.tertiary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(sheetContext),
+                child: const Text('Sonra'),
+              ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

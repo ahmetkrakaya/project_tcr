@@ -51,10 +51,11 @@ enum WorkoutTargetType {
   }
 }
 
-/// Hedef: Hedef Yok, Tempo, Kalp Atış Hızı, Kadans, Güç
+/// Hedef: Hedef Yok, Tempo, Süre (split), Kalp Atış Hızı, Kadans, Güç
 enum WorkoutTarget {
   none,
   pace,
+  time,
   heartRate,
   cadence,
   power;
@@ -65,6 +66,8 @@ enum WorkoutTarget {
         return 'Hedef Yok';
       case WorkoutTarget.pace:
         return 'Tempo';
+      case WorkoutTarget.time:
+        return 'Süre';
       case WorkoutTarget.heartRate:
         return 'Kalp Atış Hızı';
       case WorkoutTarget.cadence:
@@ -81,6 +84,8 @@ class WorkoutSegmentEntity {
   final WorkoutTargetType targetType;
   final WorkoutTarget target;
   final int? durationSeconds;
+  final int? durationSecondsMin;
+  final int? durationSecondsMax;
   final double? distanceMeters;
   /// Pace saniye/km (tek değer veya ortalama)
   final int? paceSecondsPerKm;
@@ -102,6 +107,8 @@ class WorkoutSegmentEntity {
     required this.targetType,
     required this.target,
     this.durationSeconds,
+    this.durationSecondsMin,
+    this.durationSecondsMax,
     this.distanceMeters,
     this.paceSecondsPerKm,
     this.paceSecondsPerKmMin,

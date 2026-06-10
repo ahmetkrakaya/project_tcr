@@ -8,6 +8,10 @@ import '../models/event_info_block_model.dart';
 import '../models/event_template_model.dart';
 import '../models/event_activity_stat_model.dart';
 import '../models/user_activity_report_model.dart';
+import '../models/user_engagement_report_model.dart';
+import '../models/engagement_excuse_model.dart';
+import '../models/recurring_event_series_model.dart';
+import '../../domain/entities/event_entity.dart';
 
 /// Event Remote Data Source
 abstract class EventRemoteDataSource {
@@ -32,6 +36,15 @@ abstract class EventRemoteDataSource {
   /// Tekrarlayan seride bu etkinlik ve sonrakileri güncelle (RPC)
   Future<void> updateRecurringSeriesFromEvent(String eventId, Map<String, dynamic> updates);
 
+  /// Admin: tekrarlayan etkinlik serilerini listele
+  Future<List<RecurringEventSeriesModel>> getRecurringEventSeriesList();
+
+  /// Admin: serinin otomatik tekrarını durdur
+  Future<void> stopRecurringEventSeries(String latestEventId);
+
+  /// Admin: tekrarlayan seriyi kaldır (etkinlik kayıtları kalır)
+  Future<void> deleteRecurringEventSeries(String rootEventId);
+
   /// Etkinlik sil
   Future<void> deleteEvent(String id);
 
@@ -47,13 +60,26 @@ abstract class EventRemoteDataSource {
     String status, {
     String? note,
     String? raceVariantLabel,
+    String? selectedRouteId,
   });
+
+  /// Katılımcının rota seçimini güncelle
+  Future<void> updateParticipantRoute(String eventId, String? routeId);
 
   /// RSVP iptal et
   Future<void> cancelRsvp(String eventId);
 
   /// Etkinlik katılımcılarını getir
   Future<List<EventParticipantModel>> getEventParticipants(String eventId);
+
+  /// Etkinlik rota seçeneklerini getir (antrenman için)
+  Future<List<EventRouteOptionModel>> getEventRouteOptions(String eventId);
+
+  /// Etkinlik rota seçeneklerini kaydet/güncelle
+  Future<void> setEventRouteOptions(
+    String eventId,
+    List<({String routeId, String? label})> options,
+  );
 
   /// Kullanıcının katıldığı etkinlikleri getir
   Future<List<EventModel>> getUserEvents(String userId);
@@ -143,6 +169,42 @@ abstract class EventRemoteDataSource {
     String? groupId,
   });
 
+  /// Uygulama açılışını kaydet
+  Future<void> recordAppOpen();
+
+  /// Admin: kullanıcı etkileşim analiz raporları (etkinlik katılım top 10 hariç)
+  Future<UserEngagementReportsModel> getUserEngagementReports();
+
+  /// Admin: en çok etkinliğe katılanlar (etkinlik türü filtresi)
+  Future<List<UserEngagementReportItemModel>> getTopEventParticipants({
+    String? eventType,
+  });
+
+  /// Admin: mazaret bildirimi gönder
+  Future<SendEngagementExcuseResultModel> sendEngagementExcuseRequests({
+    required List<String> userIds,
+    required String excuseType,
+  });
+
+  /// Kullanıcı: bekleyen mazaret talebi
+  Future<PendingEngagementExcuseModel?> getPendingEngagementExcuse();
+
+  /// Kullanıcı: mazaret gönder
+  Future<void> submitEngagementExcuse({
+    required String requestId,
+    required String text,
+  });
+
+  /// Admin: mazaret listeleri
+  Future<EngagementExcuseAdminReportsModel> getEngagementExcuseAdminReports();
+
+  /// Admin: mazareti kabul et veya banla
+  Future<void> reviewEngagementExcuse({
+    required String requestId,
+    required String action,
+    DateTime? exemptUntil,
+  });
+
   /// Aylık program şablonunu (.xlsx) indir
   Future<Uint8List> downloadMonthlyProgramTemplate();
 
@@ -158,6 +220,36 @@ abstract class EventRemoteDataSource {
 
   /// Belirli bir ay içindeki tüm aylık plan satırları (admin takvim görünümü)
   Future<List<Map<String, dynamic>>> getMonthlyProgramsForMonth(int year, int month);
+
+  /// Belirli bir ay içindeki kullanıcının kendi aylık plan satırları (antrenman görünümü)
+  Future<List<Map<String, dynamic>>> getMonthlyProgramsForMonthForUser({
+    required String userId,
+    required int year,
+    required int month,
+  });
+
+  /// Kullanıcı: belirli tarih aralığında (çok ay) kişisel + grup aylık plan satırları
+  Future<List<Map<String, dynamic>>> getMonthlyProgramsForUserInRange({
+    required String userId,
+    required DateTime startDate,
+    required DateTime endDate,
+  });
+
+  /// Haftalık editör: belirli hafta + hedef için plan satırları
+  Future<List<Map<String, dynamic>>> getWeeklyProgramEntries({
+    required DateTime weekStartMonday,
+    required String trainingGroupId,
+    String? memberUserId,
+  });
+
+  /// Haftalık editör: koç metnini kaydet
+  Future<Map<String, dynamic>> upsertWeeklyProgram({
+    required DateTime weekStartMonday,
+    required String scopeType,
+    required String trainingGroupId,
+    String? memberUserId,
+    required List<Map<String, dynamic>> days,
+  });
 }
 
 /// Event Remote Data Source Implementation
@@ -174,27 +266,9 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
     required List<String> userGroupIds,
     required Map<String, List<String>> eventGroupsMap,
   }) {
-    if (!isAdmin) return false;
-
-    final eventType = eventJson['event_type'] as String?;
-    if (eventType != 'training' && eventType != 'race') return false;
-
-    // Restricted etkinliklerde admin'e ek hak yok; readonly hesabı da uygulanmaz.
-    final visibility = eventJson['visibility'] as String?;
-    if (visibility == 'restricted') return false;
-
-    // Normal katılımcı gibi görebilme koşulu:
-    // - training: grubuyla eşleşiyorsa veya event'in grup programı yoksa
-    // - race: mevcut sistemde zaten herkes görebildiği için readonly'a düşürmeyiz
-    if (eventType == 'race') return false;
-
-    final eventId = eventJson['id'] as String;
-    final eventGroupIds = eventGroupsMap[eventId] ?? const <String>[];
-    if (eventGroupIds.isEmpty) return false;
-
-    final isInEventGroups =
-        userGroupIds.any((groupId) => eventGroupIds.contains(groupId));
-    return !isInEventGroups;
+    // Antrenman programları haftalık editörden ayrı yönetildiği için etkinlik
+    // görünürlüğü/katılımı grup programı atamasına bağlı değil.
+    return false;
   }
 
   @override
@@ -214,7 +288,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
 
       final List<dynamic> data = response as List<dynamic>;
       
-      // Grup + görünürlük bazlı filtreleme (antrenman + restricted etkinlikler için)
+      // Görünürlük bazlı filtreleme (restricted etkinlikler için)
       // Önce kullanıcının gruplarını, görünür event'lerini ve tüm event'lerin grup programlarını toplu al
       final eventIds = data.map((e) => e['id'] as String).toList();
       final results = await Future.wait([
@@ -328,7 +402,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
         }
       }
       
-      // Grup + görünürlük bazlı filtreleme
+      // Görünürlük bazlı filtreleme (restricted etkinlikler için)
       final eventIds = allEventsData.map((e) => e['id'] as String).toList();
       final filterResults = await Future.wait([
         _getUserGroupIds(),
@@ -424,7 +498,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
 
       final List<dynamic> data = response as List<dynamic>;
       
-      // Grup + görünürlük bazlı filtreleme
+      // Görünürlük bazlı filtreleme (restricted etkinlikler için)
       final eventIds = data.map((e) => e['id'] as String).toList();
       final filterResults = await Future.wait([
         _getUserGroupIds(),
@@ -525,7 +599,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       final userRsvpStatus = await _getUserRsvpStatus(id);
       final isParticipating = userRsvpStatus == 'going';
 
-      // canUserParticipate: admin kendi grubu dahil değilken training için readonly
+      // canUserParticipate: antrenman etkinliklerinde grup programı katılımı kısıtlamaz
       final userGroupIds = await _getUserGroupIds();
       final eventGroupsMap = await _getAllEventGroupIds([id]);
       final adminReadonly = _isAdminReadonlyForEvent(
@@ -592,8 +666,19 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       } else {
         json['pinned_at'] = null;
       }
-      // is_recurrence_exception "sadece bu etkinliği düzenle" ile gönderilir; koruma yok
-      
+      // Tekil düzenlemede seri bağlantısını ve tekrar metadata'sını koru
+      if (json['is_recurrence_exception'] == true) {
+        json['parent_event_id'] = existingEvent.parentEventId;
+        json['is_recurring'] = existingEvent.isRecurring;
+        json['recurrence_rule'] = existingEvent.recurrenceRule;
+        if (existingEvent.recurrenceEndDate != null) {
+          json['recurrence_end_date'] =
+              existingEvent.recurrenceEndDate!.toIso8601String().split('T').first;
+        } else {
+          json['recurrence_end_date'] = null;
+        }
+      }
+
       final response = await _supabase
           .from('events')
           .update(json)
@@ -620,6 +705,197 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
       throw ServerException(message: 'Seri güncellenemedi: $e');
+    }
+  }
+
+  String _creatorNameFromEventJson(Map<String, dynamic> event) {
+    final creator = event['creator'] ?? event['users'];
+    if (creator is Map) {
+      final first = (creator['first_name'] as String?)?.trim() ?? '';
+      final last = (creator['last_name'] as String?)?.trim() ?? '';
+      final name = '$first $last'.trim();
+      if (name.isNotEmpty) return name;
+    }
+    return 'Bilinmiyor';
+  }
+
+  List<RecurringEventRouteInfo> _routesFromEventJson(
+    Map<String, dynamic> event,
+    Map<String, List<EventRouteOptionModel>> routeOptionsByEventId,
+  ) {
+    final eventId = event['id'] as String;
+    final options = routeOptionsByEventId[eventId] ?? const [];
+    if (options.isNotEmpty) {
+      return options
+          .map(
+            (option) => RecurringEventRouteInfo(
+              name: option.routeName,
+              label: option.label,
+              distanceKm: option.routeDistance,
+            ),
+          )
+          .toList();
+    }
+
+    final routeData = event['routes'] as Map<String, dynamic>?;
+    if (routeData != null) {
+      final name = routeData['name'] as String?;
+      if (name != null && name.trim().isNotEmpty) {
+        return [
+          RecurringEventRouteInfo(
+            name: name,
+            distanceKm: (routeData['total_distance'] as num?)?.toDouble(),
+          ),
+        ];
+      }
+    }
+
+    return const [];
+  }
+
+  Future<Map<String, List<EventRouteOptionModel>>> _getRouteOptionsForEvents(
+    List<String> eventIds,
+  ) async {
+    if (eventIds.isEmpty) return {};
+
+    final response = await _supabase
+        .from('event_route_options')
+        .select('*, routes(name, total_distance)')
+        .inFilter('event_id', eventIds)
+        .order('sort_order');
+
+    final result = <String, List<EventRouteOptionModel>>{};
+    for (final item in response as List<dynamic>) {
+      final option = EventRouteOptionModel.fromJson(item as Map<String, dynamic>);
+      result.putIfAbsent(option.eventId, () => []).add(option);
+    }
+    return result;
+  }
+
+  @override
+  Future<List<RecurringEventSeriesModel>> getRecurringEventSeriesList() async {
+    try {
+      final response = await _supabase
+          .from('events')
+          .select(
+            'id, title, description, start_time, event_type, is_recurring, recurrence_rule, '
+            'recurrence_end_date, parent_event_id, created_by, route_id, '
+            'creator:users!events_created_by_fkey(first_name, last_name), '
+            'routes!events_route_id_fkey(name, total_distance)',
+          )
+          .or('parent_event_id.not.is.null,is_recurring.eq.true')
+          .order('start_time', ascending: false);
+
+      final events = (response as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .where((e) {
+            final parentId = e['parent_event_id'] as String?;
+            final isRecurring = e['is_recurring'] as bool? ?? false;
+            final rule = e['recurrence_rule'] as String?;
+            return parentId != null ||
+                (isRecurring && rule != null && rule.isNotEmpty);
+          })
+          .toList();
+
+      if (events.isEmpty) return const [];
+
+      final byRoot = <String, List<Map<String, dynamic>>>{};
+      for (final event in events) {
+        final rootId = (event['parent_event_id'] as String?) ?? (event['id'] as String);
+        byRoot.putIfAbsent(rootId, () => []).add(event);
+      }
+
+      final latestEventIds = <String>[];
+      final seriesMembers = <String, List<Map<String, dynamic>>>{};
+      for (final entry in byRoot.entries) {
+        final members = List<Map<String, dynamic>>.from(entry.value)
+          ..sort((a, b) => (b['start_time'] as String).compareTo(a['start_time'] as String));
+        seriesMembers[entry.key] = members;
+        latestEventIds.add(members.first['id'] as String);
+      }
+
+      final routeOptionsByEventId = await _getRouteOptionsForEvents(latestEventIds);
+
+      final results = <RecurringEventSeriesModel>[];
+      for (final entry in seriesMembers.entries) {
+        final members = entry.value;
+        final latest = members.first;
+        final earliest = members.last;
+
+        String? rule;
+        DateTime? endDate;
+        String? description;
+        String? createdByName;
+        for (final member in members) {
+          final memberRule = member['recurrence_rule'] as String?;
+          if (memberRule != null && memberRule.isNotEmpty) {
+            rule = memberRule;
+          }
+          final memberEnd = member['recurrence_end_date'] as String?;
+          if (memberEnd != null && memberEnd.isNotEmpty) {
+            endDate = DateTime.parse(memberEnd);
+          }
+          final memberDescription = member['description'] as String?;
+          if (memberDescription != null && memberDescription.trim().isNotEmpty) {
+            description = memberDescription.trim();
+          }
+          final memberCreator = _creatorNameFromEventJson(member);
+          if (memberCreator != 'Bilinmiyor') {
+            createdByName = memberCreator;
+          }
+        }
+
+        final isRecurring = latest['is_recurring'] as bool? ?? false;
+        final isActive = isRecurring && rule != null && rule.isNotEmpty;
+
+        results.add(
+          RecurringEventSeriesModel(
+            rootEventId: entry.key,
+            latestEventId: latest['id'] as String,
+            title: latest['title'] as String,
+            description: description,
+            createdByName: createdByName ?? _creatorNameFromEventJson(latest),
+            routes: _routesFromEventJson(latest, routeOptionsByEventId),
+            eventType: EventType.fromString(latest['event_type'] as String? ?? 'training'),
+            recurrenceRule: rule,
+            recurrenceEndDate: endDate,
+            latestStartTime: DateTime.parse(latest['start_time'] as String),
+            firstStartTime: DateTime.parse(earliest['start_time'] as String),
+            occurrenceCount: members.length,
+            isActive: isActive,
+          ),
+        );
+      }
+
+      results.sort((a, b) {
+        if (a.isActive != b.isActive) return a.isActive ? -1 : 1;
+        return b.latestStartTime.compareTo(a.latestStartTime);
+      });
+
+      return results;
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Tekrarlayan etkinlikler alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<void> stopRecurringEventSeries(String latestEventId) async {
+    await updateRecurringSeriesFromEvent(latestEventId, {'is_recurring': false});
+  }
+
+  @override
+  Future<void> deleteRecurringEventSeries(String rootEventId) async {
+    try {
+      await _supabase.rpc(
+        'delete_recurring_event_series',
+        params: {'p_root_event_id': rootEventId},
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Tekrarlayan seri kaldırılamadı: $e');
     }
   }
 
@@ -675,6 +951,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
     String status, {
     String? note,
     String? raceVariantLabel,
+    String? selectedRouteId,
   }) async {
     try {
       final userId = _currentUserId;
@@ -687,6 +964,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           'status': status,
           'note': note,
           'race_variant_label': raceVariantLabel,
+          'selected_route_id': selectedRouteId,
           'responded_at': DateTime.now().toIso8601String(),
         },
         onConflict: 'event_id,user_id',
@@ -695,6 +973,24 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
       throw ServerException(message: 'Katılım kaydedilemedi: $e');
+    }
+  }
+
+  @override
+  Future<void> updateParticipantRoute(String eventId, String? routeId) async {
+    try {
+      final userId = _currentUserId;
+      if (userId == null) throw ServerException(message: 'Kullanıcı giriş yapmamış');
+
+      await _supabase
+          .from('event_participants')
+          .update({'selected_route_id': routeId})
+          .eq('event_id', eventId)
+          .eq('user_id', userId);
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Rota güncellenemedi: $e');
     }
   }
 
@@ -717,13 +1013,64 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
   }
 
   @override
+  Future<List<EventRouteOptionModel>> getEventRouteOptions(String eventId) async {
+    try {
+      final response = await _supabase
+          .from('event_route_options')
+          .select('*, routes(name, total_distance)')
+          .eq('event_id', eventId)
+          .order('sort_order');
+      return (response as List)
+          .map((j) => EventRouteOptionModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Rota seçenekleri alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<void> setEventRouteOptions(
+    String eventId,
+    List<({String routeId, String? label})> options,
+  ) async {
+    try {
+      // Önce mevcut tüm seçenekleri sil
+      await _supabase
+          .from('event_route_options')
+          .delete()
+          .eq('event_id', eventId);
+
+      // Yenilerini ekle
+      if (options.isNotEmpty) {
+        await _supabase.from('event_route_options').insert(
+          options.asMap().entries
+              .map((e) => {
+                    'event_id': eventId,
+                    'route_id': e.value.routeId,
+                    'label': e.value.label,
+                    'sort_order': e.key,
+                  })
+              .toList(),
+        );
+      }
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Rota seçenekleri kaydedilemedi: $e');
+    }
+  }
+
+  @override
   Future<List<EventParticipantModel>> getEventParticipants(String eventId) async {
     try {
       final response = await _supabase
           .from('event_participants')
           .select('''
             *,
-            users!inner(first_name, last_name, avatar_url)
+            users!inner(first_name, last_name, avatar_url),
+            selected_route:routes!selected_route_id(name)
           ''')
           .eq('event_id', eventId)
           .eq('status', 'going')
@@ -1018,7 +1365,6 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
     Set<String> visibleEventIdsForUser, {
     bool isAdmin = false,
   }) {
-    final eventType = eventJson['event_type'] as String?;
     final eventId = eventJson['id'] as String;
 
     // Özel (restricted) etkinlikler: sadece event_visible_users içinde olanlar
@@ -1030,26 +1376,9 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
               eventJson['created_by'] == _currentUserId);
     }
 
-    // Admin ise antrenman ve yarış etkinliklerini grubunda olmasa da görebilir
-    if (isAdmin && (eventType == 'training' || eventType == 'race')) {
-      return true;
-    }
-    
-    // Antrenman türü değilse herkes görebilir
-    if (eventType != 'training') {
-      return true;
-    }
-
-    // Antrenman türü ise grup kontrolü yap
-    final eventGroupIds = eventGroupsMap[eventId] ?? [];
-    
-    // Event'in grup programı yoksa herkes görebilir
-    if (eventGroupIds.isEmpty) {
-      return true;
-    }
-
-    // Event'in grup programı varsa, kullanıcının gruplarını kontrol et
-    return userGroupIds.any((groupId) => eventGroupIds.contains(groupId));
+    // Antrenman dahil tüm yayınlanmış etkinlikler herkese açık.
+    // Etkinlik içindeki program görünümü ayrı filtrelenir (grup/kişisel program).
+    return true;
   }
 
   // ========== Event Info Blocks Implementation ==========
@@ -2108,6 +2437,8 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
             training_type_id,
             program_content,
             workout_definition,
+            coach_notes,
+            source,
             sort_order,
             training_groups(name),
             users(email, first_name, last_name),
@@ -2145,6 +2476,8 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
             training_type_id,
             program_content,
             workout_definition,
+            coach_notes,
+            source,
             sort_order,
             training_groups(name),
             users(email, first_name, last_name),
@@ -2169,6 +2502,375 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
       throw ServerException(message: 'Aylık plan listesi alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getMonthlyProgramsForMonthForUser({
+    required String userId,
+    required int year,
+    required int month,
+  }) async {
+    try {
+      final start = DateTime(year, month, 1);
+      final end = DateTime(year, month + 1, 0);
+      String ymd(DateTime d) =>
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+      final userGroupIds = await _getUserGroupIds();
+
+      final response = await _supabase
+          .from('monthly_program_entries')
+          .select('''
+            id,
+            plan_date,
+            scope_type,
+            training_group_id,
+            user_id,
+            training_type_id,
+            program_content,
+            workout_definition,
+            coach_notes,
+            source,
+            sort_order,
+            training_groups(name),
+            users(email, first_name, last_name),
+            training_types(display_name)
+          ''')
+          .gte('plan_date', ymd(start))
+          .lte('plan_date', ymd(end))
+          .order('plan_date', ascending: true);
+
+      final rows = (response as List<dynamic>)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+
+      // Rol bağımsız: kullanıcıya atanmış kayıtları VE kullanıcının gruplarına atanmış grup kayıtlarını göster.
+      final filtered = rows.where((r) {
+        final scope = (r['scope_type'] as String?) ?? '';
+        if (scope == 'member') {
+          return (r['user_id'] as String?) == userId;
+        }
+        if (scope == 'group') {
+          final gid = (r['training_group_id'] as String?);
+          return gid != null && userGroupIds.contains(gid);
+        }
+        return false;
+      }).toList();
+
+      filtered.sort((a, b) {
+        final da = '${a['plan_date'] ?? ''}';
+        final db = '${b['plan_date'] ?? ''}';
+        final c = da.compareTo(db);
+        if (c != 0) return c;
+        return (a['sort_order'] as int? ?? 0).compareTo(b['sort_order'] as int? ?? 0);
+      });
+
+      return filtered;
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Kişisel aylık plan listesi alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getMonthlyProgramsForUserInRange({
+    required String userId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    try {
+      String ymd(DateTime d) =>
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+      final userGroupIds = await _getUserGroupIds();
+      final response = await _supabase
+          .from('monthly_program_entries')
+          .select('''
+            id,
+            plan_date,
+            scope_type,
+            training_group_id,
+            user_id,
+            training_type_id,
+            program_content,
+            workout_definition,
+            coach_notes,
+            source,
+            sort_order,
+            training_groups(name, color),
+            users(email, first_name, last_name),
+            training_types(display_name, description, color, threshold_offset_min_seconds, threshold_offset_max_seconds)
+          ''')
+          .gte('plan_date', ymd(startDate))
+          .lte('plan_date', ymd(endDate))
+          .order('plan_date', ascending: true);
+
+      final rows = (response as List<dynamic>)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+
+      final filtered = rows.where((r) {
+        final scope = (r['scope_type'] as String?) ?? '';
+        if (scope == 'member') {
+          return (r['user_id'] as String?) == userId;
+        }
+        if (scope == 'group') {
+          final gid = (r['training_group_id'] as String?);
+          return gid != null && userGroupIds.contains(gid);
+        }
+        return false;
+      }).toList();
+
+      filtered.sort((a, b) {
+        final da = '${a['plan_date'] ?? ''}';
+        final db = '${b['plan_date'] ?? ''}';
+        final c = da.compareTo(db);
+        if (c != 0) return c;
+        return (a['sort_order'] as int? ?? 0).compareTo(b['sort_order'] as int? ?? 0);
+      });
+
+      return filtered;
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Kişisel antrenmanlar alınamadı: $e');
+    }
+  }
+
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  @override
+  Future<List<Map<String, dynamic>>> getWeeklyProgramEntries({
+    required DateTime weekStartMonday,
+    required String trainingGroupId,
+    String? memberUserId,
+  }) async {
+    try {
+      final start = DateTime(
+        weekStartMonday.year,
+        weekStartMonday.month,
+        weekStartMonday.day,
+      );
+      final end = start.add(const Duration(days: 6));
+      final scopeType = memberUserId != null ? 'member' : 'group';
+
+      var query = _supabase
+          .from('monthly_program_entries')
+          .select('''
+            id,
+            plan_date,
+            scope_type,
+            training_group_id,
+            user_id,
+            training_type_id,
+            program_content,
+            workout_definition,
+            coach_notes,
+            source,
+            sort_order,
+            training_groups(name),
+            users(email, first_name, last_name),
+            training_types(display_name, name)
+          ''')
+          .gte('plan_date', _ymd(start))
+          .lte('plan_date', _ymd(end))
+          .eq('scope_type', scopeType)
+          .eq('training_group_id', trainingGroupId);
+
+      if (memberUserId != null) {
+        query = query.eq('user_id', memberUserId);
+      } else {
+        query = query.isFilter('user_id', null);
+      }
+
+      final response = await query.order('plan_date', ascending: true);
+      return (response as List<dynamic>)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Haftalık plan alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> upsertWeeklyProgram({
+    required DateTime weekStartMonday,
+    required String scopeType,
+    required String trainingGroupId,
+    String? memberUserId,
+    required List<Map<String, dynamic>> days,
+  }) async {
+    try {
+      final response = await _supabase.functions.invoke(
+        'weekly-program-upsert',
+        body: {
+          'week_start': _ymd(weekStartMonday),
+          'scope_type': scopeType,
+          'training_group_id': trainingGroupId,
+          'user_id': memberUserId,
+          'days': days,
+        },
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return Map<String, dynamic>.from(data);
+      throw ServerException(message: 'Kayıt yanıtı okunamadı');
+    } catch (e) {
+      throw ServerException(message: 'Haftalık program kaydedilemedi: $e');
+    }
+  }
+
+  @override
+  Future<void> recordAppOpen() async {
+    if (_supabase.auth.currentUser == null) return;
+    try {
+      await _supabase.rpc('record_app_open');
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    }
+  }
+
+  @override
+  Future<UserEngagementReportsModel> getUserEngagementReports() async {
+    try {
+      final response = await _supabase.rpc(
+        'get_user_engagement_reports',
+        params: {'p_event_type': null},
+      );
+      return UserEngagementReportsModel.fromJson(
+        Map<String, dynamic>.from(response as Map),
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(
+        message: 'Kullanıcı analiz raporu alınamadı: $e',
+      );
+    }
+  }
+
+  @override
+  Future<List<UserEngagementReportItemModel>> getTopEventParticipants({
+    String? eventType,
+  }) async {
+    try {
+      final response = await _supabase.rpc(
+        'get_user_engagement_reports',
+        params: {'p_event_type': eventType},
+      );
+      final report = UserEngagementReportsModel.fromJson(
+        Map<String, dynamic>.from(response as Map),
+      );
+      return report.topEventParticipants;
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(
+        message: 'Etkinlik katılım listesi alınamadı: $e',
+      );
+    }
+  }
+
+  @override
+  Future<SendEngagementExcuseResultModel> sendEngagementExcuseRequests({
+    required List<String> userIds,
+    required String excuseType,
+  }) async {
+    try {
+      final response = await _supabase.rpc(
+        'send_engagement_excuse_requests',
+        params: {
+          'p_user_ids': userIds,
+          'p_excuse_type': excuseType,
+        },
+      );
+      return SendEngagementExcuseResultModel.fromJson(
+        Map<String, dynamic>.from(response as Map),
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Mazaret bildirimi gönderilemedi: $e');
+    }
+  }
+
+  @override
+  Future<PendingEngagementExcuseModel?> getPendingEngagementExcuse() async {
+    if (_supabase.auth.currentUser == null) return null;
+    try {
+      final response = await _supabase.rpc('get_pending_engagement_excuse');
+      if (response == null) return null;
+      return PendingEngagementExcuseModel.fromJson(
+        Map<String, dynamic>.from(response as Map),
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Mazaret durumu alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<void> submitEngagementExcuse({
+    required String requestId,
+    required String text,
+  }) async {
+    try {
+      await _supabase.rpc(
+        'submit_engagement_excuse',
+        params: {
+          'p_request_id': requestId,
+          'p_text': text,
+        },
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Mazaret kaydedilemedi: $e');
+    }
+  }
+
+  @override
+  Future<EngagementExcuseAdminReportsModel> getEngagementExcuseAdminReports() async {
+    try {
+      final response = await _supabase.rpc('get_engagement_excuse_admin_reports');
+      return EngagementExcuseAdminReportsModel.fromJson(
+        Map<String, dynamic>.from(response as Map),
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Mazaret listesi alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<void> reviewEngagementExcuse({
+    required String requestId,
+    required String action,
+    DateTime? exemptUntil,
+  }) async {
+    try {
+      await _supabase.rpc(
+        'review_engagement_excuse',
+        params: {
+          'p_request_id': requestId,
+          'p_action': action,
+          'p_exempt_until': exemptUntil?.toUtc().toIso8601String(),
+        },
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Mazaret değerlendirilemedi: $e');
     }
   }
 }

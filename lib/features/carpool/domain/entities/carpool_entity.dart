@@ -65,6 +65,10 @@ class CarpoolOfferEntity {
     return 'Araç bilgisi yok';
   }
 
+  /// Dolu koltuk sayısı (gösterim: doluluk/toplam, örn. 0/3)
+  int get occupiedSeats =>
+      (totalSeats - availableSeats).clamp(0, totalSeats);
+
   bool get isFull => availableSeats <= 0;
   bool get isActive => status == CarpoolOfferStatus.active;
 }

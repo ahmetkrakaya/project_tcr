@@ -24,8 +24,11 @@ import '../../../../shared/widgets/flip_countdown_widget.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
-import '../../../carpool/presentation/widgets/event_carpool_section.dart';
+import '../../../carpool/presentation/widgets/event_carpool_section.dart'
+    show EventCarpoolActions, EventCarpoolSection, EventCarpoolSectionState;
 import '../../../chat/presentation/providers/chat_provider.dart';
+import '../../../members_groups/domain/entities/group_entity.dart' as group_entities;
+import '../../../members_groups/presentation/providers/group_provider.dart' show allGroupsProvider, groupMembersProvider, userGroupsComputedProvider;
 import '../../../members_groups/presentation/widgets/user_group_program_viewer.dart';
 import '../../../routes/presentation/providers/route_provider.dart';
 import '../../domain/entities/event_result_entity.dart';
@@ -47,6 +50,8 @@ class EventDetailPage extends ConsumerStatefulWidget {
 class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   bool _isBannerUploading = false;
   final String _selectedRankingType = 'overall'; // 'overall', 'female', 'male'
+  final GlobalKey<EventCarpoolSectionState> _carpoolSectionKey =
+      GlobalKey<EventCarpoolSectionState>();
 
   @override
   Widget build(BuildContext context) {
@@ -202,28 +207,12 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   ),
                   child: PopupMenuButton<String>(
                   onSelected: (value) async {
-                    final router = GoRouter.of(context);
                     switch (value) {
                       case 'edit':
-                        final hasActiveRecurrence =
-                            event.isRecurring &&
-                            event.recurrenceRule != null &&
-                            event.recurrenceRule!.isNotEmpty;
-                        if (hasActiveRecurrence) {
-                          final scope = await _showRecurringEditScopeDialog(context);
-                          if (scope != null && context.mounted) {
-                            router.pushNamed(
-                              RouteNames.editEvent,
-                              pathParameters: {'eventId': widget.eventId},
-                              queryParameters: {'scope': scope},
-                            );
-                          }
-                        } else {
-                          context.pushNamed(
-                            RouteNames.editEvent,
-                            pathParameters: {'eventId': widget.eventId},
-                          );
-                        }
+                        context.pushNamed(
+                          RouteNames.editEvent,
+                          pathParameters: {'eventId': widget.eventId},
+                        );
                         break;
                       case 'send_notification':
                         _showSendNotificationConfirmation(context, ref);
@@ -410,9 +399,12 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   ),
                   const SizedBox(height: 8),
 
-                  // Ortak Araba (sadece Ekip / toplu antrenmanda; bireyselde yok; geçmiş etkinliklerde gösterilmez)
+                  // Ortak yolculuk (sadece Ekip / toplu antrenmanda; geçmiş etkinliklerde gösterilmez)
                   if (!_isIndividualParticipation(event) && !event.isPast) ...[
-                    EventCarpoolSection(eventId: widget.eventId),
+                    EventCarpoolSection(
+                      key: _carpoolSectionKey,
+                      eventId: widget.eventId,
+                    ),
                     const SizedBox(height: 24),
                   ],
 
@@ -431,7 +423,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                     _buildSectionHeader(
                       'Katılımcılar (${event.participantCount})',
                       actionText: event.participantCount > 0 ? 'Tümünü Gör' : null,
-                      onAction: () => _showParticipantsSheet(context, participantsAsync),
+                      onAction: () => _showParticipantsSheet(context, event, participantsAsync),
                     ),
                     const SizedBox(height: 12),
                     _buildParticipantsSection(participantsAsync),
@@ -815,49 +807,116 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
           }
 
           if (userRsvpStatus == RsvpStatus.going) {
-            return Row(
+            final routeOptionsAsync = event.eventType == EventType.training
+                ? ref.watch(eventRouteOptionsProvider(widget.eventId))
+                : null;
+            final routeOptions =
+                routeOptionsAsync?.valueOrNull ?? const <EventRouteOptionEntity>[];
+            final hasMultiRoute = routeOptions.length >= 2;
+
+            // Mevcut kullanıcının seçili rotasını bul
+            final participantsVal = ref
+                .watch(eventParticipantsProvider(widget.eventId))
+                .valueOrNull;
+            final currentUserId =
+                Supabase.instance.client.auth.currentUser?.id;
+            final myParticipant = participantsVal?.where(
+              (p) => p.userId == currentUserId,
+            ).firstOrNull;
+            final myRouteName = myParticipant?.selectedRouteName ??
+                routeOptions
+                    .where((o) =>
+                        o.routeId == myParticipant?.selectedRouteId)
+                    .firstOrNull
+                    ?.displayName;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                AppButton(
-                  text: 'Katılmıyorum',
-                  variant: AppButtonVariant.danger,
-                  isLoading: isLoading,
-                  onPressed: () {
-                    ref.read(rsvpProvider.notifier).rsvp(
-                          widget.eventId,
-                          RsvpStatus.notGoing,
-                        );
-                  },
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                Row(
+                  children: [
+                    AppButton(
+                      text: 'Katılmıyorum',
+                      variant: AppButtonVariant.danger,
+                      isLoading: isLoading,
+                      onPressed: () {
+                        ref.read(rsvpProvider.notifier).rsvp(
+                              widget.eventId,
+                              RsvpStatus.notGoing,
+                            );
+                      },
                     ),
-                    decoration: BoxDecoration(
-                      color: AppColors.successContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.check_circle,
-                          color: AppColors.success,
-                          size: 20,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Katılıyorsunuz',
-                          style: AppTypography.labelLarge.copyWith(
-                            color: AppColors.success,
+                        decoration: BoxDecoration(
+                          color: AppColors.successContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.check_circle,
+                              color: AppColors.success,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                hasMultiRoute && myRouteName != null
+                                    ? 'Katılıyorsunuz • $myRouteName'
+                                    : 'Katılıyorsunuz',
+                                style: AppTypography.labelLarge.copyWith(
+                                  color: AppColors.success,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (hasMultiRoute) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => _handleJoinPressed(
+                          context,
+                          ref,
+                          event,
+                          isRouteChange: true,
+                        ),
+                        icon: const Icon(Icons.swap_horiz, size: 16),
+                        label: Text(
+                          'Pist Değiştir',
+                          style: AppTypography.labelSmall.copyWith(
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ],
-                    ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                ],
               ],
             );
           }
@@ -946,9 +1005,38 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   Future<void> _handleJoinPressed(
     BuildContext context,
     WidgetRef ref,
-    EventEntity event,
-  ) async {
-    // Sadece yarış event'lerinde kategori (mesafe) seçimi zorunlu.
+    EventEntity event, {
+    bool isRouteChange = false,
+  }) async {
+    // Antrenman etkinliklerinde çoklu rota seçimi
+    if (event.eventType == EventType.training) {
+      final options = await ref.read(
+        eventRouteOptionsProvider(widget.eventId).future,
+      );
+      if (options.length >= 2) {
+        if (!context.mounted) return;
+        final pickedRouteId = await _showRouteSelectionDialog(context, options);
+        if (pickedRouteId == null) return;
+
+        if (isRouteChange) {
+          await ref
+              .read(rsvpProvider.notifier)
+              .updateParticipantRoute(widget.eventId, pickedRouteId);
+        } else {
+          await ref.read(rsvpProvider.notifier).rsvp(
+                widget.eventId,
+                RsvpStatus.going,
+                selectedRouteId: pickedRouteId,
+              );
+          if (context.mounted) {
+            await _promptCarpoolAfterJoin(context, event);
+          }
+        }
+        return;
+      }
+    }
+
+    // Yarış etkinliklerinde kategori seçimi
     if (event.eventType == EventType.race) {
       final labelsFromEvent = event.raceVariantLabels;
       final labels = (labelsFromEvent != null && labelsFromEvent.isNotEmpty)
@@ -956,6 +1044,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
           : await _resolveRaceVariantLabelsFromRoute(ref, event);
 
       if (labels.isNotEmpty) {
+        if (!context.mounted) return;
         final pickedLabel = await _showRaceVariantLabelDialog(
           context,
           labels,
@@ -967,16 +1056,81 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               RsvpStatus.going,
               raceVariantLabel: pickedLabel,
             );
+        if (context.mounted) {
+          await _promptCarpoolAfterJoin(context, event);
+        }
         return;
       }
     }
 
-    // Eski race event'ler veya kategori listesi olmayan durumlarda
-    // ekstra seçim istemeden RSVP al.
-    await ref.read(rsvpProvider.notifier).rsvp(
-          widget.eventId,
-          RsvpStatus.going,
-        );
+    if (!isRouteChange) {
+      await ref.read(rsvpProvider.notifier).rsvp(
+            widget.eventId,
+            RsvpStatus.going,
+          );
+      if (context.mounted) {
+        await _promptCarpoolAfterJoin(context, event);
+      }
+    }
+  }
+
+  Future<void> _promptCarpoolAfterJoin(
+    BuildContext context,
+    EventEntity event,
+  ) async {
+    if (_isIndividualParticipation(event) || event.isPast) return;
+    await EventCarpoolActions.showIntroAfterJoin(
+      context,
+      _carpoolSectionKey,
+      widget.eventId,
+    );
+  }
+
+  Future<String?> _showRouteSelectionDialog(
+    BuildContext context,
+    List<EventRouteOptionEntity> options,
+  ) async {
+    String? selected = options.first.routeId;
+
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Pist seçin'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Katılacağınız pisti seçin.',
+                style: AppTypography.bodySmall
+                    .copyWith(color: AppColors.neutral600),
+              ),
+              const SizedBox(height: 12),
+              ...options.map(
+                (option) => RadioListTile<String>(
+                  value: option.routeId,
+                  groupValue: selected,
+                  title: Text(option.displayName),
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (v) => setState(() => selected = v),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, null),
+              child: const Text('İptal'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, selected),
+              child: const Text('Katıl'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<List<String>> _resolveRaceVariantLabelsFromRoute(
@@ -1081,71 +1235,16 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
 
   void _showParticipantsSheet(
     BuildContext context,
+    EventEntity event,
     AsyncValue<List<EventParticipantEntity>> participantsAsync,
   ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.3,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Katılımcılar', style: AppTypography.titleLarge),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: participantsAsync.when(
-                data: (participants) => ListView.builder(
-                  controller: scrollController,
-                  itemCount: participants.length,
-                  itemBuilder: (context, index) {
-                    final participant = participants[index];
-                    return ListTile(
-                      leading: UserAvatar(
-                        size: 44,
-                        name: participant.userName,
-                        imageUrl: participant.userAvatarUrl,
-                      ),
-                      title: Text(participant.userName),
-                      subtitle: Text(
-                        participant.checkedIn ? 'Katıldı' : 'Gelecek',
-                        style: TextStyle(
-                          color: participant.checkedIn
-                              ? AppColors.success
-                              : AppColors.neutral500,
-                        ),
-                      ),
-                      trailing: participant.checkedIn
-                          ? const Icon(
-                              Icons.check_circle,
-                              color: AppColors.success,
-                            )
-                          : null,
-                    );
-                  },
-                ),
-                loading: () => const Center(child: LoadingWidget()),
-                error: (_, __) => const Center(
-                  child: Text('Katılımcılar yüklenemedi'),
-                ),
-              ),
-            ),
-          ],
-        ),
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ParticipantsTabSheet(
+        event: event,
+        participantsAsync: participantsAsync,
       ),
     );
   }
@@ -1344,33 +1443,6 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     );
   }
 
-  /// Tekrarlayan etkinlik düzenlenirken: sadece bu / tüm sonrakiler seçimi
-  Future<String?> _showRecurringEditScopeDialog(BuildContext context) async {
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Tekrarlayan etkinliği düzenle'),
-        content: const Text(
-          'Sadece bu etkinliği mi yoksa bu ve sonraki tüm tekrarları mı güncellemek istiyorsunuz?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('İptal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, 'only_this'),
-            child: const Text('Sadece bu etkinlik'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, 'all_future'),
-            child: const Text('Bu ve sonraki tümü'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildBannerBackground(
     BuildContext context,
     EventEntity event,
@@ -1498,6 +1570,9 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   }
 
   void _showBannerOptions(BuildContext context, WidgetRef ref, EventEntity event) {
+    // Bottom sheet kapandıktan sonra sheet'in context'i unmount olur.
+    // Picker / snackbar gibi işlemler için sayfanın context'ini kullan.
+    final pageContext = context;
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -1520,7 +1595,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                 title: const Text('Galeriden Seç'),
                 onTap: () {
                   Navigator.pop(context);
-                  _pickBannerImage(context, ref, event);
+                  Future.microtask(() => _pickBannerImage(pageContext, ref, event));
                 },
               ),
               ListTile(
@@ -1535,7 +1610,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                 title: const Text('Kamera ile Çek'),
                 onTap: () {
                   Navigator.pop(context);
-                  _takeBannerPhoto(context, ref, event);
+                  Future.microtask(() => _takeBannerPhoto(pageContext, ref, event));
                 },
               ),
               if (event.bannerImageUrl != null && event.bannerImageUrl!.isNotEmpty)
@@ -1551,7 +1626,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   title: const Text('Fotoğrafı Kaldır'),
                   onTap: () {
                     Navigator.pop(context);
-                    _removeBannerImage(context, ref, event);
+                    Future.microtask(() => _removeBannerImage(pageContext, ref, event));
                   },
                 ),
             ],
@@ -1571,12 +1646,15 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
         imageQuality: 85,
       );
 
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        return;
+      }
 
       if (pickedFile != null) {
         await _uploadBannerImage(context, ref, event, pickedFile);
+      } else {
       }
-    } catch (e) {
+    } catch (e, st) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Fotoğraf seçilemedi: $e')),
@@ -1595,12 +1673,15 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
         imageQuality: 85,
       );
 
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        return;
+      }
 
       if (pickedFile != null) {
         await _uploadBannerImage(context, ref, event, pickedFile);
+      } else {
       }
-    } catch (e) {
+    } catch (e, st) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Fotoğraf çekilemedi: $e')),
@@ -1670,7 +1751,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
           backgroundColor: AppColors.success,
         ),
       );
-    } catch (e) {
+    } catch (e, st) {
       // Loading state'i bitir
       if (mounted) {
         setState(() {
@@ -2017,6 +2098,49 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     WidgetRef ref,
     EventEntity event,
   ) {
+    if (event.eventType == EventType.training) {
+      final optionsAsync = ref.watch(eventRouteOptionsProvider(event.id));
+      return optionsAsync.when(
+        data: (options) {
+          if (options.length >= 2) {
+            final label = options.map((o) => o.displayName).join(' · ');
+            return _buildOneCompactInfoRow(
+              context,
+              ref,
+              event,
+              locationRouteLabel: label,
+              locationLabelMaxLines: 3,
+              locationLabelMaxWidth: null,
+            );
+          }
+          if (options.length == 1) {
+            return _buildOneCompactInfoRow(
+              context,
+              ref,
+              event,
+              locationRouteLabel: options.first.displayName,
+            );
+          }
+          return _buildCompactDateLocationRowLegacy(context, ref, event);
+        },
+        loading: () => _buildOneCompactInfoRow(
+          context,
+          ref,
+          event,
+          locationRouteLabel: '…',
+        ),
+        error: (_, __) => _buildCompactDateLocationRowLegacy(context, ref, event),
+      );
+    }
+    return _buildCompactDateLocationRowLegacy(context, ref, event);
+  }
+
+  /// Tek `events.route_id` veya konum metni (çoklu rota yoksa)
+  Widget _buildCompactDateLocationRowLegacy(
+    BuildContext context,
+    WidgetRef ref,
+    EventEntity event,
+  ) {
     if (event.routeId != null) {
       final routeAsync = ref.watch(routeByIdProvider(event.routeId!));
       return routeAsync.when(
@@ -2025,21 +2149,18 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
           ref,
           event,
           locationRouteLabel: event.locationName ?? route.name,
-          hasRoute: true,
         ),
         loading: () => _buildOneCompactInfoRow(
           context,
           ref,
           event,
           locationRouteLabel: event.locationName ?? '…',
-          hasRoute: true,
         ),
         error: (_, __) => _buildOneCompactInfoRow(
           context,
           ref,
           event,
           locationRouteLabel: event.locationName ?? 'Rota',
-          hasRoute: true,
         ),
       );
     }
@@ -2048,7 +2169,6 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
       ref,
       event,
       locationRouteLabel: event.locationName,
-      hasRoute: false,
     );
   }
 
@@ -2057,8 +2177,16 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     WidgetRef ref,
     EventEntity event, {
     required String? locationRouteLabel,
-    required bool hasRoute,
+    int locationLabelMaxLines = 1,
+    double? locationLabelMaxWidth = 180,
   }) {
+    final screenW = MediaQuery.sizeOf(context).width;
+    final double chipMaxW;
+    if (locationLabelMaxWidth == null) {
+      chipMaxW = screenW - 40;
+    } else {
+      chipMaxW = (locationLabelMaxWidth + 72).clamp(200.0, screenW - 24);
+    }
     return Wrap(
       spacing: 16,
       runSpacing: 8,
@@ -2089,33 +2217,75 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               ),
             ],
           ),
-        // Konum / Rota (tıklanınca bottom modal açılır; oradan yol tarifi veya rota detayı)
+        // Konum / Rota — tıklanınca harita, yol tarifi ve rota seçenekleri
         if (locationRouteLabel != null && locationRouteLabel.isNotEmpty)
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _showLocationRouteSheet(context, ref, event),
-              borderRadius: BorderRadius.circular(6),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.location_on_outlined, size: 16, color: AppColors.neutral500),
-                    const SizedBox(width: 6),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 180),
-                      child: Text(
-                        locationRouteLabel,
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: chipMaxW),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _showLocationRouteSheet(context, ref, event),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.42),
                     ),
-                  ],
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.map_rounded, size: 22, color: AppColors.primary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              locationRouteLabel,
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.neutral900,
+                                fontWeight: FontWeight.w600,
+                                height: 1.25,
+                              ),
+                              maxLines: locationLabelMaxLines,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.navigation_rounded,
+                                  size: 14,
+                                  color: AppColors.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    'Yol tarifi ve harita için dokunun',
+                                    style: AppTypography.labelSmall.copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.keyboard_arrow_right_rounded,
+                        size: 22,
+                        color: AppColors.primary,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -2124,12 +2294,441 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     );
   }
 
+  /// Antrenmanda `event_route_options`: sheet içinde tüm pistler
+  Widget _trainingRouteOptionsSheetBody(
+    BuildContext modalContext,
+    BuildContext hostContext,
+    WidgetRef ref,
+    EventEntity event,
+    List<EventRouteOptionEntity> options,
+  ) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(modalContext).height * 0.62,
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        itemCount: options.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (ctx, i) {
+          final opt = options[i];
+          final routeAsync = ref.watch(routeByIdProvider(opt.routeId));
+          return routeAsync.when(
+            data: (route) {
+              void openDirections() {
+                Navigator.pop(modalContext);
+                _openMapsForDirections(
+                  route.locationLat ?? event.locationLat,
+                  route.locationLng ?? event.locationLng,
+                  route.locationName ?? route.name,
+                  route.locationName,
+                );
+              }
+
+              void openRouteDetail() {
+                Navigator.pop(modalContext);
+                hostContext.pushNamed(
+                  RouteNames.routeDetail,
+                  pathParameters: {'routeId': opt.routeId},
+                );
+              }
+
+              return AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      opt.displayName,
+                      style: AppTypography.titleSmall.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (route.locationName != null &&
+                        route.locationName!.isNotEmpty &&
+                        route.locationName != opt.displayName) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        route.locationName!,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.neutral500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    AppButton(
+                      text: 'Yol tarifi al',
+                      icon: Icons.navigation_rounded,
+                      onPressed: openDirections,
+                      isFullWidth: true,
+                      size: AppButtonSize.medium,
+                    ),
+                    const SizedBox(height: 8),
+                    AppButton(
+                      text: 'Rotayı görüntüle',
+                      variant: AppButtonVariant.outlined,
+                      icon: Icons.map_outlined,
+                      suffixIcon: Icons.chevron_right,
+                      onPressed: openRouteDetail,
+                      isFullWidth: true,
+                      size: AppButtonSize.medium,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Icon(Icons.straighten, size: 14, color: AppColors.neutral500),
+                        Text(
+                          route.formattedDistance,
+                          style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                        ),
+                        Icon(Icons.trending_up, size: 14, color: AppColors.neutral500),
+                        Text(
+                          route.formattedElevationGain,
+                          style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.tertiary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            route.terrainType.displayName,
+                            style: AppTypography.labelSmall.copyWith(color: AppColors.tertiary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+            loading: () => AppCard(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        opt.displayName,
+                        style: AppTypography.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            error: (_, __) => AppCard(
+              child: ListTile(
+                title: Text(opt.displayName),
+                subtitle: const Text('Rota bilgisi yüklenemedi'),
+                trailing: TextButton(
+                  onPressed: () {
+                    Navigator.pop(modalContext);
+                    hostContext.pushNamed(
+                      RouteNames.routeDetail,
+                      pathParameters: {'routeId': opt.routeId},
+                    );
+                  },
+                  child: const Text('Aç'),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   /// Konum/Rota tıklanınca açılan bottom modal (önceki kart tasarımı)
+  /// Eski davranış: tek `events.route_id` veya sadece konum (sheet gövdesi)
+  Widget _legacyLocationRouteSheetBody(
+    BuildContext modalContext,
+    BuildContext hostContext,
+    WidgetRef ref,
+    EventEntity event,
+  ) {
+    if (event.routeId != null) {
+      return Consumer(
+        builder: (_, ref, __) {
+          final routeAsync = ref.watch(routeByIdProvider(event.routeId!));
+          void onDirections() {
+            Navigator.pop(modalContext);
+            _openMapsForDirections(
+              event.locationLat,
+              event.locationLng,
+              event.locationName,
+              event.locationAddress,
+            );
+          }
+          void onRouteDetail() {
+            Navigator.pop(modalContext);
+            hostContext.pushNamed(
+              RouteNames.routeDetail,
+              pathParameters: {'routeId': event.routeId!},
+            );
+          }
+          return routeAsync.when(
+            data: (route) {
+              final name = event.locationName ?? route.name;
+              int selectedVariantIndex = 0;
+              final variants = route.gpxVariants;
+
+              return StatefulBuilder(
+                builder: (contextSB, modalSetState) {
+                  final selectedVariant = variants.isNotEmpty
+                      ? variants[selectedVariantIndex.clamp(0, variants.length - 1)]
+                      : null;
+
+                  return AppCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: AppTypography.titleSmall.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (event.locationAddress != null &&
+                            event.locationAddress!.isNotEmpty &&
+                            event.locationAddress != name) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            event.locationAddress!,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.neutral500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        AppButton(
+                          text: 'Yol tarifi al',
+                          icon: Icons.navigation_rounded,
+                          onPressed: onDirections,
+                          isFullWidth: true,
+                          size: AppButtonSize.medium,
+                        ),
+                        const SizedBox(height: 8),
+                        AppButton(
+                          text: 'Rotayı görüntüle',
+                          variant: AppButtonVariant.outlined,
+                          icon: Icons.map_outlined,
+                          suffixIcon: Icons.chevron_right,
+                          onPressed: () {
+                            Navigator.pop(modalContext);
+                            hostContext.pushNamed(
+                              RouteNames.routeDetail,
+                              pathParameters: {'routeId': event.routeId!},
+                              extra: {'variantIndex': selectedVariantIndex},
+                            );
+                          },
+                          isFullWidth: true,
+                          size: AppButtonSize.medium,
+                        ),
+                        if (variants.length > 1) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Mesafe',
+                                  style: AppTypography.labelMedium.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.neutral700,
+                                  ),
+                                ),
+                              ),
+                              DropdownButtonHideUnderline(
+                                child: DropdownButton<int>(
+                                  value: selectedVariantIndex,
+                                  isDense: true,
+                                  onChanged: (value) {
+                                    if (value == null) return;
+                                    modalSetState(() {
+                                      selectedVariantIndex = value;
+                                    });
+                                  },
+                                  items: List.generate(variants.length, (i) {
+                                    final v = variants[i];
+                                    return DropdownMenuItem<int>(
+                                      value: i,
+                                      child: Text(
+                                        v.label,
+                                        style: AppTypography.labelSmall,
+                                      ),
+                                    );
+                                  }),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${variants.length} farklı rota seçeneği',
+                            style: AppTypography.labelSmall.copyWith(
+                              color: AppColors.neutral600,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Seçili Rota: ${selectedVariant?.label ?? variants[selectedVariantIndex].label} • '
+                            '${(selectedVariant?.formattedDistance ?? variants[selectedVariantIndex].formattedDistance)}',
+                            style: AppTypography.labelMedium.copyWith(
+                              color: AppColors.neutral800,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Icon(Icons.straighten, size: 14, color: AppColors.neutral500),
+                            Text(
+                              selectedVariant?.formattedDistance ?? route.formattedDistance,
+                              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                            ),
+                            Icon(Icons.trending_up, size: 14, color: AppColors.neutral500),
+                            Text(
+                              selectedVariant?.formattedElevationGain ??
+                                  route.formattedElevationGain,
+                              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.tertiary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                route.terrainType.displayName,
+                                style: AppTypography.labelSmall.copyWith(color: AppColors.tertiary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+            loading: () => AppCard(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Row(
+                  children: [
+                    Icon(Icons.location_on_outlined, color: AppColors.neutral400, size: 24),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            error: (_, __) => AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    event.locationName ?? 'Konum',
+                    style: AppTypography.titleSmall,
+                  ),
+                  const SizedBox(height: 12),
+                  AppButton(
+                    text: 'Yol tarifi al',
+                    icon: Icons.navigation_rounded,
+                    onPressed: onDirections,
+                    isFullWidth: true,
+                    size: AppButtonSize.medium,
+                  ),
+                  const SizedBox(height: 8),
+                  AppButton(
+                    text: 'Rotayı görüntüle',
+                    variant: AppButtonVariant.outlined,
+                    icon: Icons.map_outlined,
+                    suffixIcon: Icons.chevron_right,
+                    onPressed: onRouteDetail,
+                    isFullWidth: true,
+                    size: AppButtonSize.medium,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            event.locationName ?? 'Konum',
+            style: AppTypography.titleSmall.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (event.locationAddress != null && event.locationAddress!.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              event.locationAddress!,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.neutral500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 12),
+          AppButton(
+            text: 'Yol tarifi al',
+            icon: Icons.navigation_rounded,
+            onPressed: () {
+              Navigator.pop(modalContext);
+              _openMapsForDirections(
+                event.locationLat,
+                event.locationLng,
+                event.locationName,
+                event.locationAddress,
+              );
+            },
+            isFullWidth: true,
+            size: AppButtonSize.medium,
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showLocationRouteSheet(
     BuildContext context,
     WidgetRef ref,
     EventEntity event,
   ) {
+    final hostContext = context;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -2154,328 +2753,68 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                child: event.routeId != null
-                    ? Consumer(
-                        builder: (_, ref, __) {
-                          final routeAsync = ref.watch(routeByIdProvider(event.routeId!));
-                          void onDirections() {
-                            Navigator.pop(modalContext);
-                            _openMapsForDirections(
-                              event.locationLat,
-                              event.locationLng,
-                              event.locationName,
-                              event.locationAddress,
-                            );
-                          }
-                          void onRouteDetail() {
-                            Navigator.pop(modalContext);
-                            context.pushNamed(
-                              RouteNames.routeDetail,
-                              pathParameters: {'routeId': event.routeId!},
-                            );
-                          }
-                          return routeAsync.when(
-                            data: (route) {
-                              final name = event.locationName ?? route.name;
-                              int selectedVariantIndex = 0;
-                              final variants = route.gpxVariants;
-
-                              return StatefulBuilder(
-                                builder: (contextSB, modalSetState) {
-                                  final selectedVariant = variants.isNotEmpty
-                                      ? variants[selectedVariantIndex.clamp(0, variants.length - 1)]
-                                      : null;
-
-                                  return AppCard(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          name,
-                                          style: AppTypography.titleSmall.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        if (event.locationAddress != null &&
-                                            event.locationAddress!.isNotEmpty &&
-                                            event.locationAddress != name) ...[
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            event.locationAddress!,
-                                            style: AppTypography.bodySmall.copyWith(
-                                              color: AppColors.neutral500,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                        const SizedBox(height: 12),
-
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: InkWell(
-                                                onTap: onDirections,
-                                                borderRadius: BorderRadius.circular(8),
-                                                child: Padding(
-                                                  padding: const EdgeInsets.symmetric(vertical: 8),
-                                                  child: Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      Icon(Icons.directions, size: 20, color: AppColors.primary),
-                                                      const SizedBox(width: 6),
-                                                      Text(
-                                                        'Yol Tarifi Al',
-                                                        style: AppTypography.labelMedium.copyWith(
-                                                          color: AppColors.primary,
-                                                          fontWeight: FontWeight.w600,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            InkWell(
-                                              onTap: () {
-                                                Navigator.pop(modalContext);
-                                                context.pushNamed(
-                                                  RouteNames.routeDetail,
-                                                  pathParameters: {'routeId': event.routeId!},
-                                                  extra: {'variantIndex': selectedVariantIndex},
-                                                );
-                                              },
-                                              borderRadius: BorderRadius.circular(8),
-                                              child: Padding(
-                                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Text(
-                                                      'Rotayı Görüntüle',
-                                                      style: AppTypography.labelMedium.copyWith(
-                                                        color: AppColors.primary,
-                                                        fontWeight: FontWeight.w600,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    Icon(Icons.chevron_right, size: 18, color: AppColors.primary),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-
-                                        if (variants.length > 1) ...[
-                                          const SizedBox(height: 12),
-                                          Row(
-                                            crossAxisAlignment: CrossAxisAlignment.center,
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  'Mesafe',
-                                                  style: AppTypography.labelMedium.copyWith(
-                                                    fontWeight: FontWeight.w800,
-                                                    color: AppColors.neutral700,
-                                                  ),
-                                                ),
-                                              ),
-                                              DropdownButtonHideUnderline(
-                                                child: DropdownButton<int>(
-                                                  value: selectedVariantIndex,
-                                                  isDense: true,
-                                                  onChanged: (value) {
-                                                    if (value == null) return;
-                                                    modalSetState(() {
-                                                      selectedVariantIndex = value;
-                                                    });
-                                                  },
-                                                  items: List.generate(variants.length, (i) {
-                                                    final v = variants[i];
-                                                    return DropdownMenuItem<int>(
-                                                      value: i,
-                                                      child: Text(
-                                                        v.label,
-                                                        style: AppTypography.labelSmall,
-                                                      ),
-                                                    );
-                                                  }),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            '${variants.length} farklı rota seçeneği',
-                                            style: AppTypography.labelSmall.copyWith(
-                                              color: AppColors.neutral600,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Text(
-                                            'Seçili Rota: ${selectedVariant?.label ?? variants[selectedVariantIndex].label} • '
-                                            '${(selectedVariant?.formattedDistance ?? variants[selectedVariantIndex].formattedDistance)}',
-                                            style: AppTypography.labelMedium.copyWith(
-                                              color: AppColors.neutral800,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ],
-
-                                        const SizedBox(height: 8),
-                                        Wrap(
-                                          spacing: 8,
-                                          runSpacing: 4,
-                                          crossAxisAlignment: WrapCrossAlignment.center,
-                                          children: [
-                                            Icon(Icons.straighten, size: 14, color: AppColors.neutral500),
-                                            Text(
-                                              selectedVariant?.formattedDistance ?? route.formattedDistance,
-                                              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
-                                            ),
-                                            Icon(Icons.trending_up, size: 14, color: AppColors.neutral500),
-                                            Text(
-                                              selectedVariant?.formattedElevationGain ??
-                                                  route.formattedElevationGain,
-                                              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
-                                            ),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.tertiary.withValues(alpha: 0.15),
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                route.terrainType.displayName,
-                                                style: AppTypography.labelSmall.copyWith(color: AppColors.tertiary),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              );
-                            },
-                            loading: () => AppCard(
-                              child: Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.location_on_outlined, color: AppColors.neutral400, size: 24),
-                                    const SizedBox(width: 12),
-                                    const Expanded(
-                                      child: SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      ),
-                                    ),
-                                  ],
+                child: Consumer(
+                  builder: (_, ref, __) {
+                    if (event.eventType == EventType.training) {
+                      return ref.watch(eventRouteOptionsProvider(event.id)).when(
+                        data: (opts) {
+                          if (opts.isNotEmpty) {
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  opts.length > 1
+                                      ? 'Antrenman rotaları (${opts.length})'
+                                      : 'Antrenman rotası',
+                                  style: AppTypography.titleSmall.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                              ),
-                            ),
-                            error: (_, __) => AppCard(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    event.locationName ?? 'Konum',
-                                    style: AppTypography.titleSmall,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  InkWell(
-                                    onTap: onDirections,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 8),
-                                      child: Text(
-                                        'Yol Tarifi Al',
-                                        style: AppTypography.labelMedium.copyWith(
-                                          color: AppColors.primary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  InkWell(
-                                    onTap: onRouteDetail,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 8),
-                                      child: Row(
-                                        children: [
-                                          Text(
-                                            'Rotayı görüntüle',
-                                            style: AppTypography.bodyMedium.copyWith(color: AppColors.primary),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Icon(Icons.chevron_right, size: 18, color: AppColors.primary),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                                const SizedBox(height: 8),
+                                _trainingRouteOptionsSheetBody(
+                                  modalContext,
+                                  hostContext,
+                                  ref,
+                                  event,
+                                  opts,
+                                ),
+                              ],
+                            );
+                          }
+                          return _legacyLocationRouteSheetBody(
+                            modalContext,
+                            hostContext,
+                            ref,
+                            event,
                           );
                         },
-                      )
-                    : AppCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              event.locationName ?? 'Konum',
-                              style: AppTypography.titleSmall.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                        loading: () => const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 28),
+                          child: Center(
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
-                            if (event.locationAddress != null &&
-                                event.locationAddress!.isNotEmpty) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                event.locationAddress!,
-                                style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.neutral500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                            const SizedBox(height: 12),
-                            InkWell(
-                              onTap: () {
-                                Navigator.pop(modalContext);
-                                _openMapsForDirections(
-                                  event.locationLat,
-                                  event.locationLng,
-                                  event.locationName,
-                                  event.locationAddress,
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.directions, size: 20, color: AppColors.primary),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Yol Tarifi Al',
-                                      style: AppTypography.labelMedium.copyWith(
-                                        color: AppColors.primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
+                        error: (_, __) => _legacyLocationRouteSheetBody(
+                          modalContext,
+                          hostContext,
+                          ref,
+                          event,
+                        ),
+                      );
+                    }
+                    return _legacyLocationRouteSheetBody(
+                      modalContext,
+                      hostContext,
+                      ref,
+                      event,
+                    );
+                  },
+                ),
               ),
             ],
           ),
@@ -3280,6 +3619,538 @@ class _ResultsModalContentState extends State<_ResultsModalContent> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Participants Tab Sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ParticipantsTabSheet extends ConsumerWidget {
+  const _ParticipantsTabSheet({
+    required this.event,
+    required this.participantsAsync,
+  });
+
+  final EventEntity event;
+  final AsyncValue<List<EventParticipantEntity>> participantsAsync;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final screenH = MediaQuery.of(context).size.height;
+    return Container(
+      height: screenH * 0.88,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          _SheetHandle(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Katılımcılar', style: AppTypography.titleLarge),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: participantsAsync.when(
+              loading: () => const Center(child: LoadingWidget()),
+              error: (_, __) =>
+                  const Center(child: Text('Katılımcılar yüklenemedi')),
+              data: (participants) =>
+                  _buildBody(context, ref, participants),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    WidgetRef ref,
+    List<EventParticipantEntity> participants,
+  ) {
+    if (event.eventType == EventType.training) {
+      final routeOptions =
+          ref.watch(eventRouteOptionsProvider(event.id)).valueOrNull ?? [];
+      final allGroups =
+          ref.watch(allGroupsProvider).valueOrNull ?? const [];
+
+      // Tüm aktif gruplar; katılımcı ataması üyelikten (programdan değil)
+      final orderedGroups = allGroups
+          .where((g) => g.isActive)
+          .map((g) => (id: g.id, name: g.name))
+          .toList();
+
+      final groupMembersMap = <String, Set<String>>{};
+      for (final g in orderedGroups) {
+        final members =
+            ref.watch(groupMembersProvider(g.id)).valueOrNull ?? [];
+        groupMembersMap[g.id] = members.map((m) => m.userId).toSet();
+      }
+
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      final initialRouteIndex = _initialRouteTabIndex(
+        participants,
+        routeOptions,
+        currentUserId,
+      );
+      final userGroups = ref.watch(userGroupsComputedProvider);
+      final initialGroupIndex = _initialGroupTabIndex(
+        orderedGroups,
+        userGroups,
+      );
+
+      if (routeOptions.length >= 2) {
+        return _TrainingMultiRouteBody(
+          participants: participants,
+          routeOptions: routeOptions,
+          orderedGroups: orderedGroups,
+          groupMembersMap: groupMembersMap,
+          initialRouteIndex: initialRouteIndex,
+          initialGroupIndex: initialGroupIndex,
+        );
+      }
+
+      if (orderedGroups.isNotEmpty) {
+        return _GroupTabBody(
+          participants: participants,
+          orderedGroups: orderedGroups,
+          groupMembersMap: groupMembersMap,
+          showRouteSubtitle: routeOptions.length == 1,
+          initialGroupIndex: initialGroupIndex,
+        );
+      }
+    } else if (event.eventType == EventType.race) {
+      final declaredLabels = event.raceVariantLabels ?? [];
+      final extraLabels = participants
+          .where((p) => p.raceVariantLabel != null && p.raceVariantLabel!.isNotEmpty)
+          .map((p) => p.raceVariantLabel!)
+          .toSet()
+          .where((l) => !declaredLabels.contains(l))
+          .toList();
+      final allLabels = [...declaredLabels, ...extraLabels];
+
+      if (allLabels.isNotEmpty) {
+        return _RaceCategoryBody(
+          participants: participants,
+          labels: allLabels,
+        );
+      }
+    }
+
+    return _FlatParticipantList(participants: participants);
+  }
+
+  /// Kullanıcının katıldığı pist sekmesi (yoksa 0)
+  static int _initialRouteTabIndex(
+    List<EventParticipantEntity> participants,
+    List<EventRouteOptionEntity> routeOptions,
+    String? currentUserId,
+  ) {
+    if (currentUserId == null || routeOptions.isEmpty) return 0;
+    final myRouteId = participants
+        .where((p) => p.userId == currentUserId)
+        .map((p) => p.selectedRouteId)
+        .firstWhere((id) => id != null && id.isNotEmpty, orElse: () => null);
+    if (myRouteId == null) return 0;
+    final idx = routeOptions.indexWhere((r) => r.routeId == myRouteId);
+    return idx >= 0 ? idx : 0;
+  }
+
+  /// Kullanıcının üye olduğu grup sekmesi (Tümü=0, gruplar=1..n)
+  static int _initialGroupTabIndex(
+    List<({String id, String? name})> orderedGroups,
+    List<group_entities.TrainingGroupEntity> userGroups,
+  ) {
+    if (orderedGroups.isEmpty || userGroups.isEmpty) return 0;
+    final userGroupIds = userGroups.map((g) => g.id).toSet();
+    for (var i = 0; i < orderedGroups.length; i++) {
+      if (userGroupIds.contains(orderedGroups[i].id)) {
+        return i + 1;
+      }
+    }
+    return 0;
+  }
+}
+
+// ── Training: Çoklu pist → pist sekmesi, altında grup sekmesi ─────────────────
+
+class _TrainingMultiRouteBody extends StatefulWidget {
+  const _TrainingMultiRouteBody({
+    required this.participants,
+    required this.routeOptions,
+    required this.orderedGroups,
+    required this.groupMembersMap,
+    this.initialRouteIndex = 0,
+    this.initialGroupIndex = 0,
+  });
+
+  final List<EventParticipantEntity> participants;
+  final List<EventRouteOptionEntity> routeOptions;
+  final List<({String id, String? name})> orderedGroups;
+  final Map<String, Set<String>> groupMembersMap;
+  final int initialRouteIndex;
+  final int initialGroupIndex;
+
+  @override
+  State<_TrainingMultiRouteBody> createState() =>
+      _TrainingMultiRouteBodyState();
+}
+
+class _TrainingMultiRouteBodyState extends State<_TrainingMultiRouteBody>
+    with SingleTickerProviderStateMixin {
+  late TabController _routeTabController;
+
+  @override
+  void initState() {
+    super.initState();
+    final routeIndex = widget.initialRouteIndex
+        .clamp(0, widget.routeOptions.length - 1);
+    _routeTabController = TabController(
+      length: widget.routeOptions.length,
+      vsync: this,
+      initialIndex: routeIndex,
+    );
+  }
+
+  @override
+  void dispose() {
+    _routeTabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TabBar(
+          controller: _routeTabController,
+          isScrollable: widget.routeOptions.length > 3,
+          labelStyle: AppTypography.labelMedium.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+          unselectedLabelStyle: AppTypography.labelMedium,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.neutral500,
+          indicatorColor: AppColors.primary,
+          tabs: widget.routeOptions
+              .map((r) => Tab(text: r.displayName))
+              .toList(),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: TabBarView(
+            controller: _routeTabController,
+            children: widget.routeOptions.map((route) {
+              final routeParticipants = widget.participants
+                  .where((p) => p.selectedRouteId == route.routeId)
+                  .toList();
+
+              if (widget.orderedGroups.isNotEmpty) {
+                return _GroupTabBody(
+                  participants: routeParticipants,
+                  orderedGroups: widget.orderedGroups,
+                  groupMembersMap: widget.groupMembersMap,
+                  showRouteSubtitle: false,
+                  initialGroupIndex: widget.initialGroupIndex,
+                );
+              }
+              return _FlatParticipantList(participants: routeParticipants);
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Grup sekmeleri ────────────────────────────────────────────────────────────
+
+class _GroupTabBody extends StatefulWidget {
+  const _GroupTabBody({
+    required this.participants,
+    required this.orderedGroups,
+    required this.groupMembersMap,
+    this.showRouteSubtitle = false,
+    this.initialGroupIndex = 0,
+  });
+
+  final List<EventParticipantEntity> participants;
+  final List<({String id, String? name})> orderedGroups;
+  final Map<String, Set<String>> groupMembersMap;
+  final bool showRouteSubtitle;
+  final int initialGroupIndex;
+
+  @override
+  State<_GroupTabBody> createState() => _GroupTabBodyState();
+}
+
+class _GroupTabBodyState extends State<_GroupTabBody>
+    with SingleTickerProviderStateMixin {
+  late TabController _groupTabController;
+
+  @override
+  void initState() {
+    super.initState();
+    final total = widget.orderedGroups.length + 1; // +1 for "Tümü"
+    final groupIndex = widget.initialGroupIndex.clamp(0, total - 1);
+    _groupTabController = TabController(
+      length: total,
+      vsync: this,
+      initialIndex: groupIndex,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _GroupTabBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialGroupIndex != widget.initialGroupIndex) {
+      final next = widget.initialGroupIndex
+          .clamp(0, _groupTabController.length - 1);
+      if (_groupTabController.index != next) {
+        _groupTabController.animateTo(next);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _groupTabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = widget.orderedGroups;
+    final tabs = <Tab>[
+      const Tab(text: 'Tümü'),
+      ...groups.map((g) => Tab(text: g.name ?? 'Grup')),
+    ];
+
+    final pages = <Widget>[
+      _FlatParticipantList(
+        participants: widget.participants,
+        showRouteSubtitle: widget.showRouteSubtitle,
+      ),
+      ...groups.map((g) {
+        final memberIds = widget.groupMembersMap[g.id] ?? {};
+        final filtered = widget.participants
+            .where((p) => memberIds.contains(p.userId))
+            .toList();
+        return _FlatParticipantList(
+          participants: filtered,
+          showRouteSubtitle: widget.showRouteSubtitle,
+        );
+      }),
+    ];
+
+    return Column(
+      children: [
+        TabBar(
+          controller: _groupTabController,
+          isScrollable: tabs.length > 4,
+          labelStyle: AppTypography.labelMedium.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+          unselectedLabelStyle: AppTypography.labelMedium,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.neutral500,
+          indicatorColor: AppColors.primary,
+          tabs: tabs,
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: TabBarView(
+            controller: _groupTabController,
+            children: pages,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Yarış kategorisi sekmeleri ────────────────────────────────────────────────
+
+class _RaceCategoryBody extends StatefulWidget {
+  const _RaceCategoryBody({
+    required this.participants,
+    required this.labels,
+  });
+
+  final List<EventParticipantEntity> participants;
+  final List<String> labels;
+
+  @override
+  State<_RaceCategoryBody> createState() => _RaceCategoryBodyState();
+}
+
+class _RaceCategoryBodyState extends State<_RaceCategoryBody>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    final total = widget.labels.length + 1; // +1 for "Tümü"
+    _tabController = TabController(length: total, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tabs = <Tab>[
+      const Tab(text: 'Tümü'),
+      ...widget.labels.map((l) => Tab(text: l)),
+    ];
+
+    final pages = <Widget>[
+      _FlatParticipantList(participants: widget.participants),
+      ...widget.labels.map((label) {
+        final filtered = widget.participants
+            .where((p) => p.raceVariantLabel == label)
+            .toList();
+        return _FlatParticipantList(participants: filtered);
+      }),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Text(
+            'Yarış Kategorisi',
+            style: AppTypography.labelSmall.copyWith(
+              color: AppColors.neutral500,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        TabBar(
+          controller: _tabController,
+          isScrollable: tabs.length > 4,
+          labelStyle: AppTypography.labelMedium.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+          unselectedLabelStyle: AppTypography.labelMedium,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.neutral500,
+          indicatorColor: AppColors.primary,
+          tabs: tabs,
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: pages,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Düz katılımcı listesi ─────────────────────────────────────────────────────
+
+class _FlatParticipantList extends StatelessWidget {
+  const _FlatParticipantList({
+    required this.participants,
+    this.showRouteSubtitle = false,
+  });
+
+  final List<EventParticipantEntity> participants;
+  final bool showRouteSubtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    if (participants.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.people_outline, size: 48, color: AppColors.neutral300),
+              const SizedBox(height: 12),
+              Text(
+                'Bu kategoride katılımcı yok',
+                style: AppTypography.bodyMedium
+                    .copyWith(color: AppColors.neutral500),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 16),
+      itemCount: participants.length,
+      itemBuilder: (context, index) {
+        final p = participants[index];
+        final subtitleParts = <String>[
+          p.checkedIn ? 'Katıldı' : 'Gelecek',
+          if (showRouteSubtitle &&
+              p.selectedRouteName != null &&
+              p.selectedRouteName!.isNotEmpty)
+            p.selectedRouteName!,
+          if (p.raceVariantLabel != null && p.raceVariantLabel!.isNotEmpty)
+            p.raceVariantLabel!,
+        ];
+        return ListTile(
+          leading: UserAvatar(
+            size: 44,
+            name: p.userName,
+            imageUrl: p.userAvatarUrl,
+          ),
+          title: Text(p.userName),
+          subtitle: Text(
+            subtitleParts.join(' • '),
+            style: TextStyle(
+              color:
+                  p.checkedIn ? AppColors.success : AppColors.neutral500,
+            ),
+          ),
+          trailing: p.checkedIn
+              ? const Icon(Icons.check_circle, color: AppColors.success)
+              : null,
+        );
+      },
+    );
+  }
+}
+
+// ── Sheet handle ──────────────────────────────────────────────────────────────
+
+class _SheetHandle extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 12, bottom: 4),
+      width: 40,
+      height: 4,
+      decoration: BoxDecoration(
+        color: AppColors.neutral300,
+        borderRadius: BorderRadius.circular(2),
       ),
     );
   }

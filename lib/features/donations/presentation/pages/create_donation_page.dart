@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../providers/donation_provider.dart';
 import '../providers/foundation_provider.dart';
 
@@ -26,6 +27,8 @@ class _CreateDonationPageState extends ConsumerState<CreateDonationPage> {
   String? _selectedEventId;
   String? _selectedFoundationId;
   DateTime? _selectedRaceDate;
+  // Admin: hedef üye (null = kendisi için)
+  String? _selectedTargetUserId;
 
   @override
   void dispose() {
@@ -38,8 +41,12 @@ class _CreateDonationPageState extends ConsumerState<CreateDonationPage> {
   Widget build(BuildContext context) {
     final creationState = ref.watch(donationCreationProvider);
     final isLoading = creationState is AsyncLoading;
-    final eventsAsync = ref.watch(userParticipatedRaceEventsProvider);
+    final isAdmin = ref.watch(isAdminProvider);
+    final eventsAsync = isAdmin && _selectedTargetUserId != null
+        ? ref.watch(allRaceEventsProvider)
+        : ref.watch(userParticipatedRaceEventsProvider);
     final foundationsAsync = ref.watch(foundationsProvider);
+    final activeMembersAsync = isAdmin ? ref.watch(activeMembersProvider) : null;
     final dateFormat = DateFormat('d MMMM yyyy, EEEE', 'tr_TR');
 
     return Scaffold(
@@ -51,6 +58,57 @@ class _CreateDonationPageState extends ConsumerState<CreateDonationPage> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            // Admin: üye seçici
+            if (isAdmin) ...[
+              Text(
+                'Üye Seçimi',
+                style: AppTypography.labelLarge.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              activeMembersAsync!.when(
+                data: (members) => DropdownButtonFormField<String?>(
+                  value: _selectedTargetUserId,
+                  decoration: InputDecoration(
+                    hintText: 'Üye seçin (boş = kendiniz)',
+                    prefixIcon: const Icon(Icons.person_outline),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Kendim adına'),
+                    ),
+                    ...members.map((m) {
+                      final name =
+                          '${m['first_name'] ?? ''} ${m['last_name'] ?? ''}'.trim();
+                      return DropdownMenuItem<String?>(
+                        value: m['id'] as String,
+                        child: Text(name.isEmpty ? m['id'] as String : name,
+                            overflow: TextOverflow.ellipsis),
+                      );
+                    }),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedTargetUserId = value;
+                      _selectedEventId = null;
+                    });
+                  },
+                ),
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, _) => Text('Üyeler yüklenemedi: $e',
+                    style: TextStyle(color: AppColors.error)),
+              ),
+              const SizedBox(height: 20),
+            ],
+
             // Yarış seçim türü
             Text(
               'Yarış Kaynağı',
@@ -359,6 +417,7 @@ class _CreateDonationPageState extends ConsumerState<CreateDonationPage> {
             eventId: _selectedEventId,
             foundationId: foundationId,
             amount: amount,
+            targetUserId: _selectedTargetUserId,
           );
     } else {
       success = await ref.read(donationCreationProvider.notifier).createDonation(
@@ -366,6 +425,7 @@ class _CreateDonationPageState extends ConsumerState<CreateDonationPage> {
             raceDate: _selectedRaceDate,
             foundationId: foundationId,
             amount: amount,
+            targetUserId: _selectedTargetUserId,
           );
     }
 

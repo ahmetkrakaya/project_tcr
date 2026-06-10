@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/loading_widget.dart';
-import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../providers/group_provider.dart';
+import '../widgets/group_avatar.dart';
 
 /// Adminlerin, herhangi bir gruba dahil olmayan aktif üyeleri atayabildiği sayfa.
 class UnassignedMembersPage extends ConsumerStatefulWidget {
@@ -112,10 +113,9 @@ class _UnassignedMembersPageState extends ConsumerState<UnassignedMembersPage> {
                     onRefresh: () async {
                       ref.invalidate(unassignedUsersProvider);
                     },
-                    child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 24),
                       itemCount: filteredUsers.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final user = filteredUsers[index];
                         final primaryRole = user.isAdmin
@@ -124,7 +124,7 @@ class _UnassignedMembersPageState extends ConsumerState<UnassignedMembersPage> {
                                 ? 'coach'
                                 : 'member';
 
-                        return _UnassignedUserCard(
+                        return _UnassignedUserTile(
                           user: user,
                           role: primaryRole,
                           onAssignPressed: () =>
@@ -237,19 +237,7 @@ class _UnassignedMembersPageState extends ConsumerState<UnassignedMembersPage> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: ListTile(
-                        leading: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: groupColor.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.groups,
-                            color: groupColor,
-                            size: 18,
-                          ),
-                        ),
+                      leading: GroupAvatar.fromGroup(group, size: 40, borderRadius: 10),
                         title: Text(
                           group.name,
                           style: AppTypography.titleMedium.copyWith(
@@ -315,12 +303,12 @@ class _UnassignedMembersPageState extends ConsumerState<UnassignedMembersPage> {
   }
 }
 
-class _UnassignedUserCard extends StatelessWidget {
+class _UnassignedUserTile extends StatelessWidget {
   final UserEntity user;
   final String role;
   final VoidCallback onAssignPressed;
 
-  const _UnassignedUserCard({
+  const _UnassignedUserTile({
     required this.user,
     required this.role,
     required this.onAssignPressed,
@@ -329,67 +317,65 @@ class _UnassignedUserCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardSurface = isDark ? AppColors.surfaceVariantDark : AppColors.surfaceLight;
-    final cardBorder = isDark ? AppColors.neutral400 : AppColors.neutral200;
+    final dividerColor =
+        isDark ? AppColors.neutral400.withValues(alpha: 0.35) : AppColors.neutral200;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: cardSurface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cardBorder.withValues(alpha: 0.35)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          )
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            RoleAvatarBadge(
-              size: 48,
-              name: user.fullName,
-              imageUrl: user.avatarUrl,
-              role: role,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    user.fullName,
-                    style: AppTypography.titleSmall.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    user.email,
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.pushNamed(
+          RouteNames.userProfile,
+          pathParameters: {'userId': user.id},
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: dividerColor, width: 1)),
+          ),
+          child: Row(
+            children: [
+              RoleAvatarBadge(
+                size: 44,
+                name: user.fullName,
+                imageUrl: user.avatarUrl,
+                role: role,
               ),
-            ),
-            const SizedBox(width: 8),
-            AppButton(
-              text: 'Gruba Ata',
-              icon: Icons.group_add,
-              variant: AppButtonVariant.primary,
-              size: AppButtonSize.small,
-              onPressed: onAssignPressed,
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  user.fullName,
+                  style: AppTypography.titleSmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Tooltip(
+                message: 'Gruba Ata',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onAssignPressed,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.group_add,
+                        size: 18,
+                        color: AppColors.secondary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_card.dart';
@@ -11,25 +9,6 @@ import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../../notifications/constants/notification_types.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 import 'webview_page.dart';
-
-final appVersionsProvider = FutureProvider<Map<String, String>>((ref) async {
-  final supabase = Supabase.instance.client;
-  final rows = await supabase
-      .from('app_versions')
-      .select('platform, minimum_version')
-      .inFilter('platform', ['android', 'ios']);
-
-  final map = <String, String>{};
-  for (final row in rows as List<dynamic>) {
-    final r = row as Map<String, dynamic>;
-    final platform = (r['platform'] as String?)?.toLowerCase();
-    final minVersion = r['minimum_version'] as String?;
-    if (platform != null && minVersion != null) {
-      map[platform] = minVersion;
-    }
-  }
-  return map;
-});
 
 /// Settings Page
 class SettingsPage extends ConsumerStatefulWidget {
@@ -50,6 +29,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ref.read(notificationSettingsProvider.notifier).load());
   }
 
+  Future<void> _signOutAndGoLogin(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: SizedBox(
+          height: 64,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ),
+    );
+
+    try {
+      await ref.read(authNotifierProvider.notifier).signOut();
+    } catch (e) {
+      // Provider zaten state'i hata/unauth'a çeviriyor; burada sadece UI mesajı veriyoruz.
+      messenger.showSnackBar(SnackBar(content: Text('Çıkış başarısız: $e')));
+    } finally {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop(); // progress
+      }
+    }
+
+    if (!context.mounted) return;
+    context.go('/login');
+  }
+
   Future<void> _loadAppVersion() async {
     final packageInfo = await PackageInfo.fromPlatform();
     setState(() {
@@ -59,7 +67,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ayarlar'),
@@ -158,12 +165,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           _buildNotificationSettings(ref),
           const SizedBox(height: 24),
 
-          if (isAdminOrCoach) ...[
-            _buildSectionHeader('Admin'),
-            _buildAdminVersionManagement(context, ref),
-            const SizedBox(height: 24),
-          ],
-
           // Logout Button
           AppCard(
             onTap: () => _showLogoutDialog(context, ref),
@@ -185,175 +186,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ],
       ),
     );
-  }
-
-  Widget _buildAdminVersionManagement(BuildContext context, WidgetRef ref) {
-    final versions = ref.watch(appVersionsProvider);
-
-    String subtitleFor(String platform) => versions.when(
-          data: (data) => data[platform] ?? 'Kayıt yok',
-          loading: () => 'Yükleniyor...',
-          error: (_, __) => 'Yüklenemedi',
-        );
-
-    return AppCard(
-      child: Column(
-        children: [
-          _buildListTile(
-            leading: const Icon(Icons.android),
-            title: 'Android minimum sürüm',
-            subtitle: subtitleFor('android'),
-            onTap: () => _showEditMinimumVersionDialog(
-              context: context,
-              ref: ref,
-              platform: 'android',
-              currentValue: versions.valueOrNull?['android'],
-            ),
-          ),
-          const Divider(height: 1),
-          _buildListTile(
-            leading: const Icon(Icons.phone_iphone),
-            title: 'iOS minimum sürüm',
-            subtitle: subtitleFor('ios'),
-            onTap: () => _showEditMinimumVersionDialog(
-              context: context,
-              ref: ref,
-              platform: 'ios',
-              currentValue: versions.valueOrNull?['ios'],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showEditMinimumVersionDialog({
-    required BuildContext context,
-    required WidgetRef ref,
-    required String platform,
-    String? currentValue,
-  }) async {
-    final controller = TextEditingController(text: currentValue ?? '');
-    String? errorText;
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: Text(
-              platform == 'android'
-                  ? 'Android minimum sürüm'
-                  : 'iOS minimum sürüm',
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  keyboardType: TextInputType.text,
-                  decoration: InputDecoration(
-                    hintText: 'Örn: 1.2026.2',
-                    errorText: errorText,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Bu değer, uygulamanın açılışta yaptığı güncelleme kontrolünde minimum sürüm olarak kullanılır.',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('İptal'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final value = controller.text.trim();
-                  final ok = RegExp(r'^\d+(\.\d+)*$').hasMatch(value);
-                  if (!ok) {
-                    setDialogState(() {
-                      errorText = 'Geçersiz sürüm formatı';
-                    });
-                    return;
-                  }
-                  Navigator.of(dialogContext).pop(value);
-                },
-                child: const Text('Kaydet'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (result == null) return;
-    if (!context.mounted) return;
-    await _upsertMinimumVersion(
-      context: context,
-      platform: platform,
-      minimumVersion: result,
-      ref: ref,
-    );
-  }
-
-  Future<void> _upsertMinimumVersion({
-    required BuildContext context,
-    required WidgetRef ref,
-    required String platform,
-    required String minimumVersion,
-  }) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final supabase = Supabase.instance.client;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => const AlertDialog(
-        content: SizedBox(
-          height: 64,
-          child: Center(
-            child: CircularProgressIndicator(),
-          ),
-        ),
-      ),
-    );
-
-    try {
-      await supabase.from('app_versions').upsert(
-        {
-          'platform': platform,
-          'minimum_version': minimumVersion,
-        },
-        onConflict: 'platform',
-      );
-
-      ref.invalidate(appVersionsProvider);
-
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            '${platform == 'android' ? 'Android' : 'iOS'} minimum sürüm güncellendi: $minimumVersion',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-      messenger.showSnackBar(
-        SnackBar(content: Text('Kaydedilemedi: $e')),
-      );
-    }
   }
 
   Widget _buildSectionHeader(String title) {
@@ -593,28 +425,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ),
     );
 
-    ref.read(authNotifierProvider.notifier).signOut();
-    if (context.mounted) {
-      context.go('/login');
-    }
+    if (!context.mounted) return;
+    await _signOutAndGoLogin(context, ref);
   }
 
   void _showLogoutDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Çıkış Yap'),
         content: const Text('Hesabından çıkış yapmak istediğine emin misin?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('İptal'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ref.read(authNotifierProvider.notifier).signOut();
-              context.go('/login');
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await _signOutAndGoLogin(context, ref);
             },
             child: const Text(
               'Çıkış Yap',

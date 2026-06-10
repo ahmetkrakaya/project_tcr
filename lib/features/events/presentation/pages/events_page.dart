@@ -43,8 +43,10 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   DateTime? _lastScrollUpdate;
   static const _scrollThrottleMs = 100; // 100ms throttle
 
-  /// Sadece admin: Etkinlikler ↔ Aylık antrenman (takvim + plan listesi)
-  bool _adminWorkoutView = false;
+  /// Etkinlikler ↔ Antrenmanlar görünümü
+  /// - Admin'de: "Antrenmanlar" = aylık plan görünümü
+  /// - Diğer kullanıcılarda: "Antrenmanlar" = sadece antrenman etkinlikleri filtreli liste
+  bool _workoutView = false;
 
   @override
   void initState() {
@@ -235,45 +237,42 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(isAdminProvider);
-    final showAdminWorkouts = isAdmin && _adminWorkoutView;
+    final showWorkoutView = _workoutView;
 
     return Scaffold(
       appBar: AppBar(
-        leadingWidth: isAdmin ? 112 : null,
-        leading: isAdmin
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      showAdminWorkouts ? Icons.event : Icons.fitness_center,
-                    ),
-                    tooltip: showAdminWorkouts
-                        ? 'Etkinlik görünümüne dön'
-                        : 'Aylık antrenman görünümü',
-                    onPressed: () {
-                      setState(() => _adminWorkoutView = !_adminWorkoutView);
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.calendar_today),
-                    onPressed: () {
-                      _hasScrolledToCurrentDate = false;
-                      _scrollToCurrentDate();
-                    },
-                    tooltip: 'Bugüne git',
-                  ),
-                ],
-              )
-            : IconButton(
-                icon: const Icon(Icons.calendar_today),
-                onPressed: () {
-                  _hasScrolledToCurrentDate = false;
-                  _scrollToCurrentDate();
-                },
-                tooltip: 'Bugüne git',
-              ),
-        title: Text(showAdminWorkouts ? 'Antrenmanlar' : 'Etkinlikler'),
+        leadingWidth: 112,
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(showWorkoutView ? Icons.event : Icons.fitness_center),
+              tooltip: showWorkoutView
+                  ? 'Etkinlik görünümüne dön'
+                  : (isAdmin
+                      ? 'Aylık antrenman görünümü'
+                      : 'Antrenman görünümü'),
+              onPressed: () {
+                setState(() {
+                  _workoutView = !_workoutView;
+                  // Görünüm değişince cache'i temizle (filtreleme/hash değişiyor)
+                  _cachedSortedEvents = null;
+                  _cachedEventsByDate = null;
+                  _cachedEventsHash = null;
+                });
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.calendar_today),
+              onPressed: () {
+                _hasScrolledToCurrentDate = false;
+                _scrollToCurrentDate();
+              },
+              tooltip: 'Bugüne git',
+            ),
+          ],
+        ),
+        title: Text(showWorkoutView ? 'Antrenmanlar' : 'Etkinlikler'),
         actions: [
           IconButton(
             icon: const Icon(Icons.emoji_events_outlined),
@@ -288,8 +287,16 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   context.pushNamed(RouteNames.createEvent);
                   return;
                 }
+                if (value == 'weekly_editor') {
+                  context.pushNamed(RouteNames.adminWeeklyProgramEditor);
+                  return;
+                }
                 if (value == 'monthly_upload') {
                   context.pushNamed(RouteNames.adminMonthlyProgramUpload);
+                  return;
+                }
+                if (value == 'recurring') {
+                  context.pushNamed(RouteNames.recurringEvents);
                 }
               },
               itemBuilder: (context) => const [
@@ -298,8 +305,17 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   child: Text('Etkinlik Oluştur'),
                 ),
                 PopupMenuItem<String>(
+                  value: 'weekly_editor',
+                  child: Text('Haftalık Program'),
+                ),
+                PopupMenuItem<String>(
+                  value: 'recurring',
+                  child: Text('Tekrar Eden Etkinlikler'),
+                ),
+                PopupMenuDivider(),
+                PopupMenuItem<String>(
                   value: 'monthly_upload',
-                  child: Text('Aylık Program Yükle'),
+                  child: Text('Excel ile yükle (gelişmiş)'),
                 ),
               ],
             ),
@@ -338,17 +354,23 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   }
 
   Widget _buildCalendarView() {
-    final isAdmin = ref.watch(isAdminProvider);
-    if (isAdmin && _adminWorkoutView) {
-      return _buildAdminWorkoutCalendarView();
+    final showWorkoutView = _workoutView;
+    if (showWorkoutView) {
+      return _buildUserWorkoutCalendarView();
     }
 
+    final isAdmin = ref.watch(isAdminProvider);
     final allEventsAsync = ref.watch(allEventsProvider);
 
     return allEventsAsync.when(
       data: (events) {
+        final visibleEvents = showWorkoutView
+            ? events.where((e) => e.eventType == EventType.training).toList()
+            : events;
+
         // Events hash'i oluştur (cache kontrolü için)
-        final eventsHash = '${events.length}_${events.map((e) => '${e.id}_${e.isPinned}_${e.pinnedAt}').join('_')}';
+        final eventsHash =
+            '${showWorkoutView ? 'workouts' : 'events'}_${visibleEvents.length}_${visibleEvents.map((e) => '${e.id}_${e.isPinned}_${e.pinnedAt}').join('_')}';
         
         // Cache kontrolü: events veya pinned states değişmediyse cache'i kullan
         if (_cachedEventsHash == eventsHash && 
@@ -360,7 +382,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
           // Eventleri tarihe göre hash map'e çevir (Hızlı erişim için)
           // Pinlenen etkinlikleri en başta göster
           // Local state'teki pin durumlarını uygula (optimistic update)
-          final eventsWithLocalState = events.map((event) {
+          final eventsWithLocalState = visibleEvents.map((event) {
             if (_pinnedStates.containsKey(event.id)) {
               final pinnedState = _pinnedStates[event.id]!;
               return EventEntity(
@@ -506,7 +528,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
 
             // Alt kısım: Etkinlik listesi
             Expanded(
-              child: _buildUpcomingEventsList(eventsByDate, isAdmin),
+              child:
+                  _buildUpcomingEventsList(eventsByDate, isAdmin, showWorkoutView),
             ),
           ],
         );
@@ -522,17 +545,16 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     );
   }
 
-  /// Admin: aylık plan satırları + takvim (günlerde plan noktası)
-  Widget _buildAdminWorkoutCalendarView() {
+  /// Kullanıcı (admin dahil): kişisel aylık plan satırları + takvim (günlerde plan noktası)
+  Widget _buildUserWorkoutCalendarView() {
     final monthAnchor = DateTime(
       (_selectedDay ?? DateTime.now()).year,
       (_selectedDay ?? DateTime.now()).month,
       1,
     );
-    final rowsAsync =
-        ref.watch(adminMonthlyProgramsForMonthProvider(monthAnchor));
+    final rowsAsync = ref.watch(userMonthlyProgramsForWindowProvider(monthAnchor));
 
-    // Scroll view hep ekranda kalsın; aksi halde veri yüklenirken widget sökülüp takvim kayıyor.
+    // Scroll view hep ekranda kalsın; veri yüklenirken widget sökülüp takvim kaymasın.
     final rows = rowsAsync.valueOrNull ?? const [];
 
     final byDate = <DateTime, List<Map<String, dynamic>>>{};
@@ -617,14 +639,14 @@ class _EventsPageState extends ConsumerState<EventsPage> {
         ),
         Expanded(
           child: rowsAsync.when(
-            data: (rows) => _buildAdminMonthlyWorkoutList(rows),
+            data: (rows) => _buildUserMonthlyWorkoutList(rows),
             loading: () => const Center(child: LoadingWidget()),
             error: (e, _) => Center(
               child: ErrorStateWidget(
-                title: 'Aylık plan yüklenemedi',
+                title: 'Antrenmanlar yüklenemedi',
                 message: e.toString(),
                 onRetry: () => ref.invalidate(
-                  adminMonthlyProgramsForMonthProvider(monthAnchor),
+                  userMonthlyProgramsForWindowProvider(monthAnchor),
                 ),
               ),
             ),
@@ -634,7 +656,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     );
   }
 
-  Widget _buildAdminMonthlyWorkoutList(List<Map<String, dynamic>> rows) {
+  Widget _buildUserMonthlyWorkoutList(List<Map<String, dynamic>> rows) {
     if (_selectedDay == null || _topVisibleDate == null) {
       return const Center(
         child: Padding(
@@ -674,7 +696,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Bu günden itibaren aylık plan kaydı yok',
+                'Bu günden itibaren antrenman kaydı yok',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.neutral500,
                 ),
@@ -926,6 +948,14 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             pinnedAt: _pinnedStates[event.id]!.pinnedAt,
           )
         : event;
+
+    final trainingRoutes = effectiveEvent.eventType == EventType.training
+        ? ref.watch(eventRouteOptionsProvider(effectiveEvent.id)).valueOrNull
+        : null;
+    final locationText = (trainingRoutes != null && trainingRoutes.length >= 2)
+        ? trainingRoutes.map((r) => r.displayName).join(' · ')
+        : effectiveEvent.locationName;
+
     return AppCard(
       padding: const EdgeInsets.all(12),
       onTap: () => context.pushNamed(
@@ -1132,7 +1162,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                           color: AppColors.neutral500,
                         ),
                       ),
-                      if (effectiveEvent.locationName != null) ...[
+                      if (locationText != null) ...[
                         const SizedBox(width: 12),
                         const Icon(
                           Icons.location_on_outlined,
@@ -1142,7 +1172,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            effectiveEvent.locationName!,
+                            locationText,
                             style: AppTypography.bodySmall.copyWith(
                               color: AppColors.neutral500,
                             ),
@@ -1233,6 +1263,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   Widget _buildUpcomingEventsList(
     Map<DateTime, List<EventEntity>> eventsByDate,
     bool isAdmin,
+    bool showWorkoutView,
   ) {
     // Seçili tarih yoksa veya _topVisibleDate yoksa bekle
     if (_selectedDay == null || _topVisibleDate == null) {
@@ -1270,13 +1301,13 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                Icons.event_available,
+                showWorkoutView ? Icons.fitness_center : Icons.event_available,
                 size: 48,
                 color: AppColors.neutral400,
               ),
               const SizedBox(height: 16),
               Text(
-                'Yaklaşan etkinlik yok',
+                showWorkoutView ? 'Yaklaşan antrenman yok' : 'Yaklaşan etkinlik yok',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.neutral500,
                 ),

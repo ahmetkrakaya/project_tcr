@@ -99,6 +99,9 @@ class ListingModel {
   final ListingGenderMode stockGenderMode;
   final Map<String, Map<ListingGender, int>>? stockBySizeAndGender;
   final DateTime? expiresAt;
+  final int? discountPercent;
+  final DateTime? discountStartsAt;
+  final DateTime? discountEndsAt;
   final List<String> imageUrls;
   final String? primaryImageUrl;
   final bool isFavorite;
@@ -127,6 +130,9 @@ class ListingModel {
     this.stockGenderMode = ListingGenderMode.unisex,
     this.stockBySizeAndGender,
     this.expiresAt,
+    this.discountPercent,
+    this.discountStartsAt,
+    this.discountEndsAt,
     this.imageUrls = const [],
     this.primaryImageUrl,
     this.isFavorite = false,
@@ -169,6 +175,13 @@ class ListingModel {
       expiresAt: json['expires_at'] != null
           ? DateTime.parse(json['expires_at'] as String)
           : null,
+      discountPercent: json['discount_percent'] as int?,
+      discountStartsAt: json['discount_starts_at'] != null
+          ? DateTime.parse(json['discount_starts_at'] as String)
+          : null,
+      discountEndsAt: json['discount_ends_at'] != null
+          ? DateTime.parse(json['discount_ends_at'] as String)
+          : null,
       imageUrls: json['image_urls'] != null
           ? List<String>.from(json['image_urls'] as List)
           : [],
@@ -198,6 +211,9 @@ class ListingModel {
       'stock_quantity': stockQuantity,
       'stock_gender_mode': stockGenderMode.value,
       'expires_at': expiresAt?.toIso8601String(),
+      'discount_percent': discountPercent,
+      'discount_starts_at': discountStartsAt?.toUtc().toIso8601String(),
+      'discount_ends_at': discountEndsAt?.toUtc().toIso8601String(),
     };
   }
 
@@ -230,6 +246,9 @@ class ListingModel {
     ListingGenderMode? stockGenderMode,
     Map<String, Map<ListingGender, int>>? stockBySizeAndGender,
     DateTime? expiresAt,
+    int? discountPercent,
+    DateTime? discountStartsAt,
+    DateTime? discountEndsAt,
     List<String>? imageUrls,
     String? primaryImageUrl,
     bool? isFavorite,
@@ -258,11 +277,79 @@ class ListingModel {
       stockGenderMode: stockGenderMode ?? this.stockGenderMode,
       stockBySizeAndGender: stockBySizeAndGender ?? this.stockBySizeAndGender,
       expiresAt: expiresAt ?? this.expiresAt,
+      discountPercent: discountPercent ?? this.discountPercent,
+      discountStartsAt: discountStartsAt ?? this.discountStartsAt,
+      discountEndsAt: discountEndsAt ?? this.discountEndsAt,
       imageUrls: imageUrls ?? this.imageUrls,
       primaryImageUrl: primaryImageUrl ?? this.primaryImageUrl,
       isFavorite: isFavorite ?? this.isFavorite,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  static ({
+    Map<String, int>? stockBySize,
+    Map<String, Map<ListingGender, int>>? stockBySizeAndGender,
+  }) stockFromRows(List<dynamic>? rows) {
+    if (rows == null || rows.isEmpty) {
+      return (stockBySize: null, stockBySizeAndGender: null);
+    }
+
+    Map<String, Map<ListingGender, int>>? stockBySizeAndGender;
+    for (final row in rows) {
+      final map = row as Map<String, dynamic>;
+      final size = map['size'] as String;
+      final genderStr = map['gender'] as String?;
+      final quantity = map['quantity'] as int;
+      final gender = genderStr != null
+          ? ListingGender.fromString(genderStr)
+          : ListingGender.unisex;
+
+      stockBySizeAndGender ??= {};
+      final byGender = stockBySizeAndGender.putIfAbsent(
+        size,
+        () => <ListingGender, int>{},
+      );
+      byGender[gender] = quantity;
+    }
+
+    Map<String, int>? stockBySize;
+    if (stockBySizeAndGender != null && stockBySizeAndGender.isNotEmpty) {
+      final flattened = <String, int>{};
+      stockBySizeAndGender.forEach((size, genderMap) {
+        final unisexQty = genderMap[ListingGender.unisex];
+        if (unisexQty != null) {
+          flattened[size] = unisexQty;
+        } else {
+          flattened[size] =
+              genderMap.values.fold<int>(0, (sum, qty) => sum + qty);
+        }
+      });
+      if (flattened.isNotEmpty) {
+        stockBySize = flattened;
+      }
+    }
+
+    return (
+      stockBySize: stockBySize,
+      stockBySizeAndGender: stockBySizeAndGender,
+    );
+  }
+
+  static ({
+    int? discountPercent,
+    DateTime? discountStartsAt,
+    DateTime? discountEndsAt,
+  }) discountFromRow(Map<String, dynamic> json) {
+    return (
+      discountPercent: json['discount_percent'] as int?,
+      discountStartsAt: json['discount_starts_at'] != null
+          ? DateTime.parse(json['discount_starts_at'] as String)
+          : null,
+      discountEndsAt: json['discount_ends_at'] != null
+          ? DateTime.parse(json['discount_ends_at'] as String)
+          : null,
     );
   }
 

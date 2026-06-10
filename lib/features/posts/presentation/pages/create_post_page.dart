@@ -647,7 +647,11 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
           style: AppTypography.titleSmall,
         ),
         subtitle: Text(
-          block.content,
+          PostBlockType.fromString(block.type) == PostBlockType.link
+              ? (block.subContent?.trim().isNotEmpty == true
+                  ? block.subContent!
+                  : block.content)
+              : block.content,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: AppTypography.bodySmall,
@@ -707,10 +711,26 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
         return Icons.horizontal_rule;
       case PostBlockType.image:
         return Icons.image;
+      case PostBlockType.link:
+        return Icons.link;
       case PostBlockType.raceResults:
         return Icons.emoji_events;
     }
   }
+}
+
+String _normalizePostLinkUrl(String input) {
+  var url = input.trim();
+  if (url.isEmpty) return url;
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://$url';
+  }
+  return url;
+}
+
+bool _isValidPostLinkUrl(String url) {
+  final uri = Uri.tryParse(url);
+  return uri != null && uri.hasScheme && (uri.host.isNotEmpty);
 }
 
 /// Add Block Type Selector
@@ -869,7 +889,17 @@ class _BlockEditorSheetState extends State<_BlockEditorSheet> {
         );
         return;
       }
-    } else if (_contentController.text.trim().isEmpty && widget.type != PostBlockType.divider) {
+    } else if (widget.type == PostBlockType.link) {
+      final url = _normalizePostLinkUrl(_contentController.text);
+      if (!_isValidPostLinkUrl(url)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Geçerli bir link adresi girin')),
+        );
+        return;
+      }
+      _contentController.text = url;
+    } else if (_contentController.text.trim().isEmpty &&
+        widget.type != PostBlockType.divider) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('İçerik boş olamaz')),
       );
@@ -904,6 +934,7 @@ class _BlockEditorSheetState extends State<_BlockEditorSheet> {
   Widget build(BuildContext context) {
     final isScheduleItem = widget.type == PostBlockType.scheduleItem;
     final isImageBlock = widget.type == PostBlockType.image;
+    final isLinkBlock = widget.type == PostBlockType.link;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -1039,6 +1070,27 @@ class _BlockEditorSheetState extends State<_BlockEditorSheet> {
                 decoration: const InputDecoration(
                   labelText: 'Açıklama',
                   hintText: 'Örn: Kit Dağıtımı',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ] else if (isLinkBlock) ...[
+              TextFormField(
+                controller: _contentController,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
+                decoration: const InputDecoration(
+                  labelText: 'Link adresi',
+                  hintText: 'https://ornek.com',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.link),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _subContentController,
+                decoration: const InputDecoration(
+                  labelText: 'Görünen metin (opsiyonel)',
+                  hintText: 'Örn: Kayıt formu',
                   border: OutlineInputBorder(),
                 ),
               ),

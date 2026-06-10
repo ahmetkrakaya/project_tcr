@@ -227,6 +227,50 @@ class EventModel {
   }
 }
 
+/// EventRouteOption Model
+class EventRouteOptionModel {
+  final String id;
+  final String eventId;
+  final String routeId;
+  final String? label;
+  final int sortOrder;
+  final String routeName;
+  final double? routeDistance;
+
+  const EventRouteOptionModel({
+    required this.id,
+    required this.eventId,
+    required this.routeId,
+    this.label,
+    this.sortOrder = 0,
+    required this.routeName,
+    this.routeDistance,
+  });
+
+  factory EventRouteOptionModel.fromJson(Map<String, dynamic> json) {
+    final routeData = json['routes'] as Map<String, dynamic>?;
+    return EventRouteOptionModel(
+      id: json['id'] as String,
+      eventId: json['event_id'] as String,
+      routeId: json['route_id'] as String,
+      label: json['label'] as String?,
+      sortOrder: json['sort_order'] as int? ?? 0,
+      routeName: routeData?['name'] as String? ?? '',
+      routeDistance: (routeData?['total_distance'] as num?)?.toDouble(),
+    );
+  }
+
+  EventRouteOptionEntity toEntity() => EventRouteOptionEntity(
+        id: id,
+        eventId: eventId,
+        routeId: routeId,
+        label: label,
+        sortOrder: sortOrder,
+        routeName: routeName,
+        routeDistance: routeDistance,
+      );
+}
+
 /// Event Participant Model
 class EventParticipantModel {
   final String id;
@@ -240,6 +284,8 @@ class EventParticipantModel {
   final bool checkedIn;
   final DateTime? checkedInAt;
   final String? raceVariantLabel;
+  final String? selectedRouteId;
+  final String? selectedRouteName;
 
   const EventParticipantModel({
     required this.id,
@@ -253,6 +299,8 @@ class EventParticipantModel {
     this.checkedIn = false,
     this.checkedInAt,
     this.raceVariantLabel,
+    this.selectedRouteId,
+    this.selectedRouteName,
   });
 
   factory EventParticipantModel.fromJson(Map<String, dynamic> json) {
@@ -275,6 +323,8 @@ class EventParticipantModel {
           ? DateTime.parse(json['checked_in_at'] as String) 
           : null,
       raceVariantLabel: json['race_variant_label'] as String?,
+      selectedRouteId: json['selected_route_id'] as String?,
+      selectedRouteName: (json['selected_route'] as Map<String, dynamic>?)?['name'] as String?,
     );
   }
 
@@ -291,6 +341,8 @@ class EventParticipantModel {
       checkedIn: checkedIn,
       checkedInAt: checkedInAt,
       raceVariantLabel: raceVariantLabel,
+      selectedRouteId: selectedRouteId,
+      selectedRouteName: selectedRouteName,
     );
   }
 }

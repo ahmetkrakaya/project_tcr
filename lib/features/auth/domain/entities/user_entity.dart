@@ -1,6 +1,9 @@
 /// User Role Enum
 enum UserRole { superAdmin, coach, member }
 
+/// User Status Enum
+enum UserStatus { pending, active, rejected, banned }
+
 /// Blood Type Enum
 enum BloodType { aPositive, aNegative, bPositive, bNegative, abPositive, abNegative, oPositive, oNegative, unknown }
 
@@ -32,6 +35,7 @@ class UserEntity {
   final DateTime? deletionRequestedAt;
   final DateTime? deletionEffectiveAt;
   final List<UserRole> roles;
+  final UserStatus userStatus;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -56,6 +60,7 @@ class UserEntity {
     this.deletionRequestedAt,
     this.deletionEffectiveAt,
     this.roles = const [UserRole.member],
+    this.userStatus = UserStatus.active,
     this.createdAt,
     this.updatedAt,
   });
@@ -65,6 +70,11 @@ class UserEntity {
     if (firstName == null && lastName == null) return email;
     return '${firstName ?? ''} ${lastName ?? ''}'.trim();
   }
+
+  /// Status helpers
+  bool get isPending => userStatus == UserStatus.pending;
+  bool get isBanned => userStatus == UserStatus.banned;
+  bool get isRejected => userStatus == UserStatus.rejected;
 
   /// Check if user is admin
   bool get isAdmin => roles.contains(UserRole.superAdmin);
@@ -110,6 +120,7 @@ class UserEntity {
     DateTime? deletionRequestedAt,
     DateTime? deletionEffectiveAt,
     List<UserRole>? roles,
+    UserStatus? userStatus,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -134,6 +145,7 @@ class UserEntity {
       deletionRequestedAt: deletionRequestedAt ?? this.deletionRequestedAt,
       deletionEffectiveAt: deletionEffectiveAt ?? this.deletionEffectiveAt,
       roles: roles ?? this.roles,
+      userStatus: userStatus ?? this.userStatus,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

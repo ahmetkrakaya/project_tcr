@@ -10,13 +10,12 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/vdot_calculator.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../members_groups/domain/entities/group_entity.dart' as group_entities;
 import '../../../members_groups/presentation/providers/group_provider.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
-import '../../../members_groups/presentation/widgets/event_group_programs_editor.dart';
 import '../../../routes/domain/entities/route_entity.dart';
 import '../../../routes/presentation/providers/route_provider.dart';
-import '../../../workout/data/models/workout_model.dart';
 import '../../data/models/event_model.dart';
 import '../../domain/entities/event_entity.dart';
 import '../../domain/entities/event_template_entity.dart';
@@ -27,12 +26,20 @@ import '../widgets/template_selector_sheet.dart';
 /// Create/Edit Event Page
 class CreateEventPage extends ConsumerStatefulWidget {
   final String? eventId;
-  /// Tekrarlayan düzenlemede: 'only_this' | 'all_future' (route query param)
+  /// Seri düzenleme: 'series' (yalnızca Tekrar Eden Etkinlikler sayfasından)
   final String? editRecurrenceScope;
+  /// Seri düzenlemede RPC hedefi (kök etkinlik id)
+  final String? seriesRootEventId;
   /// Yarıştan etkinlik oluşturma: önceden doldurulacak veriler
   final Map<String, dynamic>? prefillData;
 
-  const CreateEventPage({super.key, this.eventId, this.editRecurrenceScope, this.prefillData});
+  const CreateEventPage({
+    super.key,
+    this.eventId,
+    this.editRecurrenceScope,
+    this.seriesRootEventId,
+    this.prefillData,
+  });
 
   @override
   ConsumerState<CreateEventPage> createState() => _CreateEventPageState();
@@ -58,14 +65,14 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 0);
   DateTime? _endDate;
   TimeOfDay? _endTime;
-  String? _selectedRouteId;
+  String? _selectedRouteId; // Yarış ve tekli antrenman için (mevcut davranış)
+  /// Antrenman etkinliklerinde çoklu rota: [{routeId, label}]
+  List<({String routeId, String? label})> _selectedTrainingRoutes = [];
   /// Antrenman/yarış dışı etkinliklerde haritadan seçilen konum (rota yok)
   double? _pickedLocationLat;
   double? _pickedLocationLng;
   String? _pickedLocationName;
   String? _pickedLocationAddress;
-  List<EventGroupProgramItem> _groupPrograms = [];
-  List<EventMemberProgramItem> _memberPrograms = [];
   bool _isLoading = false;
   bool _isEditing = false;
   /// Antrenman için: team = toplu (Katılıyorum var), individual = isteğe bağlı bireysel
@@ -88,9 +95,12 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   int? _recurrenceYearMonth; // 1-12
   int? _recurrenceYearDay; // 1-31
   DateTime? _recurrenceEndDate;
+  bool _isPartOfRecurringSeries = false;
 
-  /// Sadece antrenman türünde grup programları bölümü gösterilir (yarışta yok)
-  bool get _showGroupPrograms => _selectedEventType == EventType.training;
+  bool get _isSeriesEdit => _isEditing && widget.editRecurrenceScope == 'series';
+
+  /// Tekrar ayarları: yeni oluşturma veya seri düzenleme
+  bool get _showRecurrenceSection => !_isEditing || _isSeriesEdit;
 
   /// Sadece antrenman türünde Katılım türü (Ekip/Bireysel) seçimi gösterilir
   bool get _showParticipationTypeSelector => _selectedEventType == EventType.training;
@@ -124,10 +134,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       _loadEventData();
     } else if (widget.prefillData != null) {
       _applyPrefillData(widget.prefillData!);
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _tryApplyMonthlyPlanForSelectedDate();
-      });
     }
   }
 
@@ -157,217 +163,10 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
     });
   }
 
-  Future<void> _tryApplyMonthlyPlanForSelectedDate() async {
-    if (_isEditing) return;
-    if (_selectedEventType != EventType.training) return;
-    try {
-      final ds = ref.read(eventDataSourceProvider);
-      final plans = await ds.getMonthlyProgramsByDate(_startDate);
-      if (!mounted || plans.isEmpty) return;
-
-      final allGroups = await ref.read(allGroupsProvider.future);
-      List<EventGroupProgramItem> nextGroupPrograms = [];
-      List<EventMemberProgramItem> nextMemberPrograms = [];
-
-      for (final plan in plans) {
-        final scopeType = (plan['scope_type'] as String?) ?? 'group';
-        final groupId = plan['training_group_id'] as String?;
-        final trainingTypeId = plan['training_type_id'] as String?;
-        final trainingTypeName =
-            (plan['training_types'] as Map<String, dynamic>?)?['display_name'] as String?;
-        final programContent = (plan['program_content'] as String?) ?? '';
-        final wdRaw = plan['workout_definition'];
-        dynamic workoutDef;
-        if (wdRaw is Map<String, dynamic>) {
-          workoutDef = WorkoutDefinitionModel.fromJson(wdRaw).toEntity();
-        } else if (wdRaw is Map) {
-          workoutDef = WorkoutDefinitionModel.fromJson(
-            Map<String, dynamic>.from(wdRaw),
-          ).toEntity();
-        } else if (wdRaw is List) {
-          workoutDef = WorkoutDefinitionModel.fromJsonList(wdRaw).toEntity();
-        }
-
-        final group = allGroups.firstWhere(
-          (g) => g.id == groupId,
-          orElse: () => allGroups.first,
-        );
-
-        if (scopeType == 'group') {
-          nextGroupPrograms.add(
-            EventGroupProgramItem(
-              group: group,
-              programContent: programContent,
-              workoutDefinition: workoutDef,
-              trainingTypeId: trainingTypeId,
-              trainingTypeName: trainingTypeName,
-            ),
-          );
-        } else {
-          final userId = plan['user_id'] as String?;
-          if (userId == null) continue;
-          final userObj = (plan['users'] as Map<String, dynamic>?) ?? {};
-          final firstName = (userObj['first_name'] as String?) ?? '';
-          final lastName = (userObj['last_name'] as String?) ?? '';
-          final fullName = '$firstName $lastName'.trim();
-          final fallbackEmail = (userObj['email'] as String?) ?? '';
-          nextMemberPrograms.add(
-            EventMemberProgramItem(
-              userId: userId,
-              userName: fullName.isNotEmpty ? fullName : fallbackEmail,
-              userAvatarUrl: null,
-              group: group,
-              programContent: programContent,
-              workoutDefinition: workoutDef,
-              trainingTypeId: trainingTypeId,
-              trainingTypeName: trainingTypeName,
-            ),
-          );
-        }
-      }
-
-      // Aylık planda satırı olmasa bile tüm aktif gruplar düzenlenebilir görünsün.
-      // Böylece admin, boş kalan grupları elle doldurabilir.
-      final groupDataSource = ref.read(groupDataSourceProvider);
-
-      final existingNormalGroupIds = nextGroupPrograms
-          .map((p) => p.group.id)
-          .toSet();
-      for (final group in allGroups.where((g) => !g.isPerformanceGroup)) {
-        if (!existingNormalGroupIds.contains(group.id)) {
-          nextGroupPrograms.add(
-            EventGroupProgramItem(
-              group: group,
-              programContent: '',
-              workoutDefinition: null,
-            ),
-          );
-        }
-      }
-
-      // Performans gruplarında planı olmasa da üye-bazlı boş kartlar gelsin.
-      final existingMemberKeys = nextMemberPrograms
-          .map((mp) => '${mp.group.id}::${mp.userId}')
-          .toSet();
-      for (final pGroup in allGroups.where((g) => g.isPerformanceGroup)) {
-        final members = await groupDataSource.getGroupMembers(pGroup.id);
-        for (final m in members) {
-          final key = '${pGroup.id}::${m.userId}';
-          if (!existingMemberKeys.contains(key)) {
-            nextMemberPrograms.add(
-              EventMemberProgramItem(
-                userId: m.userId,
-                userName: m.userName,
-                userAvatarUrl: m.userAvatarUrl,
-                group: pGroup,
-                programContent: '',
-                workoutDefinition: null,
-              ),
-            );
-            existingMemberKeys.add(key);
-          }
-        }
-      }
-
-      setState(() {
-        _selectedEventType = EventType.training;
-        _participationType = 'team';
-        _groupPrograms = nextGroupPrograms;
-        _memberPrograms = nextMemberPrograms;
-        // Not: Aylık plandan sadece antrenman programı doldurulur.
-        // Etkinlik meta alanları (rota/saat/konum) değiştirilmez.
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Aylık programdan ${plans.length} satır antrenman dolduruldu. Düzenleyebilirsiniz.',
-            ),
-          ),
-        );
-      }
-    } catch (_) {
-      // Aylık plan yoksa veya erişim yoksa sessizce devam et.
-    }
-  }
-
   Future<void> _loadEventData() async {
     try {
       final event = await ref.read(eventByIdProvider(widget.eventId!).future);
-      const placeholderPersonalProgramContent = 'Kişiye özel program';
-      
-      // Grup programlarını yükle
-      final groupPrograms = await ref.read(eventGroupProgramsProvider(widget.eventId!).future);
-      final allGroups = await ref.read(allGroupsProvider.future);
-      
-      final programItems = <EventGroupProgramItem>[];
-      final performanceGroupIdsInEvent = <String>{};
-      for (final program in groupPrograms) {
-        final group = allGroups.firstWhere(
-          (g) => g.id == program.trainingGroupId,
-          orElse: () => allGroups.first,
-        );
 
-        final isPerformancePlaceholder = group.isPerformanceGroup &&
-            program.programContent.trim().toLowerCase() ==
-                placeholderPersonalProgramContent.toLowerCase() &&
-            (program.workoutDefinition == null || program.workoutDefinition!.isEmpty);
-
-        if (group.isPerformanceGroup) {
-          performanceGroupIdsInEvent.add(group.id);
-          // Performans grupları düzenleme ekranında normal grup kartı olarak görünmesin.
-          // Bu gruplar üye-bazlı program listesiyle yönetiliyor.
-          if (isPerformancePlaceholder) {
-            continue;
-          }
-        }
-
-        programItems.add(EventGroupProgramItem(
-          id: program.id,
-          group: group,
-          programContent: program.programContent,
-          workoutDefinition: program.workoutDefinition,
-          routeId: program.routeId,
-          routeName: program.routeName,
-          trainingTypeId: program.trainingTypeId,
-          trainingTypeName: program.trainingTypeName,
-          trainingTypeColor: program.trainingTypeColor,
-          thresholdOffsetMinSeconds: program.thresholdOffsetMinSeconds,
-          thresholdOffsetMaxSeconds: program.thresholdOffsetMaxSeconds,
-        ));
-      }
-
-      // Performans grubu üye programlarını yükle
-      final memberProgramItems = <EventMemberProgramItem>[];
-      final groupDataSource = ref.read(groupDataSourceProvider);
-      for (final performanceGroupId in performanceGroupIdsInEvent) {
-        final pGroup = allGroups.firstWhere(
-          (g) => g.id == performanceGroupId,
-          orElse: () => allGroups.first,
-        );
-        if (!pGroup.isPerformanceGroup) continue;
-        final memberPrograms = await groupDataSource.getEventMemberPrograms(
-          widget.eventId!, pGroup.id,
-        );
-        for (final mp in memberPrograms) {
-          memberProgramItems.add(EventMemberProgramItem(
-            id: mp.id,
-            userId: mp.userId,
-            userName: mp.userName ?? '',
-            userAvatarUrl: mp.userAvatarUrl,
-            group: pGroup,
-            programContent: mp.programContent,
-            workoutDefinition: mp.workoutDefinition?.toEntity(),
-            trainingTypeId: mp.trainingTypeId,
-            trainingTypeName: mp.trainingTypeName,
-            trainingTypeColor: mp.trainingTypeColor,
-            thresholdOffsetMinSeconds: mp.thresholdOffsetMinSeconds,
-            thresholdOffsetMaxSeconds: mp.thresholdOffsetMaxSeconds,
-          ));
-        }
-      }
-      
       setState(() {
         _titleController.text = event.title;
         _descriptionController.text = event.description ?? '';
@@ -381,8 +180,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         _selectedRouteId = event.routeId;
         // Eski yarışlar için: event.raceVariantLabels null olabilir
         _selectedRaceVariants = event.raceVariantLabels?.toList() ?? <String>[];
-        _groupPrograms = programItems;
-        _memberPrograms = memberProgramItems;
         // Rota yoksa ama konum varsa (önceki konum seçimi) harita konumunu yükle
         if (event.routeId == null &&
             event.locationLat != null &&
@@ -405,8 +202,28 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         if (event.recurrenceRule != null && event.recurrenceRule!.isNotEmpty) {
           _applyRecurrenceRuleToState(event.recurrenceRule!);
         }
+        _isPartOfRecurringSeries = event.parentEventId != null ||
+            (event.isRecurring &&
+                event.recurrenceRule != null &&
+                event.recurrenceRule!.isNotEmpty);
         _updateDateTimeDisplayControllers();
       });
+
+      // Antrenman etkinliklerinde mevcut rota seçeneklerini yükle
+      if (event.eventType == EventType.training) {
+        try {
+          final options = await ref.read(
+            eventRouteOptionsProvider(widget.eventId!).future,
+          );
+          if (mounted && options.isNotEmpty) {
+            setState(() {
+              _selectedTrainingRoutes = options
+                  .map((o) => (routeId: o.routeId, label: o.label))
+                  .toList();
+            });
+          }
+        } catch (_) {}
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -427,30 +244,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   /// Şablondan form doldur
   Future<void> _loadFromTemplate(EventTemplateEntity template) async {
     try {
-      final allGroups = await ref.read(allGroupsProvider.future);
-      
-      // Şablon grup programlarını EventGroupProgramItem'a dönüştür
-      final programItems = <EventGroupProgramItem>[];
-      for (final program in template.groupPrograms) {
-        final group = allGroups.firstWhere(
-          (g) => g.id == program.trainingGroupId,
-          orElse: () => allGroups.first,
-        );
-        programItems.add(EventGroupProgramItem(
-          id: null,
-          group: group,
-          programContent: program.programContent,
-          workoutDefinition: program.workoutDefinition,
-          routeId: program.routeId,
-          routeName: program.routeName,
-          trainingTypeId: program.trainingTypeId,
-          trainingTypeName: program.trainingTypeName,
-          trainingTypeColor: program.trainingTypeColor,
-          thresholdOffsetMinSeconds: program.thresholdOffsetMinSeconds,
-          thresholdOffsetMaxSeconds: program.thresholdOffsetMaxSeconds,
-        ));
-      }
-
       setState(() {
         _titleController.text = template.name;
         _descriptionController.text = template.description ?? '';
@@ -475,8 +268,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         }
         _selectedRouteId = template.routeId;
         _selectedRaceVariants = <String>[];
-        _groupPrograms = template.eventType == EventType.training ? programItems : [];
-        _memberPrograms = [];
         _pickedLocationLat = null;
         _pickedLocationLng = null;
         _pickedLocationName = null;
@@ -704,16 +495,85 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
               if (!_isIndividualParticipationForm) const SizedBox(height: 24),
               const SizedBox(height: 24),
 
-              // Tekrarlayan etkinlik
-              _buildRecurrenceSection(),
-              const SizedBox(height: 24),
+              if (_isEditing && _isPartOfRecurringSeries && !_isSeriesEdit)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.info_outline, size: 20, color: AppColors.primary),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Yalnızca bu etkinlik düzenlenir. Tekrar kuralını veya seriyi '
+                            'değiştirmek için Etkinlikler → Tekrar Eden Etkinlikler sayfasını kullanın.',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.neutral700,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (_isSeriesEdit)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.warning.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.repeat, size: 20, color: AppColors.warning),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Değişiklikler serinin tüm etkinliklerine uygulanır. '
+                            'Tekrar kuralını değiştirirseniz gelecek tarihler yeniden planlanır.',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.neutral700,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Tekrarlayan etkinlik (yeni oluşturma veya seri düzenleme)
+              if (_showRecurrenceSection) ...[
+                _buildRecurrenceSection(),
+                const SizedBox(height: 24),
+              ],
 
               // Rota (antrenman/yarış) veya Konum seçimi (sosyal, workshop, diğer)
               if (_showRouteSelector) ...[
                 Text('Rota', style: AppTypography.titleMedium),
                 const SizedBox(height: 4),
                 Text(
-                  'Konum adı ve adres seçilen rotadan alınır.',
+                  _selectedEventType == EventType.training
+                      ? 'Antrenman birden fazla rotada yapılıyorsa tümünü seçin.'
+                      : 'Konum adı ve adres seçilen rotadan alınır.',
                   style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
                 ),
                 const SizedBox(height: 12),
@@ -735,23 +595,10 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
               ],
               const SizedBox(height: 24),
 
-              // Group Programs Editor (Sadece Antrenman etkinliklerinde; yarışta yok)
-              if (_showGroupPrograms) ...[
-                EventGroupProgramsEditor(
-                  programs: _groupPrograms,
-                  onChanged: (programs) {
-                    setState(() => _groupPrograms = programs);
-                  },
-                  memberPrograms: _memberPrograms,
-                  onMemberProgramsChanged: (memberPrograms) {
-                    setState(() => _memberPrograms = memberPrograms);
-                  },
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              // Pist kulvarları (sadece rota pist ise)
-              if (_showGroupPrograms && _selectedRouteId != null) ...[
+              // Pist kulvarları (sadece antrenman + rota pist ise)
+              if (_selectedEventType == EventType.training &&
+                  (_selectedRouteId != null ||
+                      _selectedTrainingRoutes.isNotEmpty)) ...[
                 _buildLaneConfigSection(),
                 const SizedBox(height: 24),
               ],
@@ -804,12 +651,8 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           type == EventType.workshop ||
           type == EventType.other) {
         _selectedRouteId = null;
-        _groupPrograms = [];
-        _memberPrograms = [];
       }
       if (type == EventType.race || type == EventType.training) {
-        _groupPrograms = type == EventType.race ? [] : _groupPrograms;
-        _memberPrograms = type == EventType.race ? [] : _memberPrograms;
         _pickedLocationLat = null;
         _pickedLocationLng = null;
         _pickedLocationName = null;
@@ -884,9 +727,25 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   Future<void> _openVisibleUsersSelector() async {
     try {
       final users = await ref.read(activeUsersProvider.future);
+      final allGroups = await ref.read(allGroupsProvider.future);
+
+      // Tüm grupların üyelerini paralel yükle
+      final memberEntries = await Future.wait(
+        allGroups.map((g) async {
+          final members = await ref.read(groupMembersProvider(g.id).future);
+          return MapEntry(g.id, members.map((m) => m.userId).toList());
+        }),
+      );
+      final groupMembersMap = Map.fromEntries(memberEntries);
+
       if (!mounted) return;
       final selectedSet = _selectedVisibleUserIds.toSet();
-      final result = await _showUserMultiSelect(users, selectedSet);
+      final result = await _showUserMultiSelect(
+        users,
+        selectedSet,
+        groups: allGroups,
+        groupMembersMap: groupMembersMap,
+      );
       if (result != null && mounted) {
         setState(() {
           _selectedVisibleUserIds
@@ -973,8 +832,10 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
 
   Future<List<String>?> _showUserMultiSelect(
     List<UserEntity> users,
-    Set<String> initiallySelected,
-  ) async {
+    Set<String> initiallySelected, {
+    List<group_entities.TrainingGroupEntity> groups = const [],
+    Map<String, List<String>> groupMembersMap = const {},
+  }) async {
     final selected = initiallySelected.toSet();
     String searchQuery = '';
 
@@ -988,54 +849,33 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final lowerQuery = searchQuery.toLowerCase();
-            final filteredUsers = lowerQuery.isEmpty
-                ? users
-                : users
-                    .where((u) =>
-                        u.fullName.toLowerCase().contains(lowerQuery))
-                    .toList();
+            final filteredUsers = (lowerQuery.isEmpty
+                    ? users.toList()
+                    : users
+                        .where((u) =>
+                            u.fullName.toLowerCase().contains(lowerQuery))
+                        .toList())
+                ..sort((a, b) {
+                  final aSelected = selected.contains(a.id) ? 0 : 1;
+                  final bSelected = selected.contains(b.id) ? 0 : 1;
+                  return aSelected.compareTo(bSelected);
+                });
 
-            void selectAdmins() {
+            void toggleIds(List<String> ids) {
               setModalState(() {
-                final adminIds =
-                    users.where((u) => u.isAdmin).map((u) => u.id).toList();
-                final allSelected =
-                    adminIds.isNotEmpty && adminIds.every(selected.contains);
-
-                if (allSelected) {
-                  // Hepsi seçiliyse, hepsini kaldır (toggle off)
-                  for (final id in adminIds) {
-                    selected.remove(id);
-                  }
+                final allSel = ids.isNotEmpty && ids.every(selected.contains);
+                if (allSel) {
+                  for (final id in ids) { selected.remove(id); }
                 } else {
-                  // Aksi halde hepsini ekle
-                  for (final id in adminIds) {
-                    selected.add(id);
-                  }
+                  for (final id in ids) { selected.add(id); }
                 }
               });
             }
 
-            void selectCoaches() {
-              setModalState(() {
-                final coachIds =
-                    users.where((u) => u.isCoach).map((u) => u.id).toList();
-                final allSelected =
-                    coachIds.isNotEmpty && coachIds.every(selected.contains);
-
-                if (allSelected) {
-                  // Hepsi seçiliyse, hepsini kaldır (toggle off)
-                  for (final id in coachIds) {
-                    selected.remove(id);
-                  }
-                } else {
-                  // Aksi halde hepsini ekle
-                  for (final id in coachIds) {
-                    selected.add(id);
-                  }
-                }
-              });
-            }
+            final adminIds =
+                users.where((u) => u.isAdmin).map((u) => u.id).toList();
+            final coachIds =
+                users.where((u) => u.isCoach).map((u) => u.id).toList();
 
             return DraggableScrollableSheet(
               expand: false,
@@ -1043,8 +883,9 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
               builder: (context, controller) {
                 return Column(
                   children: [
+                    // Başlık + Bitti
                     Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -1061,37 +902,67 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                         ],
                       ),
                     ),
-                    Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+
+                    // Hızlı seçim chip'leri (yatay kaydırmalı)
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
                       child: Row(
                         children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: selectAdmins,
-                              child: const Text('Yöneticileri ekle'),
-                            ),
+                          _QuickSelectChip(
+                            label: 'Yöneticiler',
+                            icon: Icons.admin_panel_settings_outlined,
+                            selected: adminIds.isNotEmpty &&
+                                adminIds.every(selected.contains),
+                            onTap: () => toggleIds(adminIds),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: selectCoaches,
-                              child: const Text('Koçları ekle'),
-                            ),
+                          const SizedBox(width: 6),
+                          _QuickSelectChip(
+                            label: 'Koçlar',
+                            icon: Icons.fitness_center_outlined,
+                            selected: coachIds.isNotEmpty &&
+                                coachIds.every(selected.contains),
+                            onTap: () => toggleIds(coachIds),
                           ),
+                          if (groups.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              width: 1,
+                              height: 20,
+                              color: AppColors.neutral200,
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 4),
+                            ),
+                            for (final g in groups) ...[
+                              _QuickSelectChip(
+                                label: g.name,
+                                icon: Icons.group_outlined,
+                                selected: (groupMembersMap[g.id] ?? [])
+                                        .isNotEmpty &&
+                                    (groupMembersMap[g.id] ?? [])
+                                        .every(selected.contains),
+                                onTap: () => toggleIds(
+                                    groupMembersMap[g.id] ?? []),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                          ],
                         ],
                       ),
                     ),
+
+                    // Arama
                     Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                       child: TextField(
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.search, size: 18),
                           hintText: 'İsim veya soyisime göre ara',
                           isDense: true,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(10)),
+                            borderRadius:
+                                BorderRadius.all(Radius.circular(10)),
                           ),
                         ),
                         onChanged: (value) {
@@ -1102,6 +973,8 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                       ),
                     ),
                     const Divider(height: 1),
+
+                    // Kullanıcı listesi
                     Expanded(
                       child: ListView.builder(
                         controller: controller,
@@ -1417,9 +1290,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         }
         _updateDateTimeDisplayControllers();
       });
-      if (isStart) {
-        await _tryApplyMonthlyPlanForSelectedDate();
-      }
     }
   }
 
@@ -1555,21 +1425,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         throw Exception('Tekrarlama için en az bir gün veya geçerli tarih seçin');
       }
 
-      // Grup programları validation'ı - sadece antrenman türünde zorunlu
-      if (_showGroupPrograms) {
-        // Grup programları zorunlu - en az bir grup olmalı
-        if (_groupPrograms.isEmpty && _memberPrograms.isEmpty) {
-          throw Exception('En az bir grup programı eklenmelidir');
-        }
-
-        // Her normal grubun antrenman türü seçilmiş olmalı
-        for (final program in _groupPrograms) {
-          if (program.trainingTypeId == null || program.trainingTypeId!.isEmpty) {
-            throw Exception('${program.group.name} grubu için antrenman türü seçilmelidir');
-          }
-        }
-      }
-
       // Konum: antrenman/yarışta rotadan (bireysel antrenmanda yok), diğer türlerde haritadan seçilen konum
       String? locationName;
       String? locationAddress;
@@ -1578,23 +1433,31 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       String? routeId;
 
       RouteEntity? selectedRouteForLane;
-      if (!_isIndividualParticipationForm &&
-          _showRouteSelector &&
-          _selectedRouteId != null) {
+      if (!_isIndividualParticipationForm && _showRouteSelector) {
         final routes = await ref.read(allRoutesProvider.future);
-        try {
-          final selectedRoute = _selectedEventType == EventType.race
-              ? routes.firstWhere((r) => r.id == _selectedRouteId && r.isRace)
-              : routes.firstWhere((r) => r.id == _selectedRouteId);
-          selectedRouteForLane = selectedRoute;
-          locationName = selectedRoute.name;
-          locationAddress = selectedRoute.locationName;
-          locationLat = selectedRoute.locationLat;
-          locationLng = selectedRoute.locationLng;
-          routeId = _selectedRouteId;
-        } catch (_) {
-          if (_selectedEventType == EventType.race) {
-            throw Exception('Yarış etkinliği için yalnızca yarış rotası seçin.');
+
+        // Antrenman: birincil rota _selectedTrainingRoutes'un ilki
+        final primaryRouteId = _selectedEventType == EventType.training
+            ? (_selectedTrainingRoutes.isNotEmpty
+                ? _selectedTrainingRoutes.first.routeId
+                : null)
+            : _selectedRouteId;
+
+        if (primaryRouteId != null) {
+          try {
+            final selectedRoute = _selectedEventType == EventType.race
+                ? routes.firstWhere((r) => r.id == primaryRouteId && r.isRace)
+                : routes.firstWhere((r) => r.id == primaryRouteId);
+            selectedRouteForLane = selectedRoute;
+            locationName = selectedRoute.name;
+            locationAddress = selectedRoute.locationName;
+            locationLat = selectedRoute.locationLat;
+            locationLng = selectedRoute.locationLng;
+            routeId = primaryRouteId;
+          } catch (_) {
+            if (_selectedEventType == EventType.race) {
+              throw Exception('Yarış etkinliği için yalnızca yarış rotası seçin.');
+            }
           }
         }
       } else if (_showLocationPicker &&
@@ -1668,12 +1531,22 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         bannerImageUrl: existingEvent?.bannerImageUrl,
         isPinned: existingEvent?.isPinned ?? false,
         pinnedAt: existingEvent?.pinnedAt,
-        // Tekrarlayan etkinlik (ilk oluşturmada veya düzenlemede)
-        isRecurring: _isRecurring,
-        recurrenceRule: _isRecurring ? _buildRecurrenceRule() : null,
-        parentEventId: null,
-        recurrenceEndDate: _recurrenceEndDate,
-        isRecurrenceException: widget.editRecurrenceScope == 'only_this' || (existingEvent?.isRecurrenceException ?? false),
+        // Tekrarlayan etkinlik: seri düzenlemede formdan, tekil düzenlemede mevcut değerler korunur
+        isRecurring: _isSeriesEdit || !_isEditing
+            ? _isRecurring
+            : (existingEvent?.isRecurring ?? false),
+        recurrenceRule: _isSeriesEdit || !_isEditing
+            ? (_isRecurring ? _buildRecurrenceRule() : null)
+            : existingEvent?.recurrenceRule,
+        parentEventId: _isSeriesEdit ? null : existingEvent?.parentEventId,
+        recurrenceEndDate: _isSeriesEdit || !_isEditing
+            ? _recurrenceEndDate
+            : existingEvent?.recurrenceEndDate,
+        isRecurrenceException: _isSeriesEdit
+            ? false
+            : (existingEvent?.parentEventId != null
+                ? true
+                : (existingEvent?.isRecurrenceException ?? false)),
         visibility: _isRestrictedEvent ? 'restricted' : 'public',
         raceVariantLabels: raceVariantLabels ?? existingEvent?.raceVariantLabels,
       );
@@ -1681,8 +1554,14 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       String createdEventId;
       
       if (_isEditing) {
-        if (widget.editRecurrenceScope == 'all_future') {
-          await dataSource.updateRecurringSeriesFromEvent(widget.eventId!, eventModel.toJson());
+        if (_isSeriesEdit) {
+          final seriesTargetId = widget.seriesRootEventId ??
+              existingEvent?.parentEventId ??
+              widget.eventId!;
+          await dataSource.updateRecurringSeriesFromEvent(
+            seriesTargetId,
+            eventModel.toJson(),
+          );
           createdEventId = widget.eventId!;
         } else {
           await dataSource.updateEvent(eventModel);
@@ -1710,37 +1589,16 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         await dataSource.saveEventVisibleUsers(createdEventId, []);
       }
 
-      // Grup programlarını kaydet (sadece antrenman etkinliklerinde; yarışta yok)
-      if (_showGroupPrograms && (_groupPrograms.isNotEmpty || _memberPrograms.isNotEmpty)) {
-        final groupDataSource = ref.read(groupDataSourceProvider);
-
-        // Normal grup programlarını kaydet
-        if (_groupPrograms.isNotEmpty) {
-          final programModels = _groupPrograms
-              .asMap()
-              .entries
-              .map((entry) => entry.value.toModel(createdEventId, entry.key))
-              .toList();
-          await groupDataSource.saveEventGroupPrograms(createdEventId, programModels);
-        }
-
-        // Performans grubu üye programlarını kaydet
-        if (_memberPrograms.isNotEmpty) {
-          // Grup ID'lerine göre grupla
-          final groupedMembers = <String, List<EventMemberProgramItem>>{};
-          for (final mp in _memberPrograms) {
-            groupedMembers.putIfAbsent(mp.group.id, () => []).add(mp);
-          }
-          for (final entry in groupedMembers.entries) {
-            final memberModels = entry.value
-                .asMap()
-                .entries
-                .map((e) => e.value.toModel(createdEventId, e.key))
-                .toList();
-            await groupDataSource.saveEventMemberPrograms(
-                createdEventId, entry.key, memberModels);
-          }
-        }
+      // Antrenman rota seçeneklerini kaydet
+      if (_selectedEventType == EventType.training &&
+          _selectedTrainingRoutes.isNotEmpty) {
+        await dataSource.setEventRouteOptions(
+          createdEventId,
+          _selectedTrainingRoutes,
+        );
+      } else if (_selectedEventType == EventType.training) {
+        // Seçilen rota kalmadıysa temizle
+        await dataSource.setEventRouteOptions(createdEventId, []);
       }
 
       // Refresh providers
@@ -1749,10 +1607,8 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       ref.invalidate(thisWeekEventsProvider);
       if (_isEditing) {
         ref.invalidate(eventByIdProvider(widget.eventId!));
-        ref.invalidate(eventGroupProgramsProvider(widget.eventId!));
-        ref.invalidate(userEventGroupProgramsProvider(widget.eventId!));
-        ref.invalidate(userEventMemberProgramsProvider(widget.eventId!));
       }
+      ref.invalidate(eventRouteOptionsProvider(createdEventId));
 
       if (mounted) {
         context.pop();
@@ -2456,6 +2312,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
 
   Widget _buildRouteSelector() {
     final routesAsync = ref.watch(allRoutesProvider);
+    final isTraining = _selectedEventType == EventType.training;
 
     return routesAsync.when(
       data: (routes) {
@@ -2473,26 +2330,113 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
             ),
             child: Row(
               children: [
-                Icon(
-                  Icons.map_outlined,
-                  color: AppColors.neutral400,
-                ),
+                Icon(Icons.map_outlined, color: AppColors.neutral400),
                 const SizedBox(width: 12),
                 Text(
                   _selectedEventType == EventType.race
                       ? 'Henüz yarış rotası eklenmemiş'
                       : 'Henüz rota eklenmemiş',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral500,
-                  ),
+                  style: AppTypography.bodyMedium
+                      .copyWith(color: AppColors.neutral500),
                 ),
               ],
             ),
           );
         }
 
+        // ── Antrenman: çoklu rota seçimi ──
+        if (isTraining) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ..._selectedTrainingRoutes.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final sel = entry.value;
+                final route = displayedRoutes
+                    .where((r) => r.id == sel.routeId)
+                    .firstOrNull;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.tertiaryContainer.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: AppColors.tertiary.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.map_outlined,
+                          color: AppColors.tertiary, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          route?.name ?? sel.routeId,
+                          style: AppTypography.bodyMedium,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        color: AppColors.neutral400,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () {
+                          setState(() {
+                            _selectedTrainingRoutes = [
+                              ..._selectedTrainingRoutes
+                            ]..removeAt(idx);
+                            // İlk rota kaldırıldıysa route_id sıfırla
+                            if (_selectedTrainingRoutes.isEmpty) {
+                              _selectedRouteId = null;
+                            } else {
+                              _selectedRouteId =
+                                  _selectedTrainingRoutes.first.routeId;
+                            }
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              InkWell(
+                onTap: () => _showRouteSelectionSheet(displayedRoutes,
+                    multiSelect: true),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.neutral100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.neutral200),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add, color: AppColors.tertiary, size: 20),
+                      const SizedBox(width: 6),
+                      Text(
+                        _selectedTrainingRoutes.isEmpty
+                            ? 'Rota Ekle'
+                            : 'Başka Rota Ekle',
+                        style: AppTypography.bodyMedium
+                            .copyWith(color: AppColors.tertiary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        // ── Yarış: tekli rota seçimi (mevcut davranış) ──
         final selectedRoute = _selectedRouteId != null
-            ? displayedRoutes.where((r) => r.id == _selectedRouteId).isNotEmpty
+            ? displayedRoutes
+                    .where((r) => r.id == _selectedRouteId)
+                    .isNotEmpty
                 ? displayedRoutes.firstWhere((r) => r.id == _selectedRouteId)
                 : null
             : null;
@@ -2548,9 +2492,8 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                         const SizedBox(height: 4),
                         Text(
                           '${selectedRoute.formattedDistance} • ${selectedRoute.formattedElevationGain} yükseliş',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
-                          ),
+                          style: AppTypography.bodySmall
+                              .copyWith(color: AppColors.neutral500),
                         ),
                       ],
                     ],
@@ -2559,16 +2502,13 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 if (selectedRoute != null)
                   IconButton(
                     icon: const Icon(Icons.close, size: 20),
-                    onPressed: () {
-                      setState(() => _selectedRouteId = null);
-                    },
+                    onPressed: () =>
+                        setState(() => _selectedRouteId = null),
                     color: AppColors.neutral400,
                   )
                 else
-                  const Icon(
-                    Icons.chevron_right,
-                    color: AppColors.neutral400,
-                  ),
+                  const Icon(Icons.chevron_right,
+                      color: AppColors.neutral400),
               ],
             ),
           ),
@@ -2818,7 +2758,10 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
     );
   }
 
-  void _showRouteSelectionSheet(List<RouteEntity> routes) {
+  void _showRouteSelectionSheet(
+    List<RouteEntity> routes, {
+    bool multiSelect = false,
+  }) {
     final parentContext = context;
     showModalBottomSheet(
       context: context,
@@ -2836,7 +2779,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           ),
           child: Column(
             children: [
-              // Handle bar
               Container(
                 margin: const EdgeInsets.only(top: 12),
                 width: 40,
@@ -2846,7 +2788,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              // Header
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -2874,14 +2815,16 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 ),
               ),
               const Divider(height: 1),
-              // Route list
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
                   itemCount: routes.length,
                   itemBuilder: (context, index) {
                     final route = routes[index];
-                    final isSelected = route.id == _selectedRouteId;
+                    final isSelected = multiSelect
+                        ? _selectedTrainingRoutes
+                            .any((r) => r.routeId == route.id)
+                        : route.id == _selectedRouteId;
 
                     return ListTile(
                       leading: Container(
@@ -2903,25 +2846,41 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                       title: Text(
                         route.name,
                         style: AppTypography.titleSmall.copyWith(
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
                       subtitle: Text(
                         '${route.isRace ? 'Yarış' : 'Normal'} • ${route.formattedDistance} • ${route.formattedElevationGain} yükseliş • ${route.terrainType.displayName}',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
-                        ),
+                        style: AppTypography.bodySmall
+                            .copyWith(color: AppColors.neutral500),
                       ),
                       trailing: isSelected
-                          ? const Icon(
-                              Icons.check_circle,
-                              color: AppColors.tertiary,
-                            )
+                          ? const Icon(Icons.check_circle,
+                              color: AppColors.tertiary)
                           : null,
                       onTap: () {
-                        setState(() => _selectedRouteId = route.id);
-                        Navigator.pop(context);
+                        if (multiSelect) {
+                          if (isSelected) {
+                            // Zaten seçili → kaldırma
+                          } else {
+                            setState(() {
+                              _selectedTrainingRoutes = [
+                                ..._selectedTrainingRoutes,
+                                (routeId: route.id, label: null),
+                              ];
+                              // İlk eklenen birincil rota olur
+                              if (_selectedTrainingRoutes.length == 1) {
+                                _selectedRouteId = route.id;
+                              }
+                            });
+                          }
+                          Navigator.pop(context);
+                        } else {
+                          setState(() => _selectedRouteId = route.id);
+                          Navigator.pop(context);
+                        }
                       },
                     );
                   },
@@ -2980,6 +2939,59 @@ class _PaceSelectorChip extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _QuickSelectChip extends StatelessWidget {
+  const _QuickSelectChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : AppColors.neutral100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.neutral300,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: selected ? Colors.white : AppColors.neutral600,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: AppTypography.labelSmall.copyWith(
+                color: selected ? Colors.white : AppColors.neutral700,
+                fontWeight:
+                    selected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
         ),
       ),
     );

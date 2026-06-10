@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/app_constants.dart';
@@ -14,6 +15,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/listing_model.dart';
+import '../../utils/listing_price_utils.dart';
 import '../providers/marketplace_provider.dart';
 
 /// Create Listing Page
@@ -35,6 +37,11 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
   final _sizeController = TextEditingController();
   final _externalUrlController = TextEditingController();
   final _stockQuantityController = TextEditingController();
+  final _discountPercentController = TextEditingController();
+
+  bool _discountEnabled = false;
+  DateTime? _discountStartsAt;
+  DateTime? _discountEndsAt;
 
   // Focus nodes for keyboard navigation
   final _titleFocus = FocusNode();
@@ -47,6 +54,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
   ListingType _selectedType = ListingType.tcrProduct;
   ListingCategory _selectedCategory = ListingCategory.other;
   List<String> _imageUrls = [];
+  List<String> _originalImageUrls = [];
   final List<XFile> _selectedImageFiles = [];
   bool _isSubmitting = false;
   ListingGenderMode _stockGenderMode = ListingGenderMode.unisex;
@@ -100,26 +108,44 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
     
     // Eğer bedenler değiştiyse controller'ları güncelle
     if (newSizes.join(',') != _sizes.join(',')) {
-      // Eski controller'ları temizle
-      for (final controller in _stockBySizeControllers.values) {
-        controller.dispose();
+      // Mevcut değerleri kaydet
+      final savedUnisex = <String, String>{};
+      final savedMale = <String, String>{};
+      final savedFemale = <String, String>{};
+      for (final size in _sizes) {
+        savedUnisex[size] = _stockBySizeControllers[size]?.text ?? '';
+        savedMale[size] = _stockBySizeGenderControllers[size]?[ListingGender.male]?.text ?? '';
+        savedFemale[size] = _stockBySizeGenderControllers[size]?[ListingGender.female]?.text ?? '';
       }
-      _stockBySizeControllers.clear();
-      for (final genderMap in _stockBySizeGenderControllers.values) {
-        for (final controller in genderMap.values) {
-          controller.dispose();
+
+      // Artık kullanılmayan bedenlerin controller'larını dispose et
+      for (final size in _sizes) {
+        if (!newSizes.contains(size)) {
+          _stockBySizeControllers[size]?.dispose();
+          _stockBySizeControllers.remove(size);
+          _stockBySizeGenderControllers[size]?.values.forEach((c) => c.dispose());
+          _stockBySizeGenderControllers.remove(size);
         }
       }
-      _stockBySizeGenderControllers.clear();
-      
-      // Yeni controller'ları oluştur
+
+      // Yeni bedenlere controller oluştur, eskiler varsa değerlerini koru
       _sizes = newSizes;
       for (final size in _sizes) {
-        _stockBySizeControllers[size] = TextEditingController();
-        _stockBySizeGenderControllers[size] = {
-          ListingGender.male: TextEditingController(),
-          ListingGender.female: TextEditingController(),
-        };
+        if (!_stockBySizeControllers.containsKey(size)) {
+          _stockBySizeControllers[size] = TextEditingController(
+            text: savedUnisex[size] ?? '',
+          );
+        }
+        if (!_stockBySizeGenderControllers.containsKey(size)) {
+          _stockBySizeGenderControllers[size] = {
+            ListingGender.male: TextEditingController(
+              text: savedMale[size] ?? '',
+            ),
+            ListingGender.female: TextEditingController(
+              text: savedFemale[size] ?? '',
+            ),
+          };
+        }
       }
       setState(() {});
     }
@@ -141,8 +167,14 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
       _stockQuantityController.text = listing.stockQuantity?.toString() ?? '';
       _selectedType = listing.listingType;
       _selectedCategory = listing.category;
-      _imageUrls = listing.imageUrls;
+      _imageUrls = List<String>.from(listing.imageUrls);
+      _originalImageUrls = List<String>.from(listing.imageUrls);
       _stockGenderMode = listing.stockGenderMode;
+      _discountEnabled = listing.discountPercent != null;
+      _discountPercentController.text =
+          listing.discountPercent?.toString() ?? '';
+      _discountStartsAt = listing.discountStartsAt?.toLocal();
+      _discountEndsAt = listing.discountEndsAt?.toLocal();
     });
 
     // Beden bazlı stok alanlarını populate et
@@ -185,6 +217,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
     _sizeController.dispose();
     _externalUrlController.dispose();
     _stockQuantityController.dispose();
+    _discountPercentController.dispose();
     _priceFocus.removeListener(_onFocusChange);
     _stockFocus.removeListener(_onFocusChange);
     _titleFocus.dispose();
@@ -245,7 +278,12 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
       );
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pageBackground =
+        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+
     return Scaffold(
+      backgroundColor: pageBackground,
       appBar: AppBar(
         title: Text(isEdit ? 'İlanı Düzenle' : 'Yeni İlan'),
         actions: [
@@ -271,371 +309,94 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
           Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
               children: [
-            // Category & Title Row
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: _showCategoryMenu,
-                    child: Container(
-                      constraints: const BoxConstraints(
-                        minHeight: 56,
+                _buildFormSection(
+                  title: 'Görseller',
+                  subtitle: 'Ürün fotoğraflarını ekleyin',
+                  child: _buildImagePicker(),
+                ),
+                const SizedBox(height: 24),
+                _buildFormSection(
+                  title: 'Temel Bilgiler',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildCategoryField(),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        controller: _titleController,
+                        focusNode: _titleFocus,
+                        hint: 'Ürün başlığı',
+                        textInputAction: TextInputAction.next,
+                        onSubmitted: (_) => _descriptionFocus.requestFocus(),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Başlık gereklidir';
+                          }
+                          return null;
+                        },
                       ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        controller: _descriptionController,
+                        focusNode: _descriptionFocus,
+                        hint: 'Ürün açıklaması (opsiyonel)',
+                        maxLines: 4,
+                        textInputAction: TextInputAction.next,
+                        onSubmitted: (_) => _priceFocus.requestFocus(),
                       ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceVariantLight,
-                        border: Border.all(
-                          color: Colors.transparent,
-                          width: 0,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
+                      const SizedBox(height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: Text(
-                              _getCategoryName(_selectedCategory),
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.neutral500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            child: AppTextField(
+                              controller: _priceController,
+                              focusNode: _priceFocus,
+                              hint: 'Fiyat (₺)',
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.next,
+                              onSubmitted: (_) => _brandFocus.requestFocus(),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Fiyat gereklidir';
+                                }
+                                final price = double.tryParse(value);
+                                if (price == null || price <= 0) {
+                                  return 'Geçerli bir fiyat giriniz';
+                                }
+                                return null;
+                              },
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.keyboard_arrow_down,
-                            color: AppColors.neutral500,
-                            size: 20,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: AppTextField(
+                              controller: _brandController,
+                              focusNode: _brandFocus,
+                              hint: 'Marka adı',
+                              textInputAction: TextInputAction.next,
+                              onSubmitted: (_) => _sizeFocus.requestFocus(),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: AppTextField(
-                    controller: _titleController,
-                    focusNode: _titleFocus,
-                    hint: 'Ürün başlığı',
-                    textInputAction: TextInputAction.next,
-                    onSubmitted: (_) {
-                      _descriptionFocus.requestFocus();
-                    },
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Başlık gereklidir';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Description
-            AppTextField(
-              controller: _descriptionController,
-              focusNode: _descriptionFocus,
-              hint: 'Ürün açıklaması (opsiyonel)',
-              maxLines: 4,
-              textInputAction: TextInputAction.next,
-              onSubmitted: (_) {
-                _priceFocus.requestFocus();
-              },
-            ),
-            const SizedBox(height: 20),
-
-            // Price & Brand Row
-            Row(
-              children: [
-                Expanded(
-                  child: AppTextField(
-                    controller: _priceController,
-                    focusNode: _priceFocus,
-                    hint: 'Fiyat (₺)',
-                    keyboardType: TextInputType.number,
-                    textInputAction: TextInputAction.next,
-                    onSubmitted: (_) {
-                      _brandFocus.requestFocus();
-                    },
-                    
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Fiyat gereklidir';
-                      }
-                      final price = double.tryParse(value);
-                      if (price == null || price <= 0) {
-                        return 'Geçerli bir fiyat giriniz';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: AppTextField(
-                    controller: _brandController,
-                    focusNode: _brandFocus,
-                    hint: 'Marka adı',
-                    textInputAction: TextInputAction.next,
-                    onSubmitted: (_) {
-                      _sizeFocus.requestFocus();
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Stok tipi: Unisex / Erkek-Kadın
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.neutral100,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppColors.neutral300,
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Stok Tipi',
-                    style: AppTypography.labelLarge.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.neutral700,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _buildStockGenderModeChip(
-                        mode: ListingGenderMode.unisex,
-                        label: 'Unisex',
-                      ),
-                      const SizedBox(width: 12),
-                      _buildStockGenderModeChip(
-                        mode: ListingGenderMode.gendered,
-                        label: 'Erkek / Kadın',
-                      ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Size & Stock Row
-            Row(
-              children: [
-                Expanded(
-                  child: AppTextField(
-                    controller: _sizeController,
-                    focusNode: _sizeFocus,
-                    hint: 'Beden/Numara (virgülle ayırın: S, M, L)',
-                    textInputAction: TextInputAction.next,
-                    onSubmitted: (_) {
-                      if (_sizes.isEmpty) {
-                        _stockFocus.requestFocus();
-                      }
-                    },
-                  ),
                 ),
-                if (_sizes.isEmpty &&
-                    _stockGenderMode == ListingGenderMode.unisex) ...[
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: AppTextField(
-                      controller: _stockQuantityController,
-                      focusNode: _stockFocus,
-                      hint: 'Stok (boş = sınırsız)',
-                      keyboardType: TextInputType.number,
-                      textInputAction: TextInputAction.done,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            
-            // Beden Bazlı Stok Yönetimi - Unisex
-            if (_sizes.isNotEmpty &&
-                _stockGenderMode == ListingGenderMode.unisex) ...[
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryContainer.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
+                const SizedBox(height: 24),
+                _buildFormSection(
+                  title: 'İndirim',
+                  subtitle: 'Belirli bir süre için yüzde indirim uygulayın',
+                  child: _buildDiscountSection(),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.inventory_2,
-                          size: 20,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Beden Bazlı Stok',
-                          style: AppTypography.labelLarge.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ..._sizes.map((size) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: AppTextField(
-                          controller: _stockBySizeControllers[size]!,
-                          hint: '$size beden stok miktarı (boş = stok yok)',
-                          keyboardType: TextInputType.number,
-                          textInputAction: _sizes.indexOf(size) == _sizes.length - 1
-                              ? TextInputAction.done
-                              : TextInputAction.next,
-                        ),
-                      );
-                    }),
-                  ],
+                const SizedBox(height: 24),
+                _buildFormSection(
+                  title: 'Beden & Stok',
+                  subtitle: 'Beden girerseniz her beden için ayrı stok tanımlayın',
+                  child: _buildStockSection(),
                 ),
-              ),
-            ],
-
-            // Beden Bazlı Stok Yönetimi - Erkek / Kadın
-            if (_sizes.isNotEmpty &&
-                _stockGenderMode == ListingGenderMode.gendered) ...[
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryContainer.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.inventory_2,
-                          size: 20,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Beden + Cinsiyet Bazlı Stok',
-                          style: AppTypography.labelLarge.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ..._sizes.map((size) {
-                      final controllers = _stockBySizeGenderControllers[size]!;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              size,
-                              style: AppTypography.bodyMedium.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: AppTextField(
-                                    controller:
-                                        controllers[ListingGender.male]!,
-                                    hint: 'Erkek stok (boş = 0)',
-                                    keyboardType: TextInputType.number,
-                                    textInputAction: TextInputAction.next,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: AppTextField(
-                                    controller:
-                                        controllers[ListingGender.female]!,
-                                    hint: 'Kadın stok (boş = 0)',
-                                    keyboardType: TextInputType.number,
-                                    textInputAction: TextInputAction.next,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 20),
-
-            // Images Section
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.neutral200,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppColors.neutral300,
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.photo_library, 
-                        size: 20, 
-                        color: AppColors.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Görseller',
-                        style: AppTypography.labelLarge.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildImagePicker(),
-                ],
-              ),
-            ),
               ],
             ),
           ),
@@ -688,6 +449,479 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
     );
   }
 
+  Widget _buildFormSection({
+    required String title,
+    String? subtitle,
+    required Widget child,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panelColor =
+        isDark ? AppColors.backgroundDark : AppColors.neutral200;
+    final borderColor = isDark
+        ? AppColors.neutral400.withValues(alpha: 0.15)
+        : AppColors.neutral300;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title.toUpperCase(),
+          style: AppTypography.labelSmall.copyWith(
+            color: AppColors.neutral500,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.0,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.neutral500,
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: panelColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor),
+          ),
+          child: child,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryField() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: _showCategoryMenu,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceDark : AppColors.neutral100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.neutral300),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Kategori',
+                    style: AppTypography.labelSmall.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _getCategoryName(_selectedCategory),
+                    style: AppTypography.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: AppColors.neutral500,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDiscountSection() {
+    final dateFormat = DateFormat('d MMM yyyy, HH:mm', 'tr_TR');
+    final basePrice = double.tryParse(_priceController.text.trim());
+    final percent = int.tryParse(_discountPercentController.text.trim());
+  final previewListing = (_discountEnabled &&
+          basePrice != null &&
+          percent != null &&
+          _discountStartsAt != null &&
+          _discountEndsAt != null)
+      ? ListingModel(
+          id: '',
+          sellerId: '',
+          listingType: _selectedType,
+          category: _selectedCategory,
+          title: _titleController.text,
+          price: basePrice,
+          discountPercent: percent,
+          discountStartsAt: _discountStartsAt,
+          discountEndsAt: _discountEndsAt,
+          createdAt: DateTime.now(),
+        )
+      : null;
+    final previewPrice = previewListing != null
+        ? listingDisplayPrice(previewListing)
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('İndirim uygula'),
+          subtitle: const Text('Süreli kampanya fiyatı tanımlayın'),
+          value: _discountEnabled,
+          activeThumbColor: AppColors.primary,
+          onChanged: (value) {
+            setState(() {
+              _discountEnabled = value;
+              if (value && _discountStartsAt == null) {
+                final now = DateTime.now();
+                _discountStartsAt = DateTime(
+                  now.year,
+                  now.month,
+                  now.day,
+                  now.hour,
+                  now.minute,
+                );
+                _discountEndsAt = _discountStartsAt!.add(const Duration(days: 7));
+              }
+            });
+          },
+        ),
+        if (_discountEnabled) ...[
+          const SizedBox(height: 8),
+          AppTextField(
+            controller: _discountPercentController,
+            hint: 'İndirim oranı (%)',
+            keyboardType: TextInputType.number,
+            onChanged: (_) => setState(() {}),
+            validator: (value) {
+              if (!_discountEnabled) return null;
+              if (value == null || value.trim().isEmpty) {
+                return 'İndirim oranı gerekli';
+              }
+              final parsed = int.tryParse(value.trim());
+              if (parsed == null || parsed < 1 || parsed > 100) {
+                return '1-100 arası bir değer girin';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildDiscountDateTile(
+            label: 'Başlangıç',
+            value: _discountStartsAt,
+            dateFormat: dateFormat,
+            onPick: () => _pickDiscountDateTime(isStart: true),
+          ),
+          const SizedBox(height: 8),
+          _buildDiscountDateTile(
+            label: 'Bitiş',
+            value: _discountEndsAt,
+            dateFormat: dateFormat,
+            onPick: () => _pickDiscountDateTime(isStart: false),
+          ),
+          if (previewPrice != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'İndirimli fiyat: ₺${formatListingPrice(previewPrice)}',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.error,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDiscountDateTile({
+    required String label,
+    required DateTime? value,
+    required DateFormat dateFormat,
+    required VoidCallback onPick,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onPick,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceDark : AppColors.neutral100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.neutral300),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: AppTypography.labelSmall.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value != null ? dateFormat.format(value) : 'Tarih seçin',
+                    style: AppTypography.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.calendar_today_outlined, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDiscountDateTime({required bool isStart}) async {
+    final initial = isStart
+        ? (_discountStartsAt ?? DateTime.now())
+        : (_discountEndsAt ?? _discountStartsAt?.add(const Duration(days: 7)) ?? DateTime.now());
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      locale: const Locale('tr', 'TR'),
+    );
+    if (date == null || !mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+
+    final picked = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+
+    setState(() {
+      if (isStart) {
+        _discountStartsAt = picked;
+        if (_discountEndsAt != null && !_discountEndsAt!.isAfter(picked)) {
+          _discountEndsAt = picked.add(const Duration(days: 1));
+        }
+      } else {
+        _discountEndsAt = picked;
+      }
+    });
+  }
+
+  ({int? percent, DateTime? startsAt, DateTime? endsAt}) _resolveDiscountFields() {
+    if (!_discountEnabled) {
+      return (percent: null, startsAt: null, endsAt: null);
+    }
+
+    final percent = int.tryParse(_discountPercentController.text.trim());
+    if (percent == null || percent < 1 || percent > 100) {
+      throw const FormatException('Geçerli bir indirim oranı girin (1-100)');
+    }
+    if (_discountStartsAt == null || _discountEndsAt == null) {
+      throw const FormatException('İndirim başlangıç ve bitiş tarihlerini seçin');
+    }
+    if (!_discountEndsAt!.isAfter(_discountStartsAt!)) {
+      throw const FormatException('Bitiş tarihi başlangıçtan sonra olmalı');
+    }
+
+    return (
+      percent: percent,
+      startsAt: _discountStartsAt,
+      endsAt: _discountEndsAt,
+    );
+  }
+
+  Widget _buildStockSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Stok tipi',
+          style: AppTypography.labelMedium.copyWith(
+            color: AppColors.neutral600,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppColors.neutral100,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.neutral300),
+          ),
+          padding: const EdgeInsets.all(3),
+          child: Row(
+            children: [
+              _buildStockGenderModeChip(
+                mode: ListingGenderMode.unisex,
+                label: 'Unisex',
+              ),
+              const SizedBox(width: 4),
+              _buildStockGenderModeChip(
+                mode: ListingGenderMode.gendered,
+                label: 'Erkek / Kadın',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        AppTextField(
+          controller: _sizeController,
+          focusNode: _sizeFocus,
+          hint: 'Beden / numara (ör. S, M, L)',
+          textInputAction: TextInputAction.next,
+          onSubmitted: (_) {
+            if (_sizes.isEmpty) {
+              _stockFocus.requestFocus();
+            }
+          },
+        ),
+        if (_sizes.isEmpty &&
+            _stockGenderMode == ListingGenderMode.unisex) ...[
+          const SizedBox(height: 16),
+          AppTextField(
+            controller: _stockQuantityController,
+            focusNode: _stockFocus,
+            hint: 'Genel stok (boş = sınırsız)',
+            keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.done,
+          ),
+        ],
+        if (_sizes.isNotEmpty &&
+            _stockGenderMode == ListingGenderMode.unisex) ...[
+          const SizedBox(height: 20),
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+          Text(
+            'Beden bazlı stok',
+            style: AppTypography.labelMedium.copyWith(
+              color: AppColors.neutral600,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ..._sizes.asMap().entries.map((entry) {
+            final index = entry.key;
+            final size = entry.value;
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: index == _sizes.length - 1 ? 0 : 12,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 44,
+                    height: 48,
+                    child: Center(
+                      child: Text(
+                        size,
+                        style: AppTypography.titleSmall.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: AppTextField(
+                      controller: _stockBySizeControllers[size]!,
+                      hint: 'Stok adedi',
+                      keyboardType: TextInputType.number,
+                      textInputAction: index == _sizes.length - 1
+                          ? TextInputAction.done
+                          : TextInputAction.next,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+        if (_sizes.isNotEmpty &&
+            _stockGenderMode == ListingGenderMode.gendered) ...[
+          const SizedBox(height: 20),
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+          Text(
+            'Beden + cinsiyet stoku',
+            style: AppTypography.labelMedium.copyWith(
+              color: AppColors.neutral600,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ..._sizes.asMap().entries.map((entry) {
+            final index = entry.key;
+            final size = entry.value;
+            final controllers = _stockBySizeGenderControllers[size]!;
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: index == _sizes.length - 1 ? 0 : 16,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    size,
+                    style: AppTypography.titleSmall.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          controller: controllers[ListingGender.male]!,
+                          hint: 'Erkek',
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.next,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: AppTextField(
+                          controller: controllers[ListingGender.female]!,
+                          hint: 'Kadın',
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.next,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ],
+    );
+  }
+
   String _getCategoryName(ListingCategory category) {
     switch (category) {
       case ListingCategory.runningShoes:
@@ -715,30 +949,27 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
   }) {
     final isSelected = _stockGenderMode == mode;
     return Expanded(
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _stockGenderMode = mode;
-          });
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : AppColors.neutral100,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.neutral300,
-              width: isSelected ? 2 : 1,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _stockGenderMode = mode;
+            });
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
             ),
-          ),
-          child: Center(
             child: Text(
               label,
-              style: AppTypography.bodyMedium.copyWith(
+              style: AppTypography.titleSmall.copyWith(
                 color: isSelected ? Colors.white : AppColors.neutral700,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -748,13 +979,15 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
   }
 
   void _showCategoryMenu() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceDark : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
           child: Column(
@@ -838,19 +1071,21 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
 
 
   Widget _buildImagePicker() {
+    final hasImages =
+        _imageUrls.isNotEmpty || _selectedImageFiles.isNotEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Selected Images Grid
-        if (_imageUrls.isNotEmpty || _selectedImageFiles.isNotEmpty)
+        if (hasImages) ...[
           SizedBox(
-            height: 120,
+            height: 108,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: _imageUrls.length + _selectedImageFiles.length,
               itemBuilder: (context, index) {
                 if (index < _imageUrls.length) {
-                  // Existing uploaded image
                   return _buildImageThumbnail(
                     imageUrl: _imageUrls[index],
                     onDelete: () {
@@ -859,31 +1094,36 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                       });
                     },
                   );
-                } else {
-                  // New selected file
-                  final fileIndex = index - _imageUrls.length;
-                  return _buildImageThumbnail(
-                    imageFile: _selectedImageFiles[fileIndex],
-                    onDelete: () {
-                      setState(() {
-                        _selectedImageFiles.removeAt(fileIndex);
-                      });
-                    },
-                  );
                 }
+
+                final fileIndex = index - _imageUrls.length;
+                return _buildImageThumbnail(
+                  imageFile: _selectedImageFiles[fileIndex],
+                  onDelete: () {
+                    setState(() {
+                      _selectedImageFiles.removeAt(fileIndex);
+                    });
+                  },
+                );
               },
             ),
           ),
-        const SizedBox(height: 12),
-        // Add Image Button
+          const SizedBox(height: 16),
+        ],
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: _isSubmitting ? null : _pickImages,
-            icon: const Icon(Icons.add_photo_alternate),
-            label: const Text('Görsel Ekle'),
+            icon: const Icon(Icons.add_photo_alternate_outlined),
+            label: Text(hasImages ? 'Görsel Ekle' : 'İlk görseli ekle'),
             style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              foregroundColor: AppColors.primary,
+              side: BorderSide(
+                color: AppColors.primary.withValues(alpha: 0.4),
+              ),
+              backgroundColor:
+                  isDark ? AppColors.surfaceDark : AppColors.neutral100,
+              padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -893,29 +1133,10 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
         if (_selectedImageFiles.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primaryContainer.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 16,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${_selectedImageFiles.length} görsel seçildi. Oluştur butonuna basıldığında yüklenecek.',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ],
+            child: Text(
+              '${_selectedImageFiles.length} görsel kayıt sırasında yüklenecek',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.neutral500,
               ),
             ),
           ),
@@ -929,22 +1150,22 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
     required VoidCallback onDelete,
   }) {
     return Container(
-      width: 120,
-      height: 120,
-      margin: const EdgeInsets.only(right: 8),
+      width: 108,
+      height: 108,
+      margin: const EdgeInsets.only(right: 10),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.neutral300),
       ),
       child: Stack(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             child: imageUrl != null
                 ? Image.network(
                     imageUrl,
-                    width: 120,
-                    height: 120,
+                    width: 108,
+                    height: 108,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: AppColors.neutral200,
@@ -954,14 +1175,14 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                 : kIsWeb
                     ? Image.network(
                         imageFile!.path,
-                        width: 120,
-                        height: 120,
+                        width: 108,
+                        height: 108,
                         fit: BoxFit.cover,
                       )
                     : Image.file(
                         File(imageFile!.path),
-                        width: 120,
-                        height: 120,
+                        width: 108,
+                        height: 108,
                         fit: BoxFit.cover,
                       ),
           ),
@@ -1081,6 +1302,19 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
     });
 
     try {
+      late final ({int? percent, DateTime? startsAt, DateTime? endsAt}) discountFields;
+      try {
+        discountFields = _resolveDiscountFields();
+      } on FormatException catch (e) {
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.message)),
+          );
+        }
+        return;
+      }
+
       // Upload images first (if any selected)
       if (_selectedImageFiles.isNotEmpty) {
         await _uploadImages();
@@ -1150,6 +1384,10 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
       }
 
       if (widget.listingId != null) {
+        // Görseller değiştiyse (yeni yükleme ya da kaldırma) güncelle, yoksa dokunma
+        final imagesChanged = _imageUrls.length != _originalImageUrls.length ||
+            !_imageUrls.every((url) => _originalImageUrls.contains(url));
+
         // Update
         await ref.read(createListingProvider.notifier).updateListing(
               listingId: widget.listingId!,
@@ -1168,9 +1406,12 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                   : _externalUrlController.text,
               stockQuantity: stockQuantity,
               stockBySize: stockBySize,
-              imageUrls: _imageUrls,
+              imageUrls: imagesChanged ? _imageUrls : null,
               stockGenderMode: _stockGenderMode,
               stockBySizeAndGender: stockBySizeAndGender,
+              discountPercent: discountFields.percent,
+              discountStartsAt: discountFields.startsAt,
+              discountEndsAt: discountFields.endsAt,
             );
       } else {
         // Create
@@ -1193,6 +1434,9 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
               imageUrls: _imageUrls,
               stockGenderMode: _stockGenderMode,
               stockBySizeAndGender: stockBySizeAndGender,
+              discountPercent: discountFields.percent,
+              discountStartsAt: discountFields.startsAt,
+              discountEndsAt: discountFields.endsAt,
             );
       }
 
@@ -1201,9 +1445,13 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
         result.when(
           data: (listing) async {
             if (listing != null) {
-              // Refresh marketplace listings and wait for it to complete
+              // Liste önbelleğini yenile
               await ref.read(listingsProvider.notifier).refresh();
-              
+
+              // Detay ve kullanıcı ilanları önbelleklerini geçersiz kıl
+              ref.invalidate(listingByIdProvider(listing.id));
+              ref.invalidate(userListingsProvider);
+
               if (!mounted) return;
 
               if (widget.listingId != null) {

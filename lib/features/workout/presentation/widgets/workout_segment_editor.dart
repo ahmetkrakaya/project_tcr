@@ -8,6 +8,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/vdot_calculator.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../domain/entities/workout_entity.dart';
+import '../../utils/segment_target_resolver.dart';
 
 /// Sadece rakam girilen pace alanını otomatik `m:ss` formatına çevirir.
 /// Kullanım: kullanıcı "730" yazarsa "7:30", "1030" yazarsa "10:30".
@@ -1270,8 +1271,15 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
             ],
           ),
           const SizedBox(height: 8),
-          // Segment türüne göre önerilen pace
-          
+          if (s.targetType == WorkoutTargetType.distance) ...[
+            _buildPerformanceTargetSelector(s),
+            const SizedBox(height: 8),
+          ],
+          if (_StepRowState._showSplitPerformanceUi(s)) ...[
+            _buildSplitTargetFields(s),
+            const SizedBox(height: 8),
+          ],
+          if (_StepRowState._showPacePerformanceUi(s)) ...[
           // Pace modu seçici (Manuel Değer / Manuel Aralık / VDOT ile Hesapla)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -1509,6 +1517,7 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
                   ),
                 ],
               ),
+          ],
           ],
         ],
       ),
@@ -1819,6 +1828,290 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
     }
   }
 
+  static WorkoutSegmentEntity _copySegment(
+    WorkoutSegmentEntity s, {
+    WorkoutSegmentType? segmentType,
+    WorkoutTargetType? targetType,
+    WorkoutTarget? target,
+    int? durationSeconds,
+    int? durationSecondsMin,
+    int? durationSecondsMax,
+    double? distanceMeters,
+    int? paceSecondsPerKm,
+    int? paceSecondsPerKmMin,
+    int? paceSecondsPerKmMax,
+    int? customPaceSecondsPerKm,
+    bool? useVdotForPace,
+    bool clearDurationSeconds = false,
+    bool clearDurationSecondsMin = false,
+    bool clearDurationSecondsMax = false,
+    bool clearPaceFields = false,
+  }) {
+    return WorkoutSegmentEntity(
+      segmentType: segmentType ?? s.segmentType,
+      targetType: targetType ?? s.targetType,
+      target: target ?? s.target,
+      durationSeconds: clearDurationSeconds ? null : (durationSeconds ?? s.durationSeconds),
+      durationSecondsMin: clearDurationSecondsMin ? null : (durationSecondsMin ?? s.durationSecondsMin),
+      durationSecondsMax: clearDurationSecondsMax ? null : (durationSecondsMax ?? s.durationSecondsMax),
+      distanceMeters: distanceMeters ?? s.distanceMeters,
+      paceSecondsPerKm: clearPaceFields ? null : (paceSecondsPerKm ?? s.paceSecondsPerKm),
+      paceSecondsPerKmMin: clearPaceFields ? null : (paceSecondsPerKmMin ?? s.paceSecondsPerKmMin),
+      paceSecondsPerKmMax: clearPaceFields ? null : (paceSecondsPerKmMax ?? s.paceSecondsPerKmMax),
+      customPaceSecondsPerKm: clearPaceFields ? null : (customPaceSecondsPerKm ?? s.customPaceSecondsPerKm),
+      useVdotForPace: clearPaceFields ? false : (useVdotForPace ?? s.useVdotForPace),
+      heartRateBpmMin: s.heartRateBpmMin,
+      heartRateBpmMax: s.heartRateBpmMax,
+      cadenceMin: s.cadenceMin,
+      cadenceMax: s.cadenceMax,
+      powerWattsMin: s.powerWattsMin,
+      powerWattsMax: s.powerWattsMax,
+    );
+  }
+
+  static WorkoutSegmentEntity _applyPerformanceMode(
+    WorkoutSegmentEntity s,
+    SegmentPerformanceTarget mode,
+  ) {
+    switch (mode) {
+      case SegmentPerformanceTarget.pace:
+        return _copySegment(
+          s,
+          target: WorkoutTarget.pace,
+          clearDurationSeconds: true,
+          clearDurationSecondsMin: true,
+          clearDurationSecondsMax: true,
+        );
+      case SegmentPerformanceTarget.time:
+        return _copySegment(
+          s,
+          target: WorkoutTarget.time,
+          clearPaceFields: true,
+        );
+      case SegmentPerformanceTarget.both:
+        return _copySegment(s, target: WorkoutTarget.pace);
+      case SegmentPerformanceTarget.none:
+        return s;
+    }
+  }
+
+  static bool _showPacePerformanceUi(WorkoutSegmentEntity s) {
+    if (s.targetType != WorkoutTargetType.distance) return true;
+    final mode = inferPerformanceTarget(s);
+    return mode != SegmentPerformanceTarget.time;
+  }
+
+  static bool _showSplitPerformanceUi(WorkoutSegmentEntity s) {
+    if (s.targetType != WorkoutTargetType.distance) return false;
+    final mode = inferPerformanceTarget(s);
+    return mode == SegmentPerformanceTarget.time || mode == SegmentPerformanceTarget.both;
+  }
+
+  Widget _buildPerformanceTargetSelector(WorkoutSegmentEntity s) {
+    final mode = inferPerformanceTarget(s);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Performans hedefi',
+          style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.neutral100,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildPaceModeButton(
+                  label: 'Tempo',
+                  isSelected: mode == SegmentPerformanceTarget.pace || mode == SegmentPerformanceTarget.both,
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                    widget.onChanged(WorkoutStepEditState(
+                      stepType: 'segment',
+                      segment: _applyPerformanceMode(s, SegmentPerformanceTarget.pace),
+                      isExpanded: widget.step.isExpanded,
+                    ));
+                  },
+                ),
+              ),
+              Expanded(
+                child: _buildPaceModeButton(
+                  label: 'Süre',
+                  isSelected: mode == SegmentPerformanceTarget.time,
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                    widget.onChanged(WorkoutStepEditState(
+                      stepType: 'segment',
+                      segment: _applyPerformanceMode(s, SegmentPerformanceTarget.time),
+                      isExpanded: widget.step.isExpanded,
+                    ));
+                  },
+                ),
+              ),
+              Expanded(
+                child: _buildPaceModeButton(
+                  label: 'İkisi',
+                  isSelected: mode == SegmentPerformanceTarget.both,
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                    widget.onChanged(WorkoutStepEditState(
+                      stepType: 'segment',
+                      segment: _applyPerformanceMode(s, SegmentPerformanceTarget.both),
+                      isExpanded: widget.step.isExpanded,
+                    ));
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSplitTargetFields(WorkoutSegmentEntity s) {
+    final hasRange = s.durationSecondsMin != null && s.durationSecondsMax != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Hedef süre (split)',
+          style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600),
+        ),
+        const SizedBox(height: 6),
+        if (hasRange)
+          Row(
+            children: [
+              Expanded(
+                child: _buildSplitPickerTile(
+                  label: 'Min',
+                  seconds: s.durationSecondsMin!,
+                  onPick: (sec) {
+                    widget.onChanged(WorkoutStepEditState(
+                      stepType: 'segment',
+                      segment: _copySegment(
+                        s,
+                        target: inferPerformanceTarget(s) == SegmentPerformanceTarget.both
+                            ? WorkoutTarget.pace
+                            : WorkoutTarget.time,
+                        durationSecondsMin: sec,
+                      ),
+                      isExpanded: widget.step.isExpanded,
+                    ));
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSplitPickerTile(
+                  label: 'Max',
+                  seconds: s.durationSecondsMax!,
+                  onPick: (sec) {
+                    widget.onChanged(WorkoutStepEditState(
+                      stepType: 'segment',
+                      segment: _copySegment(
+                        s,
+                        target: inferPerformanceTarget(s) == SegmentPerformanceTarget.both
+                            ? WorkoutTarget.pace
+                            : WorkoutTarget.time,
+                        durationSecondsMax: sec,
+                      ),
+                      isExpanded: widget.step.isExpanded,
+                    ));
+                  },
+                ),
+              ),
+            ],
+          )
+        else
+          _buildSplitPickerTile(
+            label: 'Süre',
+            seconds: s.durationSeconds ?? 111,
+            onPick: (sec) {
+              widget.onChanged(WorkoutStepEditState(
+                stepType: 'segment',
+                segment: _copySegment(
+                  s,
+                  target: inferPerformanceTarget(s) == SegmentPerformanceTarget.both
+                      ? WorkoutTarget.pace
+                      : WorkoutTarget.time,
+                  durationSeconds: sec,
+                  clearDurationSecondsMin: true,
+                  clearDurationSecondsMax: true,
+                ),
+                isExpanded: widget.step.isExpanded,
+              ));
+            },
+          ),
+        const SizedBox(height: 4),
+        TextButton(
+          onPressed: () {
+            if (hasRange) {
+              widget.onChanged(WorkoutStepEditState(
+                stepType: 'segment',
+                segment: _copySegment(
+                  s,
+                  durationSeconds: s.durationSecondsMin ?? 111,
+                  clearDurationSecondsMin: true,
+                  clearDurationSecondsMax: true,
+                ),
+                isExpanded: widget.step.isExpanded,
+              ));
+            } else {
+              final base = s.durationSeconds ?? 111;
+              widget.onChanged(WorkoutStepEditState(
+                stepType: 'segment',
+                segment: _copySegment(
+                  s,
+                  durationSeconds: null,
+                  durationSecondsMin: base,
+                  durationSecondsMax: base + 5,
+                  clearDurationSeconds: true,
+                ),
+                isExpanded: widget.step.isExpanded,
+              ));
+            }
+          },
+          child: Text(hasRange ? 'Tek süre kullan' : 'Süre aralığı ekle'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSplitPickerTile({
+    required String label,
+    required int seconds,
+    required void Function(int) onPick,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        _showDurationPicker(seconds, onPick);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.neutral100,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.neutral200),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500)),
+            Text(_formatDuration(seconds), style: AppTypography.bodyMedium),
+            Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+          ],
+        ),
+      ),
+    );
+  }
+
   static String _buildSegmentSummary(WorkoutSegmentEntity segment) {
     final parts = <String>[];
     
@@ -1827,19 +2120,15 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
     } else if (segment.targetType == WorkoutTargetType.distance && segment.distanceMeters != null) {
       parts.add('${(segment.distanceMeters! / 1000).toStringAsFixed(1)}km');
     }
-    
-    if (segment.target == WorkoutTarget.pace) {
-      if (segment.paceSecondsPerKmMin != null && segment.paceSecondsPerKmMax != null) {
-        final minM = segment.paceSecondsPerKmMin! ~/ 60;
-        final minS = segment.paceSecondsPerKmMin! % 60;
-        final maxM = segment.paceSecondsPerKmMax! ~/ 60;
-        final maxS = segment.paceSecondsPerKmMax! % 60;
-        parts.add('$minM:${minS.toString().padLeft(2, '0')}-$maxM:${maxS.toString().padLeft(2, '0')} pace');
-      } else if (segment.customPaceSecondsPerKm != null) {
-        final m = segment.customPaceSecondsPerKm! ~/ 60;
-        final s = segment.customPaceSecondsPerKm! % 60;
-        parts.add('$m:${s.toString().padLeft(2, '0')} pace');
-      }
+
+    final split = effectiveSplitDisplay(segment);
+    if (split != null && segment.targetType == WorkoutTargetType.distance) {
+      parts.add('$split split');
+    }
+
+    final pace = effectivePaceDisplay(segment);
+    if (pace != null && _showPacePerformanceUi(segment)) {
+      parts.add('$pace pace');
     }
     
     return parts.isEmpty ? 'Segment' : parts.join(' · ');
@@ -2690,7 +2979,15 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> with
               ],
             ),
             const SizedBox(height: 8),
-            
+            if (s.targetType == WorkoutTargetType.distance) ...[
+              _buildRepeatPerformanceTargetSelector(s),
+              const SizedBox(height: 8),
+            ],
+            if (_StepRowState._showSplitPerformanceUi(s)) ...[
+              _buildRepeatSplitTargetFields(s),
+              const SizedBox(height: 8),
+            ],
+            if (_StepRowState._showPacePerformanceUi(s)) ...[
             Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 decoration: BoxDecoration(
@@ -2901,9 +3198,177 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> with
                   ],
                 ),
             ],
+            ],
           ],
         ),
       );
+  }
+
+  Widget _buildRepeatPerformanceTargetSelector(WorkoutSegmentEntity s) {
+    final mode = inferPerformanceTarget(s);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Performans hedefi',
+          style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.neutral100,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildPaceModeButton(
+                  label: 'Tempo',
+                  isSelected: mode == SegmentPerformanceTarget.pace || mode == SegmentPerformanceTarget.both,
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                    widget.onChanged(_StepRowState._applyPerformanceMode(s, SegmentPerformanceTarget.pace));
+                  },
+                ),
+              ),
+              Expanded(
+                child: _buildPaceModeButton(
+                  label: 'Süre',
+                  isSelected: mode == SegmentPerformanceTarget.time,
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                    widget.onChanged(_StepRowState._applyPerformanceMode(s, SegmentPerformanceTarget.time));
+                  },
+                ),
+              ),
+              Expanded(
+                child: _buildPaceModeButton(
+                  label: 'İkisi',
+                  isSelected: mode == SegmentPerformanceTarget.both,
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                    widget.onChanged(_StepRowState._applyPerformanceMode(s, SegmentPerformanceTarget.both));
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRepeatSplitTargetFields(WorkoutSegmentEntity s) {
+    final hasRange = s.durationSecondsMin != null && s.durationSecondsMax != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Hedef süre (split)',
+          style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600),
+        ),
+        const SizedBox(height: 6),
+        if (hasRange)
+          Row(
+            children: [
+              Expanded(
+                child: _buildRepeatSplitPickerTile(
+                  label: 'Min',
+                  seconds: s.durationSecondsMin!,
+                  onPick: (sec) => widget.onChanged(_StepRowState._copySegment(
+                    s,
+                    target: inferPerformanceTarget(s) == SegmentPerformanceTarget.both
+                        ? WorkoutTarget.pace
+                        : WorkoutTarget.time,
+                    durationSecondsMin: sec,
+                  )),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildRepeatSplitPickerTile(
+                  label: 'Max',
+                  seconds: s.durationSecondsMax!,
+                  onPick: (sec) => widget.onChanged(_StepRowState._copySegment(
+                    s,
+                    target: inferPerformanceTarget(s) == SegmentPerformanceTarget.both
+                        ? WorkoutTarget.pace
+                        : WorkoutTarget.time,
+                    durationSecondsMax: sec,
+                  )),
+                ),
+              ),
+            ],
+          )
+        else
+          _buildRepeatSplitPickerTile(
+            label: 'Süre',
+            seconds: s.durationSeconds ?? 111,
+            onPick: (sec) => widget.onChanged(_StepRowState._copySegment(
+              s,
+              target: inferPerformanceTarget(s) == SegmentPerformanceTarget.both
+                  ? WorkoutTarget.pace
+                  : WorkoutTarget.time,
+              durationSeconds: sec,
+              clearDurationSecondsMin: true,
+              clearDurationSecondsMax: true,
+            )),
+          ),
+        const SizedBox(height: 4),
+        TextButton(
+          onPressed: () {
+            if (hasRange) {
+              widget.onChanged(_StepRowState._copySegment(
+                s,
+                durationSeconds: s.durationSecondsMin ?? 111,
+                clearDurationSecondsMin: true,
+                clearDurationSecondsMax: true,
+              ));
+            } else {
+              final base = s.durationSeconds ?? 111;
+              widget.onChanged(_StepRowState._copySegment(
+                s,
+                durationSeconds: null,
+                durationSecondsMin: base,
+                durationSecondsMax: base + 5,
+                clearDurationSeconds: true,
+              ));
+            }
+          },
+          child: Text(hasRange ? 'Tek süre kullan' : 'Süre aralığı ekle'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRepeatSplitPickerTile({
+    required String label,
+    required int seconds,
+    required void Function(int) onPick,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        _showDurationPicker(seconds, onPick);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.neutral100,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.neutral200),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500)),
+            Text(_formatDuration(seconds), style: AppTypography.bodyMedium),
+            Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+          ],
+        ),
+      ),
+    );
   }
 
   String? _getSuggestedPaceForSegment(WorkoutSegmentEntity segment) {

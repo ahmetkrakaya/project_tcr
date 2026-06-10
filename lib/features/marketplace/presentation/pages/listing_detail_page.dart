@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -13,6 +14,7 @@ import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/listing_model.dart';
+import '../../utils/listing_price_utils.dart';
 import '../providers/marketplace_provider.dart';
 
 /// Listing Detail Page
@@ -117,7 +119,12 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
     final screenHeight = MediaQuery.sizeOf(context).height;
     final appBarHeight = (screenHeight * 0.34).clamp(240.0, 360.0);
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pageBackground =
+        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+
     return Scaffold(
+      backgroundColor: pageBackground,
       body: CustomScrollView(
         slivers: [
           // Image Gallery
@@ -153,26 +160,53 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                       children: [
                         GestureDetector(
                           onTap: () => _openFullScreenImageViewer(context, listing.imageUrls, _currentPageIndex),
-                          child: PageView.builder(
-                            controller: _pageController,
-                            itemCount: listing.imageUrls.length,
-                            itemBuilder: (context, index) {
-                              return Image.network(
-                                listing.imageUrls[index],
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Container(
-                                      color: AppColors.neutral200,
-                                      child: const Icon(
-                                        Icons.image,
-                                        size: 80,
-                                        color: AppColors.neutral400,
+                          child: Opacity(
+                            opacity: isListingOutOfStock(listing) ? 0.45 : 1,
+                            child: PageView.builder(
+                              controller: _pageController,
+                              itemCount: listing.imageUrls.length,
+                              itemBuilder: (context, index) {
+                                return Image.network(
+                                  listing.imageUrls[index],
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Container(
+                                        color: AppColors.neutral200,
+                                        child: const Icon(
+                                          Icons.image,
+                                          size: 80,
+                                          color: AppColors.neutral400,
+                                        ),
                                       ),
-                                    ),
-                              );
-                            },
+                                );
+                              },
+                            ),
                           ),
                         ),
+                        if (isListingOutOfStock(listing))
+                          Positioned.fill(
+                            child: Container(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              alignment: Alignment.center,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.92),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  'Stokta Yok',
+                                  style: AppTypography.titleSmall.copyWith(
+                                    color: AppColors.neutral700,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         // Page Indicators
                         if (listing.imageUrls.length > 1)
                           Positioned(
@@ -206,50 +240,6 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                     ),
             ),
             actions: [
-              // Edit & Stock Management Buttons (Admin only)
-              Consumer(
-                builder: (context, ref, child) {
-                  final isAdmin = ref.watch(isAdminProvider);
-                  if (!isAdmin) return const SizedBox.shrink();
-                  
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          color: Colors.white,
-                          tooltip: 'Düzenle',
-                          onPressed: () {
-                            context.pushNamed(
-                              RouteNames.listingEdit,
-                              pathParameters: {'listingId': listing.id},
-                            );
-                          },
-                        ),
-                      ),
-                      Container(
-                        margin: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.inventory_2),
-                          color: Colors.white,
-                          tooltip: 'Stok Yönetimi',
-                          onPressed: () => _showStockManagementDialog(context, listing),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
               Container(
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -261,95 +251,99 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                     isFavorite ? Icons.favorite : Icons.favorite_border,
                     color: isFavorite ? AppColors.error : Colors.white,
                   ),
-                  onPressed: () {
-                    final wasFavorite = isFavorite;
-                    final messenger = ScaffoldMessenger.of(context);
-                    
-                    // Hemen UI'ı güncelle (optimistic update)
-                    if (wasFavorite) {
-                      ref.read(favoriteIdsProvider.notifier).removeFavorite(listing.id);
-                      // Favoriler sayfasından da hemen kaldır
-                      ref.read(favoriteListingsProvider.notifier).removeFavoriteOptimistically(listing.id);
-                    } else {
-                      ref.read(favoriteIdsProvider.notifier).addFavorite(listing.id);
-                    }
-
-                    // API çağrısını arka planda yap (await etme)
-                    ref.read(toggleFavoriteProvider.notifier).toggleFavorite(listing.id).then((_) {
-                      // API çağrısı başarılı olduğunda favoriler listesini güncelle
-                      if (!wasFavorite) {
-                        // Favori eklendi, optimistic update yap
-                        ref.read(favoriteListingsProvider.notifier).addFavoriteOptimistically(listing);
-                      }
-                    }).catchError((e) {
-                      // Hata durumunda geri al
-                      if (wasFavorite) {
-                        ref.read(favoriteIdsProvider.notifier).addFavorite(listing.id);
-                        ref.read(favoriteListingsProvider.notifier).refresh();
-                      } else {
-                        ref.read(favoriteIdsProvider.notifier).removeFavorite(listing.id);
-                      }
-                      
-                      // Hata mesajı göster
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text('Favori işlemi başarısız: ${e.toString()}'),
-                          backgroundColor: AppColors.error,
-                        ),
-                      );
-                    });
-                  },
+                  onPressed: () => _toggleFavorite(context, listing, isFavorite),
                 ),
               ),
-              Builder(
-                builder: (ctx) {
+              Consumer(
+                builder: (context, ref, _) {
+                  final isAdmin = ref.watch(isAdminProvider);
+                  if (isAdmin) return const SizedBox.shrink();
+
                   return Container(
-                    margin: const EdgeInsets.only(right: 8),
+                    margin: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.3),
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.share),
+                      icon: const Icon(Icons.share, color: Colors.white),
                       splashRadius: 24,
-                      onPressed: () async {
-                        try {
-                          // Kısa link kullan (Supabase'den bilgileri çekecek)
-                          final shareUrl = AppConstants.listingShareUrlShort(listing.id);
-                          
-                          // Share position origin (iOS için)
-                          final box = ctx.findRenderObject() as RenderBox?;
-                          final shareOrigin = box != null
-                              ? Rect.fromPoints(
-                                  box.localToGlobal(Offset.zero),
-                                  box.localToGlobal(box.size.bottomRight(Offset.zero)),
-                                )
-                              : const Rect.fromLTWH(0, 0, 1, 1);
-                          
-                          // Paylaşım başlığı
-                          final priceText = listing.price != null
-                              ? '₺${_formatPrice(listing.price!)}'
-                              : 'Fiyat Sorunuz';
-                          final subject = 'TCR Market: ${listing.title} - $priceText';
-                          
-                          await Share.share(
-                            shareUrl,
-                            subject: subject,
-                            sharePositionOrigin: shareOrigin,
-                          );
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Paylaşım açılamadı: ${e.toString()}',
-                                ),
-                                backgroundColor: AppColors.error,
-                              ),
+                      onPressed: () => _shareListing(context, listing),
+                    ),
+                  );
+                },
+              ),
+              Consumer(
+                builder: (context, ref, _) {
+                  final isAdmin = ref.watch(isAdminProvider);
+                  if (!isAdmin) return const SizedBox.shrink();
+
+                  return Container(
+                    margin: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: PopupMenuButton<_ListingMenuAction>(
+                      tooltip: 'Menü',
+                      icon: const Icon(Icons.more_vert, color: Colors.white),
+                      onSelected: (action) {
+                        switch (action) {
+                          case _ListingMenuAction.edit:
+                            context.pushNamed(
+                              RouteNames.listingEdit,
+                              pathParameters: {'listingId': listing.id},
                             );
-                          }
+                          case _ListingMenuAction.stock:
+                            _showStockManagementDialog(context, listing);
+                          case _ListingMenuAction.discount:
+                            _showDiscountDialog(context, listing);
+                          case _ListingMenuAction.share:
+                            _shareListing(context, listing);
                         }
                       },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: _ListingMenuAction.edit,
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit_outlined),
+                              SizedBox(width: 12),
+                              Text('Düzenle'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: _ListingMenuAction.stock,
+                          child: Row(
+                            children: [
+                              Icon(Icons.inventory_2_outlined),
+                              SizedBox(width: 12),
+                              Text('Stok Yönetimi'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: _ListingMenuAction.discount,
+                          child: Row(
+                            children: [
+                              Icon(Icons.local_offer_outlined),
+                              SizedBox(width: 12),
+                              Text('İndirim Uygula'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: _ListingMenuAction.share,
+                          child: Row(
+                            children: [
+                              Icon(Icons.share_outlined),
+                              SizedBox(width: 12),
+                              Text('Paylaş'),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 },
@@ -359,130 +353,525 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
 
           // Content
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title & Price Row
-                  Row(
+            child: Transform.translate(
+              offset: const Offset(0, -20),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.surfaceDark : Colors.white,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
+                      blurRadius: 20,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              listing.title,
-                              style: AppTypography.headlineSmall.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            if (listing.price != null)
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text(
-                                      '₺',
-                                      style: AppTypography.titleLarge.copyWith(
-                                        color: AppColors.primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    _formatPrice(listing.price!),
-                                    style: AppTypography.titleLarge.copyWith(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            else
-                              Text(
-                                'Fiyat Sorunuz',
-                                style: AppTypography.titleLarge.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      // Stock Status - Compact
-                      _buildStockStatusCompact(listing),
+                      _buildProductHeader(listing, isDark),
+                      if (listing.size != null ||
+                          listing.stockGenderMode == ListingGenderMode.gendered) ...[
+                        const SizedBox(height: 28),
+                        _buildOptionsPanel(listing, isDark),
+                      ],
+                      if (listing.description != null &&
+                          listing.description!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 28),
+                        _buildDescriptionSection(listing),
+                      ],
+                      const SizedBox(height: 100),
                     ],
                   ),
-                  const SizedBox(height: 16),
-
-                  // Badges Row
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _buildCompactBadge(
-                        icon: Icons.verified,
-                        label: 'TCR Ürünü',
-                        color: AppColors.primary,
-                      ),
-                      _buildCompactBadge(
-                        label: _getCategoryName(listing.category),
-                        color: AppColors.secondary,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Size Selection
-                  if (listing.size != null) ...[
-                    _buildSizeSelector(listing.size!),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Gender Selection (only for gendered stock)
-                  if (listing.stockGenderMode == ListingGenderMode.gendered) ...[
-                    _buildGenderSelector(listing),
-                    const SizedBox(height: 24),
-                  ],
-
-                  // Brand
-                  if (listing.brand != null) ...[
-                    _buildSpecItem(
-                      label: 'Marka',
-                      value: listing.brand!,
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-
-                  // Description
-                  if (listing.description != null) ...[
-                    Text(
-                      listing.description!,
-                      style: AppTypography.bodyLarge.copyWith(
-                        color: AppColors.neutral700,
-                        height: 1.6,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-
-                  // Order Button
-                  _buildOrderButton(context, listing),
-                  const SizedBox(height: 24),
-                ],
+                ),
               ),
             ),
           ),
         ],
       ),
+      bottomNavigationBar: _buildStickyOrderBar(context, listing),
     );
   }
 
+  Widget _buildProductHeader(ListingModel listing, bool isDark) {
+    final metaColor =
+        isDark ? AppColors.neutral400 : AppColors.neutral500;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _getCategoryName(listing.category).toUpperCase(),
+          style: AppTypography.labelSmall.copyWith(
+            color: metaColor,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.1,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          listing.title,
+          style: AppTypography.headlineMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            height: 1.2,
+            letterSpacing: -0.3,
+          ),
+        ),
+        if (listing.brand != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            listing.brand!,
+            style: AppTypography.bodyLarge.copyWith(
+              color: metaColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildCompactBadge(
+              icon: Icons.verified,
+              label: 'TCR Ürünü',
+              color: AppColors.primary,
+            ),
+            if (isListingDiscountActive(listing))
+              _buildCompactBadge(
+                icon: Icons.local_offer_outlined,
+                label: '%${listing.discountPercent} indirim',
+                color: AppColors.error,
+              ),
+            _buildStockStatusCompact(listing),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOptionsPanel(ListingModel listing, bool isDark) {
+    final panelColor =
+        isDark ? AppColors.backgroundDark : AppColors.neutral200;
+    final borderColor = isDark
+        ? AppColors.neutral400.withValues(alpha: 0.15)
+        : AppColors.neutral200;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: panelColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (listing.size != null) ...[
+            _buildSizeSelector(listing.size!),
+            if (listing.stockGenderMode == ListingGenderMode.gendered)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Divider(
+                  height: 1,
+                  color: borderColor,
+                ),
+              ),
+          ],
+          if (listing.stockGenderMode == ListingGenderMode.gendered)
+            _buildGenderSelector(listing),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDescriptionSection(ListingModel listing) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Açıklama',
+          style: AppTypography.labelMedium.copyWith(
+            color: AppColors.neutral500,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          listing.description!,
+          style: AppTypography.bodyLarge.copyWith(
+            color: AppColors.neutral700,
+            height: 1.65,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOptionLabel(String label) {
+    return Text(
+      label,
+      style: AppTypography.labelMedium.copyWith(
+        color: AppColors.neutral600,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.2,
+      ),
+    );
+  }
+
+  Widget _buildStickyOrderBar(BuildContext context, ListingModel listing) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final barColor = isDark ? AppColors.surfaceDark : Colors.white;
+
+    if (currentUserId == null) {
+      return SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          decoration: BoxDecoration(
+            color: barColor,
+            border: Border(
+              top: BorderSide(
+                color: isDark ? AppColors.neutral400.withValues(alpha: 0.2) : AppColors.neutral200,
+              ),
+            ),
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.pushNamed(RouteNames.login),
+              icon: const Icon(Icons.login_rounded),
+              label: const Text('Sipariş için giriş yap'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final orderState = _resolveOrderState(listing);
+    final stockAlertScope = _resolveStockAlertScope(listing);
+    final stockAlertsAsync =
+        ref.watch(userStockAlertsForListingProvider(listing.id));
+    final subscribedKeys = stockAlertsAsync.maybeWhen(
+      data: (alerts) => alerts.map((a) => a.scopeKey).toSet(),
+      orElse: () => <String>{},
+    );
+    final isSubscribed = stockAlertScope.canSubscribe &&
+        subscribedKeys.contains(
+          stockAlertScopeKey(
+            listing.id,
+            size: stockAlertScope.size,
+            gender: stockAlertScope.gender,
+          ),
+        );
+
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+        decoration: BoxDecoration(
+          color: barColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: listing.price != null ? 120 : 100,
+              child: ListingPriceDisplay(
+                listing: listing,
+                priceStyle: AppTypography.headlineSmall.copyWith(
+                  color: isListingDiscountActive(listing)
+                      ? AppColors.error
+                      : AppColors.primary,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: stockAlertScope.canSubscribe
+                  ? OutlinedButton.icon(
+                      onPressed: () => _toggleStockAlert(
+                        context,
+                        listing,
+                        stockAlertScope,
+                        isSubscribed,
+                      ),
+                      icon: Icon(
+                        isSubscribed
+                            ? Icons.notifications_active_rounded
+                            : Icons.notifications_outlined,
+                      ),
+                      label: Text(
+                        isSubscribed ? 'Haberdar Edileceksin' : 'Gelince Haber Ver',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: isSubscribed
+                            ? AppColors.primary
+                            : AppColors.neutral800,
+                        side: BorderSide(
+                          color: isSubscribed
+                              ? AppColors.primary
+                              : AppColors.neutral300,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    )
+                  : FilledButton.icon(
+                      onPressed: orderState.enabled
+                          ? () => _showOrderDialog(context, listing)
+                          : null,
+                      icon: Icon(orderState.icon),
+                      label: Text(orderState.label),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        disabledBackgroundColor: AppColors.neutral200,
+                        disabledForegroundColor: AppColors.neutral500,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  ({
+    bool canSubscribe,
+    String? size,
+    ListingGender? gender,
+  }) _resolveStockAlertScope(ListingModel listing) {
+    if (isListingOutOfStock(listing)) {
+      return (canSubscribe: true, size: null, gender: null);
+    }
+
+    if (listing.stockGenderMode == ListingGenderMode.gendered &&
+        listing.stockBySizeAndGender != null &&
+        listing.stockBySizeAndGender!.isNotEmpty) {
+      if (_selectedSize == null || _selectedGender == null) {
+        return (canSubscribe: false, size: null, gender: null);
+      }
+      final stockForCombo =
+          listing.stockBySizeAndGender![_selectedSize!]?[_selectedGender!] ?? 0;
+      if (stockForCombo <= 0) {
+        return (
+          canSubscribe: true,
+          size: _selectedSize,
+          gender: _selectedGender,
+        );
+      }
+      return (canSubscribe: false, size: null, gender: null);
+    }
+
+    if (listing.stockBySize != null && listing.stockBySize!.isNotEmpty) {
+      if (_selectedSize == null) {
+        return (canSubscribe: false, size: null, gender: null);
+      }
+      final stockForSize = listing.stockBySize![_selectedSize] ?? 0;
+      if (stockForSize <= 0) {
+        return (
+          canSubscribe: true,
+          size: _selectedSize,
+          gender: ListingGender.unisex,
+        );
+      }
+      return (canSubscribe: false, size: null, gender: null);
+    }
+
+    if (listing.stockQuantity != null && listing.stockQuantity! <= 0) {
+      return (canSubscribe: true, size: null, gender: null);
+    }
+
+    return (canSubscribe: false, size: null, gender: null);
+  }
+
+  Future<void> _toggleStockAlert(
+    BuildContext context,
+    ListingModel listing,
+    ({
+      bool canSubscribe,
+      String? size,
+      ListingGender? gender,
+    }) scope,
+    bool isSubscribed,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      final notifier = ref.read(toggleStockAlertProvider.notifier);
+      if (isSubscribed) {
+        await notifier.unsubscribe(
+          listingId: listing.id,
+          size: scope.size,
+          gender: scope.gender,
+        );
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Stok bildirimi kaldırıldı')),
+        );
+      } else {
+        await notifier.subscribe(
+          listingId: listing.id,
+          size: scope.size,
+          gender: scope.gender,
+        );
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Stok gelince haber vereceğiz')),
+        );
+      }
+      ref.invalidate(userStockAlertsForListingProvider(listing.id));
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('İşlem başarısız: $e')),
+      );
+    }
+  }
+
+  ({bool enabled, String label, IconData icon}) _resolveOrderState(
+    ListingModel listing,
+  ) {
+    if (isListingOutOfStock(listing)) {
+      return (enabled: false, label: 'Stokta Yok', icon: Icons.block);
+    }
+
+    bool isOutOfStock = false;
+    if (listing.stockGenderMode == ListingGenderMode.gendered &&
+        listing.stockBySizeAndGender != null &&
+        listing.stockBySizeAndGender!.isNotEmpty &&
+        _selectedSize != null &&
+        _selectedGender != null) {
+      final genderMap = listing.stockBySizeAndGender![_selectedSize!];
+      final stockForCombo = genderMap?[_selectedGender!] ?? 0;
+      isOutOfStock = stockForCombo <= 0;
+    } else if (listing.stockBySize != null && listing.stockBySize!.isNotEmpty) {
+      if (_selectedSize != null) {
+        final stockForSize = listing.stockBySize![_selectedSize] ?? 0;
+        isOutOfStock = stockForSize <= 0;
+      }
+    } else {
+      isOutOfStock =
+          listing.stockQuantity != null && listing.stockQuantity! <= 0;
+    }
+
+    final isSizeNotSelected = listing.size != null && _selectedSize == null;
+    final isGenderNotSelected =
+        listing.stockGenderMode == ListingGenderMode.gendered &&
+        listing.stockBySizeAndGender != null &&
+        listing.stockBySizeAndGender!.isNotEmpty &&
+        _selectedGender == null;
+    if (isOutOfStock) {
+      return (enabled: false, label: 'Stokta Yok', icon: Icons.block);
+    }
+    if (isSizeNotSelected) {
+      return (enabled: false, label: 'Beden Seçin', icon: Icons.straighten);
+    }
+    if (isGenderNotSelected) {
+      return (enabled: false, label: 'Cinsiyet Seçin', icon: Icons.person_outline);
+    }
+    return (enabled: true, label: 'Sipariş Ver', icon: Icons.shopping_bag_outlined);
+  }
+
+  void _toggleFavorite(
+    BuildContext context,
+    ListingModel listing,
+    bool isFavorite,
+  ) {
+    final wasFavorite = isFavorite;
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (wasFavorite) {
+      ref.read(favoriteIdsProvider.notifier).removeFavorite(listing.id);
+      ref.read(favoriteListingsProvider.notifier).removeFavoriteOptimistically(listing.id);
+    } else {
+      ref.read(favoriteIdsProvider.notifier).addFavorite(listing.id);
+    }
+
+    ref.read(toggleFavoriteProvider.notifier).toggleFavorite(listing.id).then((_) {
+      if (!wasFavorite) {
+        ref.read(favoriteListingsProvider.notifier).addFavoriteOptimistically(listing);
+      }
+    }).catchError((e) {
+      if (wasFavorite) {
+        ref.read(favoriteIdsProvider.notifier).addFavorite(listing.id);
+        ref.read(favoriteListingsProvider.notifier).refresh();
+      } else {
+        ref.read(favoriteIdsProvider.notifier).removeFavorite(listing.id);
+      }
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Favori işlemi başarısız: ${e.toString()}'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    });
+  }
+
+  Future<void> _shareListing(BuildContext context, ListingModel listing) async {
+    try {
+      final shareUrl = AppConstants.listingShareUrlShort(listing.id);
+      final box = context.findRenderObject() as RenderBox?;
+      final shareOrigin = box != null
+          ? Rect.fromPoints(
+              box.localToGlobal(Offset.zero),
+              box.localToGlobal(box.size.bottomRight(Offset.zero)),
+            )
+          : const Rect.fromLTWH(0, 0, 1, 1);
+      final displayPrice = listingDisplayPrice(listing);
+      final priceText = displayPrice != null
+          ? '₺${formatListingPrice(displayPrice)}'
+          : 'Fiyat Sorunuz';
+      final subject = 'TCR Market: ${listing.title} - $priceText';
+
+      await Share.share(
+        shareUrl,
+        subject: subject,
+        sharePositionOrigin: shareOrigin,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Paylaşım açılamadı: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showDiscountDialog(BuildContext context, ListingModel listing) {
+    showDialog(
+      context: context,
+      builder: (context) => _QuickDiscountDialog(listing: listing),
+    );
+  }
 
   void _showStockManagementDialog(BuildContext context, ListingModel listing) {
     // Eğer beden varsa stok tipi (unisex / erkek-kadın) popup içinde seçilir, yoksa genel stok yönetimi
@@ -668,6 +1057,30 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   }
 
   Widget _buildStockStatusCompact(ListingModel listing) {
+    if (isListingOutOfStock(listing)) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.block, size: 14, color: AppColors.error),
+            const SizedBox(width: 6),
+            Text(
+              'Stokta Yok',
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     // Cinsiyet + beden bazlı stok varsa önce onu kontrol et
     if (listing.stockGenderMode == ListingGenderMode.gendered &&
         listing.stockBySizeAndGender != null &&
@@ -689,10 +1102,10 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                 Icon(Icons.inventory_2, size: 14, color: AppColors.warning),
                 const SizedBox(width: 6),
                 Text(
-                  '$stockForCombo',
+                  '$stockForCombo adet',
                   style: AppTypography.labelSmall.copyWith(
                     color: AppColors.warning,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -744,6 +1157,28 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
             ],
           ),
         );
+      } else {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.neutral200,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.info_outline, size: 14, color: AppColors.neutral500),
+              const SizedBox(width: 6),
+              Text(
+                'Beden seç',
+                style: AppTypography.labelSmall.copyWith(
+                  color: AppColors.neutral500,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        );
       }
     }
 
@@ -764,10 +1199,10 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                 Icon(Icons.inventory_2, size: 14, color: AppColors.warning),
                 const SizedBox(width: 6),
                 Text(
-                  '$stockForSize',
+                  '$stockForSize adet',
                   style: AppTypography.labelSmall.copyWith(
                     color: AppColors.warning,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -860,10 +1295,10 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
             Icon(Icons.inventory_2, size: 14, color: AppColors.warning),
             const SizedBox(width: 6),
             Text(
-              '$stockQuantity',
+              '$stockQuantity adet',
               style: AppTypography.labelSmall.copyWith(
                 color: AppColors.warning,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -895,62 +1330,67 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   }
 
   Widget _buildSizeSelector(String sizeString) {
-    // Beden string'ini parse et (virgülle ayrılmış olabilir)
     final sizes = sizeString.split(',').map((s) => s.trim()).toList();
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Beden Seçiniz',
-          style: AppTypography.labelMedium.copyWith(
-            color: AppColors.neutral700,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        _buildOptionLabel('Beden'),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: sizes.map((size) {
-            final isSelected = _selectedSize == size;
-            return InkWell(
-              onTap: () {
-                setState(() {
-                  _selectedSize = isSelected ? null : size;
-              // Beden seçimi cinsiyeti resetlemez; kullanıcı isterse ayrıca cinsiyet değiştirebilir
-                });
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primary
-                      : AppColors.neutral100,
-                  border: Border.all(
-                    color: isSelected
-                        ? AppColors.primary
-                        : AppColors.neutral300,
-                    width: isSelected ? 2 : 1,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const spacing = 8.0;
+            final maxPerRow = sizes.length <= 5 ? sizes.length : 5;
+            final chipWidth =
+                (constraints.maxWidth - spacing * (maxPerRow - 1)) / maxPerRow;
+
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: sizes.map((size) {
+                final isSelected = _selectedSize == size;
+                return SizedBox(
+                  width: chipWidth,
+                  height: 48,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        setState(() {
+                          _selectedSize = isSelected ? null : size;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.neutral100,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.neutral300,
+                          ),
+                        ),
+                        child: Text(
+                          size,
+                          style: AppTypography.titleSmall.copyWith(
+                            color: isSelected
+                                ? Colors.white
+                                : AppColors.neutral800,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  size,
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: isSelected
-                        ? Colors.white
-                        : AppColors.neutral700,
-                    fontWeight: isSelected
-                        ? FontWeight.w600
-                        : FontWeight.w500,
-                  ),
-                ),
-              ),
+                );
+              }).toList(),
             );
-          }).toList(),
+          },
         ),
       ],
     );
@@ -960,75 +1400,59 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Cinsiyet Seçiniz',
-          style: AppTypography.labelMedium.copyWith(
-            color: AppColors.neutral700,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        _buildOptionLabel('Cinsiyet'),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _buildGenderChip(ListingGender.male, 'Erkek'),
-            _buildGenderChip(ListingGender.female, 'Kadın'),
-          ],
+        Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppColors.neutral100,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.neutral300),
+          ),
+          padding: const EdgeInsets.all(3),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildGenderSegment(ListingGender.male, 'Erkek'),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _buildGenderSegment(ListingGender.female, 'Kadın'),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildGenderChip(ListingGender gender, String label) {
+  Widget _buildGenderSegment(ListingGender gender, String label) {
     final isSelected = _selectedGender == gender;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedGender = isSelected ? null : gender;
-        });
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : AppColors.neutral100,
-          border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.neutral300,
-            width: isSelected ? 2 : 1,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _selectedGender = isSelected ? null : gender;
+          });
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
           ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          label,
-          style: AppTypography.bodyMedium.copyWith(
-            color: isSelected ? Colors.white : AppColors.neutral700,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          child: Text(
+            label,
+            style: AppTypography.titleSmall.copyWith(
+              color: isSelected ? Colors.white : AppColors.neutral700,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildSpecItem({required String label, required String value}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: AppTypography.labelSmall.copyWith(
-            color: AppColors.neutral500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: AppTypography.bodyMedium.copyWith(
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
     );
   }
 
@@ -1066,160 +1490,6 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
       case ListingCategory.other:
         return 'Diğer';
     }
-  }
-
-  Widget _buildOrderButton(BuildContext context, ListingModel listing) {
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    
-    if (currentUserId == null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.primaryContainer,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.2),
-            width: 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              Icons.lock_outline,
-              size: 32,
-              color: AppColors.primary,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Sipariş Vermek İçin Giriş Yapın',
-              style: AppTypography.titleMedium.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  context.pushNamed(RouteNames.login);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text('Giriş Yap'),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Stok kontrolü - cinsiyet + beden bazlı veya genel
-    bool isOutOfStock = false;
-    if (listing.stockGenderMode == ListingGenderMode.gendered &&
-        listing.stockBySizeAndGender != null &&
-        listing.stockBySizeAndGender!.isNotEmpty &&
-        _selectedSize != null &&
-        _selectedGender != null) {
-      final genderMap = listing.stockBySizeAndGender![_selectedSize!];
-      final stockForCombo = genderMap?[_selectedGender!] ?? 0;
-      isOutOfStock = stockForCombo <= 0;
-    } else if (listing.stockBySize != null && listing.stockBySize!.isNotEmpty) {
-      // Beden bazlı stok kontrolü (unisex)
-      if (_selectedSize != null) {
-        final stockForSize = listing.stockBySize![_selectedSize] ?? 0;
-        isOutOfStock = stockForSize <= 0;
-      } else {
-        // Beden seçilmemiş
-        isOutOfStock = false; // Buton zaten devre dışı olacak
-      }
-    } else {
-      // Genel stok kontrolü
-      isOutOfStock = listing.stockQuantity != null && listing.stockQuantity! <= 0;
-    }
-    
-    // Beden kontrolü - eğer ürünün bedeni varsa ve seçilmemişse buton devre dışı
-    final isSizeNotSelected = listing.size != null && _selectedSize == null;
-    // Cinsiyet kontrolü - gendered stokta cinsiyet seçilmemişse buton devre dışı
-    final isGenderNotSelected =
-        listing.stockGenderMode == ListingGenderMode.gendered &&
-        listing.stockBySizeAndGender != null &&
-        listing.stockBySizeAndGender!.isNotEmpty &&
-        _selectedGender == null;
-    final isButtonDisabled = isOutOfStock || isSizeNotSelected || isGenderNotSelected;
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: isButtonDisabled
-            ? null
-            : LinearGradient(
-                colors: [
-                  AppColors.primary,
-                  AppColors.primary.withValues(alpha: 0.8),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-        color: isButtonDisabled ? AppColors.neutral200 : null,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: isButtonDisabled
-            ? null
-            : [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isButtonDisabled ? null : () => _showOrderDialog(context, listing),
-          borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    isOutOfStock
-                        ? Icons.cancel_outlined
-                        : isSizeNotSelected || isGenderNotSelected
-                            ? Icons.info_outline
-                            : Icons.shopping_cart_outlined,
-                    color: isButtonDisabled ? AppColors.neutral500 : Colors.white,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    isOutOfStock
-                        ? 'Stokta Yok'
-                        : isSizeNotSelected
-                            ? 'Beden Seçiniz'
-                            : isGenderNotSelected
-                                ? 'Cinsiyet Seçiniz'
-                                : 'Sipariş Ver',
-                    style: AppTypography.titleLarge.copyWith(
-                      color: isButtonDisabled ? AppColors.neutral500 : Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ),
-      ),
-    );
   }
 
   void _showOrderDialog(BuildContext context, ListingModel listing) {
@@ -1347,12 +1617,15 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (widget.listing.price != null)
-                            Text(
-                              '₺${_formatPrice(widget.listing.price!)}',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
+                          if (listingDisplayPrice(widget.listing) != null)
+                            ListingPriceDisplay(
+                              listing: widget.listing,
+                              compact: true,
+                              priceStyle: AppTypography.bodyMedium.copyWith(
+                                color: isListingDiscountActive(widget.listing)
+                                    ? AppColors.error
+                                    : AppColors.primary,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                         ],
@@ -1666,7 +1939,9 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                                   return;
                                 }
                                 
-                                final totalPrice = (widget.listing.price ?? 0) * selectedQuantity;
+                                final unitPrice =
+                                    listingDisplayPrice(widget.listing) ?? 0;
+                                final totalPrice = unitPrice * selectedQuantity;
 
                                 await ref
                                     .read(createOrderProvider.notifier)
@@ -2594,4 +2869,334 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
       ),
     );
   }
+}
+
+class _QuickDiscountDialog extends ConsumerStatefulWidget {
+  final ListingModel listing;
+
+  const _QuickDiscountDialog({required this.listing});
+
+  @override
+  ConsumerState<_QuickDiscountDialog> createState() =>
+      _QuickDiscountDialogState();
+}
+
+class _QuickDiscountDialogState extends ConsumerState<_QuickDiscountDialog> {
+  late bool _enabled;
+  late final TextEditingController _percentController;
+  DateTime? _startsAt;
+  DateTime? _endsAt;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final listing = widget.listing;
+    _enabled = listing.discountPercent != null;
+    _percentController = TextEditingController(
+      text: listing.discountPercent?.toString() ?? '',
+    );
+    _startsAt = listing.discountStartsAt?.toLocal();
+    _endsAt = listing.discountEndsAt?.toLocal();
+  }
+
+  @override
+  void dispose() {
+    _percentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDateTime({required bool isStart}) async {
+    final initial = isStart
+        ? (_startsAt ?? DateTime.now())
+        : (_endsAt ?? _startsAt?.add(const Duration(days: 7)) ?? DateTime.now());
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      locale: const Locale('tr', 'TR'),
+    );
+    if (date == null || !mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+
+    setState(() {
+      final picked = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
+      if (isStart) {
+        _startsAt = picked;
+        if (_endsAt != null && !_endsAt!.isAfter(picked)) {
+          _endsAt = picked.add(const Duration(days: 1));
+        }
+      } else {
+        _endsAt = picked;
+      }
+    });
+  }
+
+  Future<void> _save() async {
+    int? percent;
+    DateTime? startsAt;
+    DateTime? endsAt;
+
+    if (_enabled) {
+      percent = int.tryParse(_percentController.text.trim());
+      if (percent == null || percent < 1 || percent > 100) {
+        _showError('1-100 arası geçerli bir indirim oranı girin');
+        return;
+      }
+      if (_startsAt == null || _endsAt == null) {
+        _showError('Başlangıç ve bitiş tarihlerini seçin');
+        return;
+      }
+      if (!_endsAt!.isAfter(_startsAt!)) {
+        _showError('Bitiş tarihi başlangıçtan sonra olmalı');
+        return;
+      }
+      if (widget.listing.price == null) {
+        _showError('Fiyatı olmayan ürüne indirim uygulanamaz');
+        return;
+      }
+      startsAt = _startsAt;
+      endsAt = _endsAt;
+    }
+
+    setState(() => _isSaving = true);
+
+    await ref.read(updateListingDiscountProvider.notifier).updateDiscount(
+          listingId: widget.listing.id,
+          discountPercent: percent,
+          discountStartsAt: startsAt,
+          discountEndsAt: endsAt,
+        );
+
+    if (!mounted) return;
+
+    final result = ref.read(updateListingDiscountProvider);
+    result.when(
+      data: (_) {
+        ref.invalidate(listingByIdProvider(widget.listing.id));
+        ref.read(listingsProvider.notifier).refresh();
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _enabled ? 'İndirim kaydedildi' : 'İndirim kaldırıldı',
+            ),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      },
+      loading: () {},
+      error: (error, _) {
+        setState(() => _isSaving = false);
+        _showError('Hata: $error');
+      },
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat('d MMM yyyy, HH:mm', 'tr_TR');
+    final listing = widget.listing;
+    final percent = int.tryParse(_percentController.text.trim());
+    final previewListing = (_enabled &&
+            listing.price != null &&
+            percent != null &&
+            _startsAt != null &&
+            _endsAt != null)
+        ? ListingModel(
+            id: listing.id,
+            sellerId: listing.sellerId,
+            listingType: listing.listingType,
+            category: listing.category,
+            title: listing.title,
+            price: listing.price,
+            discountPercent: percent,
+            discountStartsAt: _startsAt,
+            discountEndsAt: _endsAt,
+            createdAt: listing.createdAt,
+          )
+        : null;
+    final previewPrice =
+        previewListing != null ? listingDisplayPrice(previewListing) : null;
+
+    return AlertDialog(
+      title: const Text('İndirim Uygula'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              listing.title,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.neutral600,
+              ),
+            ),
+            if (listing.price != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Liste fiyatı: ₺${formatListingPrice(listing.price!)}',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.neutral500,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('İndirim aktif'),
+              value: _enabled,
+              activeThumbColor: AppColors.primary,
+              onChanged: (value) {
+                setState(() {
+                  _enabled = value;
+                  if (value && _startsAt == null) {
+                    final now = DateTime.now();
+                    _startsAt = DateTime(
+                      now.year,
+                      now.month,
+                      now.day,
+                      now.hour,
+                      now.minute,
+                    );
+                    _endsAt = _startsAt!.add(const Duration(days: 7));
+                  }
+                });
+              },
+            ),
+            if (_enabled) ...[
+              const SizedBox(height: 8),
+              AppTextField(
+                controller: _percentController,
+                hint: 'İndirim oranı (%)',
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              _DiscountDateTile(
+                label: 'Başlangıç',
+                value: _startsAt,
+                dateFormat: dateFormat,
+                onTap: () => _pickDateTime(isStart: true),
+              ),
+              const SizedBox(height: 8),
+              _DiscountDateTile(
+                label: 'Bitiş',
+                value: _endsAt,
+                dateFormat: dateFormat,
+                onTap: () => _pickDateTime(isStart: false),
+              ),
+              if (previewPrice != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'İndirimli fiyat: ₺${formatListingPrice(previewPrice)}',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
+          child: const Text('İptal'),
+        ),
+        FilledButton(
+          onPressed: _isSaving ? null : _save,
+          child: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Kaydet'),
+        ),
+      ],
+    );
+  }
+}
+
+class _DiscountDateTile extends StatelessWidget {
+  final String label;
+  final DateTime? value;
+  final DateFormat dateFormat;
+  final VoidCallback onTap;
+
+  const _DiscountDateTile({
+    required this.label,
+    required this.value,
+    required this.dateFormat,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.neutral300),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: AppTypography.labelSmall.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value != null ? dateFormat.format(value!) : 'Tarih seçin',
+                    style: AppTypography.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.calendar_today_outlined, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _ListingMenuAction {
+  edit,
+  stock,
+  discount,
+  share,
 }

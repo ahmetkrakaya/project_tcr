@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../core/utils/vdot_calculator.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../workout/data/models/workout_model.dart';
 import '../../../workout/domain/entities/workout_entity.dart';
+import '../../../workout/utils/segment_target_resolver.dart';
 
 /// Admin — aylık plan satırı: özet + yapılandırılmış antrenman adımları
 class AdminMonthlyProgramEntryCard extends StatelessWidget {
@@ -37,13 +37,15 @@ class AdminMonthlyProgramEntryCard extends StatelessWidget {
 
   static String? _paceLine(WorkoutSegmentEntity s) {
     if (s.useVdotForPace == true) return 'VDOT pace';
-    final min = s.paceSecondsPerKmMin;
-    final max = s.paceSecondsPerKmMax;
-    if (min != null && max != null) {
-      return '${VdotCalculator.formatPace(min)} – ${VdotCalculator.formatPace(max)}';
-    }
-    final e = s.paceSecondsPerKm ?? s.effectivePaceSecondsPerKm;
-    if (e != null) return VdotCalculator.formatPace(e);
+    final pace = effectivePaceDisplay(s, isAdminView: true);
+    if (pace != null) return 'Tempo $pace';
+    return null;
+  }
+
+  static String? _splitLine(WorkoutSegmentEntity s) {
+    if (s.targetType != WorkoutTargetType.distance) return null;
+    final split = effectiveSplitDisplay(s);
+    if (split != null) return 'Süre $split';
     return null;
   }
 
@@ -60,13 +62,12 @@ class AdminMonthlyProgramEntryCard extends StatelessWidget {
         (row['training_groups'] as Map<String, dynamic>?)?['name'] as String? ?? '';
     final trainingTypeName =
         (row['training_types'] as Map<String, dynamic>?)?['display_name'] as String? ?? '';
-    final scopeType = (row['scope_type'] as String?) ?? 'group';
-    final userMap = row['users'] as Map<String, dynamic>?;
-    final userLabel = userMap == null
-        ? null
-        : '${userMap['first_name'] ?? ''} ${userMap['last_name'] ?? ''}'.trim();
-    final programContent = (row['program_content'] as String?) ?? '';
     final def = _parseWorkout(row['workout_definition']);
+    final programContent = (row['program_content'] as String?) ?? '';
+    final coachNotes = (row['coach_notes'] as String?)?.trim() ?? '';
+    final hasStructuredWorkout = def != null && !def.isEmpty;
+    final showProgramContent =
+        programContent.isNotEmpty && !hasStructuredWorkout;
 
     return AppCard(
       padding: const EdgeInsets.all(14),
@@ -120,18 +121,8 @@ class AdminMonthlyProgramEntryCard extends StatelessWidget {
                       spacing: 6,
                       runSpacing: 4,
                       children: [
-                        _chip(
-                          scopeType == 'member' ? 'Performans' : 'Grup',
-                          scopeType == 'member'
-                              ? AppColors.primary
-                              : AppColors.tertiary,
-                        ),
                         if (trainingTypeName.isNotEmpty)
                           _chip(trainingTypeName, AppColors.secondary),
-                        if (scopeType == 'member' &&
-                            userLabel != null &&
-                            userLabel.isNotEmpty)
-                          _chip(userLabel, AppColors.neutral700),
                       ],
                     ),
                   ],
@@ -139,7 +130,17 @@ class AdminMonthlyProgramEntryCard extends StatelessWidget {
               ),
             ],
           ),
-          if (programContent.isNotEmpty) ...[
+          if (coachNotes.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              coachNotes,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.neutral800,
+                height: 1.4,
+              ),
+            ),
+          ],
+          if (showProgramContent) ...[
             const SizedBox(height: 12),
             Text(
               programContent,
@@ -197,10 +198,19 @@ class AdminMonthlyProgramEntryCard extends StatelessWidget {
     final pad = EdgeInsets.only(left: depth * 12.0, bottom: 12);
     if (step.isSegment && step.segment != null) {
       final s = step.segment!;
-      final dur = s.durationSeconds != null ? _formatDurationSec(s.durationSeconds!) : null;
+      final dur = s.targetType == WorkoutTargetType.duration && s.durationSeconds != null
+          ? _formatDurationSec(s.durationSeconds!)
+          : null;
+      final distM = s.distanceMeters;
+      final dist = distM != null && distM > 0
+          ? (distM >= 1000 ? '${(distM / 1000).toStringAsFixed(distM % 1000 == 0 ? 0 : 1)} km' : '${distM.round()} m')
+          : null;
+      final split = _splitLine(s);
       final pace = _paceLine(s);
       final details = <String>[];
       if (dur != null) details.add(dur);
+      if (dist != null) details.add(dist);
+      if (split != null) details.add(split);
       if (pace != null) details.add(pace);
 
       return Padding(

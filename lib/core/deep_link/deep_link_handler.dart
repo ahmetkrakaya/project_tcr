@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 
 import 'package:app_links/app_links.dart';
 
@@ -51,9 +51,7 @@ String? takePendingDeepLinkPath() {
 }
 
 /// Uygulama deep link ile (cold start) açıldıysa ilk URI'yi döndürür.
-/// Web'de çağrılmamalı.
 Future<Uri?> getInitialUri() async {
-  if (kIsWeb) return null;
   try {
     final appLinks = AppLinks();
     final uri = await appLinks.getInitialLink();
@@ -71,7 +69,6 @@ Future<Uri?> getInitialUri() async {
 /// Uygulama açıkken veya arka plandayken gelen linkleri dinler.
 /// Örn. kullanıcı WhatsApp'tan linke tıklar, uygulama açılır veya öne gelir.
 Stream<Uri> get uriLinkStream {
-  if (kIsWeb) return Stream.empty();
   try {
     final appLinks = AppLinks();
     return appLinks.uriLinkStream;

@@ -156,7 +156,12 @@ serve(async (req) => {
       }
 
       // Aktiviteyi veritabanına kaydet
-      await saveActivityToDatabase(supabase, integration.user_id, activity);
+      const isNewActivity = await saveActivityToDatabase(supabase, integration.user_id, activity);
+
+      // Yeni koşu ise strava watch sistemini tetikle
+      if (isNewActivity && activity.type === 'Run') {
+        await triggerStravaWatchNotifications(supabase, integration.user_id, body);
+      }
 
       console.log(`[Webhook] Activity ${activityId} synced successfully`);
       return new Response('OK', { headers: corsHeaders, status: 200 });
@@ -223,8 +228,186 @@ async function fetchStravaActivity(accessToken: string, activityId: number): Pro
   }
 }
 
-// Aktiviteyi veritabanına kaydet
-async function saveActivityToDatabase(supabase: any, userId: string, activity: any): Promise<void> {
+// Strava watch: koşu bildirimi alan üç kişi
+const STRAVA_WATCH_OMER_ID = '376cd156-abdd-4c2e-85a8-35dc88043cc1';
+const STRAVA_WATCH_AHMET_ID = 'b30a2dbf-6c44-4cc9-b740-12ed0ed08e37';
+const STRAVA_WATCH_AYCA_ID = 'a9cb8485-af1e-4299-a744-088bdadacbc9';
+const STRAVA_WATCH_RUNNER_IDS = [STRAVA_WATCH_AHMET_ID, STRAVA_WATCH_AYCA_ID];
+const STRAVA_WATCH_RECIPIENT_IDS = [
+  STRAVA_WATCH_OMER_ID,
+  STRAVA_WATCH_AHMET_ID,
+  STRAVA_WATCH_AYCA_ID,
+];
+
+const STRAVA_ALARM_COUNT = 5;
+
+function stravaAlarmSoundId(index: number): string {
+  const i = ((index % STRAVA_ALARM_COUNT) + STRAVA_ALARM_COUNT) % STRAVA_ALARM_COUNT;
+  return `strava_alarm_${i + 1}`;
+}
+
+function randomStravaAlarmSound(): string {
+  return stravaAlarmSoundId(Math.floor(Math.random() * STRAVA_ALARM_COUNT));
+}
+
+const AYCA_WATCH_TITLES = [
+  'Samsun fırtınası Ayça sahalarda! 🌊',
+  'Diyarbakır\'ın gülü Ayça sahalarda! 🌹',
+  'Denizli\'nin biricik kızı Ayça sahalarda! 🐓',
+  'Çarşamba\'nın parlayan yıldızı Ayça sahalarda! 🌟',
+  "Pace'in kraliçesi Ayça sahalarda!",
+  'Yücelerin yücesi Ayça sahalarda! 👑',
+  'TCR\'nin gurur kaynağı Ayça koştu!',
+  'Adım adım destan yazan Ayça sahalarda!',
+  'Rüzgar bile Ayça\'nın peşinden koşuyor!',
+  'Her kilometresi şiire dönen Ayça koştu!',
+  'Nefesi güç, adımları ritim — Ayça sahalarda!',
+  'İlham veren Ayça sahalarda!',
+  'Kondisyon değil, karakter koşuyor — Ayça koştu!',
+  'Bu tempoya ancak Ayça yetişir!',
+  'Bugün yine Ayça\'dan koşu dersi var!',
+  'Moral depoları Ayça koşunca doluyor!',
+  'Kilometreler onun için küçük bir detay — Ayça sahalarda!',
+  'Sahalar onu görünce canlanıyor — Ayça koştu!',
+];
+
+function watchMessageBodies(watchedName: string, distanceKm: string): string[] {
+  return [
+    `${distanceKm} km koşmuş, acilen bakman lazım!`,
+    `${distanceKm} km — Ömer, hemen bak, kaçırma!`,
+    `${distanceKm} km koşmuş. Deli mi bunlar, bir göz at!`,
+    `${distanceKm} km koştu. Acilen incele, sonra pişman olursun.`,
+    `${distanceKm} km koşmuş — bakmadan geçme, merak etme sonra!`,
+  ];
+}
+
+// İlk koşu bildirimi: koşucuya özel başlıklar + rastgele ses
+function getFirstWatchMessage(
+  watchedUserId: string,
+  watchedName: string,
+  distanceKm: string,
+): { title: string; body: string; sound: string } {
+  const genericTitles = [
+    `${watchedName} harika bir koşu yaptı.`,
+    `${watchedName} koştu! 🏃`,
+    `Dikkat! ${watchedName} sahalarda!`,
+    `${watchedName} yine koşmuş!`,
+    `Ömer, ${watchedName} koştu!`,
+  ];
+
+  let titles = genericTitles;
+  if (watchedUserId === STRAVA_WATCH_AYCA_ID) {
+    titles = [...AYCA_WATCH_TITLES, ...genericTitles];
+  }
+
+  const bodies = watchMessageBodies(watchedName, distanceKm);
+  const title = titles[Math.floor(Math.random() * titles.length)];
+  const body = bodies[Math.floor(Math.random() * bodies.length)];
+
+  return {
+    title,
+    body,
+    sound: randomStravaAlarmSound(),
+  };
+}
+
+// Strava watch bildirimi: Ahmet veya Ayça koşunca Ömer + Ahmet + Ayça'ya bildirim
+async function triggerStravaWatchNotifications(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  webhookEvent: StravaWebhookEvent,
+): Promise<void> {
+  try {
+    if (!STRAVA_WATCH_RUNNER_IDS.includes(userId)) {
+      console.log(`[Watch] User ${userId} is not a watched runner, skipping`);
+      return;
+    }
+
+    // Aktivite kaydını veritabanından al (yeni eklenen)
+    const { data: activityRecord, error: activityError } = await supabase
+      .from('activities')
+      .select('id, title, distance_meters, duration_seconds, average_pace_seconds, start_time')
+      .eq('user_id', userId)
+      .eq('source', 'strava')
+      .eq('external_id', webhookEvent.object_id.toString())
+      .maybeSingle();
+
+    if (activityError || !activityRecord) {
+      console.error('[Watch] Could not find activity record:', activityError);
+      return;
+    }
+
+    // Koşuyu yapan kişinin adını al
+    const { data: watchedUser } = await supabase
+      .from('users')
+      .select('first_name, last_name')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const watchedName = watchedUser
+      ? `${watchedUser.first_name} ${watchedUser.last_name}`
+      : 'Biri';
+
+    const distanceKm = activityRecord.distance_meters
+      ? (activityRecord.distance_meters / 1000).toFixed(1)
+      : '?';
+
+    for (const recipientUserId of STRAVA_WATCH_RECIPIENT_IDS) {
+      // strava_watch_notifications: alıcı başına takip (viewed_at / hatırlatma)
+      const { error: insertError } = await supabase
+        .from('strava_watch_notifications')
+        .insert({
+          activity_id: activityRecord.id,
+          watcher_user_id: recipientUserId,
+          watched_user_id: userId,
+          notification_count: 1,
+        })
+        .select()
+        .maybeSingle();
+
+      if (insertError && insertError.code !== '23505') {
+        console.error('[Watch] Failed to insert watch notification:', insertError);
+        continue;
+      }
+
+      if (insertError?.code === '23505') {
+        console.log(`[Watch] Watch notification already exists for recipient ${recipientUserId}, skipping`);
+        continue;
+      }
+
+      const { title, body, sound } = getFirstWatchMessage(
+        userId,
+        watchedName,
+        distanceKm,
+      );
+
+      const { error: notifError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: recipientUserId,
+          type: 'strava_watch_run',
+          title,
+          body,
+          data: {
+            activity_id: activityRecord.id,
+            watched_user_id: userId,
+            sound,
+          },
+        });
+
+      if (notifError) {
+        console.error('[Watch] Failed to insert notification:', notifError);
+      } else {
+        console.log(`[Watch] Notification sent to ${recipientUserId} for activity ${activityRecord.id}`);
+      }
+    }
+  } catch (err) {
+    console.error('[Watch] triggerStravaWatchNotifications error:', err);
+  }
+}
+
+// Aktiviteyi veritabanına kaydet; yeni kayıt ise true, güncelleme ise false döner
+async function saveActivityToDatabase(supabase: any, userId: string, activity: any): Promise<boolean> {
   // Aktivite tipini belirle
   const activityType = mapStravaTypeToActivityType(activity.type);
 
@@ -315,6 +498,7 @@ async function saveActivityToDatabase(supabase: any, userId: string, activity: a
       throw updateError;
     }
     console.log(`[Webhook] Activity ${activity.id} updated in database`);
+    return false;
   } else {
     const { error: insertError } = await supabase
       .from('activities')
@@ -325,6 +509,7 @@ async function saveActivityToDatabase(supabase: any, userId: string, activity: a
       throw insertError;
     }
     console.log(`[Webhook] Activity ${activity.id} inserted into database`);
+    return true;
   }
 }
 

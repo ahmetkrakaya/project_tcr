@@ -16,6 +16,8 @@ import '../../features/events/presentation/pages/events_page.dart';
 import '../../features/events/presentation/pages/event_detail_page.dart';
 import '../../features/events/presentation/pages/create_event_page.dart';
 import '../../features/events/presentation/pages/admin_monthly_program_upload_page.dart';
+import '../../features/events/presentation/pages/admin_weekly_program_editor_page.dart';
+import '../../features/events/presentation/pages/recurring_events_page.dart';
 import '../../features/events/presentation/pages/event_report_page.dart';
 import '../../features/events/presentation/pages/event_report_detail_page.dart';
 import '../../features/chat/presentation/pages/chat_page.dart';
@@ -23,9 +25,12 @@ import '../../features/chat/presentation/pages/chat_room_page.dart';
 import '../../features/chat/presentation/pages/event_chat_room_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/profile/presentation/pages/profile_edit_page.dart';
+import '../../features/profile/presentation/pages/profile_details_page.dart';
 import '../../features/profile/presentation/pages/ice_card_page.dart';
 import '../../features/profile/presentation/pages/settings_page.dart';
 import '../../features/profile/presentation/pages/statistics_page.dart';
+import '../../features/profile/presentation/pages/user_points_leaderboard_page.dart';
+import '../../features/profile/presentation/pages/admin_app_versions_page.dart';
 import '../../features/activity/presentation/pages/activity_detail_page.dart';
 import '../../features/activity/presentation/pages/activity_history_page.dart';
 import '../../features/activity/presentation/pages/leaderboard_page.dart';
@@ -44,12 +49,15 @@ import '../../features/members_groups/presentation/pages/create_group_page.dart'
 import '../../features/members_groups/presentation/pages/upcoming_birthdays_page.dart';
 import '../../features/members_groups/presentation/pages/vdot_threshold_list_page.dart';
 import '../../features/members_groups/presentation/pages/unassigned_members_page.dart';
+import '../../features/members_groups/presentation/pages/banned_rejected_users_page.dart';
+import '../../features/members_groups/presentation/pages/group_requests_page.dart';
 import '../../features/gallery/presentation/pages/event_gallery_page.dart';
 import '../../features/marketplace/presentation/pages/marketplace_page.dart';
 import '../../features/marketplace/presentation/pages/listing_detail_page.dart';
 import '../../features/marketplace/presentation/pages/create_listing_page.dart';
 import '../../features/marketplace/presentation/pages/favorites_page.dart';
 import '../../features/marketplace/presentation/pages/orders_management_page.dart';
+import '../../features/marketplace/presentation/pages/stock_alerts_admin_page.dart';
 import '../../features/marketplace/presentation/pages/my_orders_page.dart';
 import '../../features/tools/presentation/pages/pace_calculator_page.dart';
 import '../../features/integrations/presentation/pages/integrations_page.dart';
@@ -61,6 +69,7 @@ import '../../features/notifications/presentation/pages/admin_create_notificatio
 import '../../features/posts/presentation/pages/create_post_page.dart';
 import '../../features/posts/presentation/pages/post_detail_page.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
+import '../../features/activity/presentation/pages/running_viewer_page.dart';
 
 /// App Router Provider - Auth state'den bağımsız, sadece başlangıçta kontrol eder
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -240,9 +249,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 },
               ),
               GoRoute(
+                path: 'weekly-editor',
+                name: RouteNames.adminWeeklyProgramEditor,
+                builder: (context, state) => const AdminWeeklyProgramEditorPage(),
+              ),
+              GoRoute(
                 path: 'monthly-upload',
                 name: RouteNames.adminMonthlyProgramUpload,
                 builder: (context, state) => const AdminMonthlyProgramUploadPage(),
+              ),
+              GoRoute(
+                path: 'recurring',
+                name: RouteNames.recurringEvents,
+                builder: (context, state) => const RecurringEventsPage(),
               ),
               GoRoute(
                 path: 'report',
@@ -271,9 +290,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) {
                       final eventId = state.pathParameters['eventId']!;
                       final scope = state.uri.queryParameters['scope'];
+                      final seriesRootId =
+                          state.uri.queryParameters['seriesRoot'];
                       return CreateEventPage(
                         eventId: eventId,
                         editRecurrenceScope: scope,
+                        seriesRootEventId: seriesRootId,
                       );
                     },
                   ),
@@ -328,6 +350,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: 'orders-management',
                 name: RouteNames.ordersManagement,
                 builder: (context, state) => const OrdersManagementPage(),
+              ),
+              GoRoute(
+                path: 'stock-alerts',
+                name: RouteNames.stockAlertsAdmin,
+                builder: (context, state) => const StockAlertsAdminPage(),
               ),
               GoRoute(
                 path: 'my-orders',
@@ -452,6 +479,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => const UnassignedMembersPage(),
               ),
               GoRoute(
+                path: 'requests',
+                name: RouteNames.groupRequests,
+                builder: (context, state) => const GroupRequestsPage(),
+              ),
+              GoRoute(
+                path: 'banned-rejected',
+                name: RouteNames.bannedRejectedUsers,
+                builder: (context, state) => const BannedRejectedUsersPage(),
+              ),
+              GoRoute(
                 path: ':groupId',
                 name: RouteNames.groupDetail,
                 builder: (context, state) {
@@ -485,6 +522,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: 'edit',
             name: RouteNames.profileEdit,
             builder: (context, state) => const ProfileEditPage(),
+          ),
+          GoRoute(
+            path: 'details',
+            name: RouteNames.profileDetails,
+            builder: (context, state) {
+              final userId = state.uri.queryParameters['userId'];
+              if (userId == null || userId.isEmpty) {
+                return const Scaffold(
+                  body: Center(child: Text('Kullanıcı bulunamadı.')),
+                );
+              }
+              return ProfileDetailsPage(userId: userId);
+            },
           ),
           GoRoute(
             path: 'ice-card',
@@ -529,6 +579,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: 'admin-notification',
             name: RouteNames.adminCreateNotification,
             builder: (context, state) => const AdminCreateNotificationPage(),
+          ),
+          GoRoute(
+            path: 'user-points',
+            name: RouteNames.userPointsLeaderboard,
+            builder: (context, state) => const UserPointsLeaderboardPage(),
+          ),
+          GoRoute(
+            path: 'app-versions',
+            name: RouteNames.adminAppVersions,
+            builder: (context, state) => const AdminAppVersionsPage(),
+          ),
+          GoRoute(
+            path: 'running-viewer',
+            name: RouteNames.runningViewer,
+            builder: (context, state) {
+              final activityId = state.uri.queryParameters['activityId'];
+              return RunningViewerPage(notificationActivityId: activityId);
+            },
           ),
           // Path parameter route'u en sonda (static route'lardan sonra)
           GoRoute(
@@ -650,14 +718,7 @@ class _MainBottomNavigationState extends ConsumerState<MainBottomNavigation>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final isAdmin = ref.watch(isAdminProvider);
-    int groupsBadgeCount = 0;
-    if (isAdmin) {
-      final pendingUsers = ref.watch(pendingUsersProvider).valueOrNull;
-      final joinRequests = ref.watch(allPendingJoinRequestsProvider).valueOrNull;
-      groupsBadgeCount =
-          (pendingUsers?.length ?? 0) + (joinRequests?.length ?? 0);
-    }
+    final groupsBadgeCount = ref.watch(groupsNavBadgeCountProvider);
 
     int currentIndex = 0;
     if (currentLocation.startsWith('/events')) {

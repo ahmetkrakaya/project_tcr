@@ -121,6 +121,8 @@ private extension AppDelegate {
     let targetType: String
     let target: String
     let durationSeconds: Double?
+    let durationSecondsMin: Double?
+    let durationSecondsMax: Double?
     let distanceMeters: Double?
     /// Tempo hedefi: hızlı pace (saniye/km). Varsa saate speed alert olarak gider.
     let paceSecondsPerKmMin: Double?
@@ -198,15 +200,30 @@ private extension AppDelegate {
          let segType = seg["segmentType"] as? String,
          let targetType = seg["targetType"] as? String {
         let dur = (seg["durationSeconds"] as? NSNumber)?.doubleValue
+        let durMin = (seg["durationSecondsMin"] as? NSNumber)?.doubleValue
+        let durMax = (seg["durationSecondsMax"] as? NSNumber)?.doubleValue
         let dist = (seg["distanceMeters"] as? NSNumber)?.doubleValue
         let target = (seg["target"] as? String) ?? "none"
         // Pace aralığı: paceSecondsPerKmMin (hızlı) ve paceSecondsPerKmMax (yavaş)
-        let paceMin = (seg["paceSecondsPerKmMin"] as? NSNumber)?.doubleValue
+        var paceMin = (seg["paceSecondsPerKmMin"] as? NSNumber)?.doubleValue
           ?? (seg["customPaceSecondsPerKm"] as? NSNumber)?.doubleValue
           ?? (seg["paceSecondsPerKm"] as? NSNumber)?.doubleValue
-        let paceMax = (seg["paceSecondsPerKmMax"] as? NSNumber)?.doubleValue
+        var paceMax = (seg["paceSecondsPerKmMax"] as? NSNumber)?.doubleValue
           ?? paceMin
-        out.append(_Segment(segmentType: segType, targetType: targetType, target: target, durationSeconds: dur, distanceMeters: dist, paceSecondsPerKmMin: paceMin, paceSecondsPerKmMax: paceMax))
+        if paceMin == nil, let distM = dist, distM > 0 {
+          let km = distM / 1000.0
+          if let splitMin = durMin, let splitMax = durMax {
+            let fastPace = splitMin / km
+            let slowPace = splitMax / km
+            paceMin = min(fastPace, slowPace)
+            paceMax = max(fastPace, slowPace)
+          } else if let split = dur {
+            let derived = split / km
+            paceMin = derived
+            paceMax = derived
+          }
+        }
+        out.append(_Segment(segmentType: segType, targetType: targetType, target: target, durationSeconds: dur, durationSecondsMin: durMin, durationSecondsMax: durMax, distanceMeters: dist, paceSecondsPerKmMin: paceMin, paceSecondsPerKmMax: paceMax))
       }
       return
     }
@@ -243,7 +260,7 @@ private extension AppDelegate {
     }
 
     if core.isEmpty {
-      core = [_Segment(segmentType: "main", targetType: "open", target: "none", durationSeconds: nil, distanceMeters: nil, paceSecondsPerKmMin: nil, paceSecondsPerKmMax: nil)]
+      core = [_Segment(segmentType: "main", targetType: "open", target: "none", durationSeconds: nil, durationSecondsMin: nil, durationSecondsMax: nil, distanceMeters: nil, paceSecondsPerKmMin: nil, paceSecondsPerKmMax: nil)]
     }
 
     let intervalSteps: [IntervalStep] = core.map { seg in

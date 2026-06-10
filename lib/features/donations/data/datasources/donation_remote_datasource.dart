@@ -56,6 +56,30 @@ class DonationRemoteDataSource {
         .toList();
   }
 
+  /// Tüm yayınlanmış yarış etkinliklerini getir (admin için)
+  Future<List<Map<String, dynamic>>> getAllRaceEvents() async {
+    final response = await _supabase
+        .from('events')
+        .select('id, title, start_time, event_type')
+        .eq('event_type', 'race')
+        .eq('status', 'published')
+        .order('start_time', ascending: false);
+
+    return (response as List).map((e) => e as Map<String, dynamic>).toList();
+  }
+
+  /// Aktif üye listesini getir (admin için)
+  Future<List<Map<String, dynamic>>> getActiveMembers() async {
+    final response = await _supabase
+        .from('users')
+        .select('id, first_name, last_name, avatar_url')
+        .eq('is_active', true)
+        .eq('is_deleted', false)
+        .order('first_name');
+
+    return (response as List).map((e) => e as Map<String, dynamic>).toList();
+  }
+
   /// Yeni bağış ekle
   Future<void> createDonation({
     String? eventId,
@@ -63,8 +87,9 @@ class DonationRemoteDataSource {
     DateTime? raceDate,
     required String foundationId,
     required double amount,
+    String? targetUserId,
   }) async {
-    final userId = _currentUserId;
+    final userId = targetUserId ?? _currentUserId;
     if (userId == null) throw Exception('Kullanıcı giriş yapmamış');
 
     final data = <String, dynamic>{

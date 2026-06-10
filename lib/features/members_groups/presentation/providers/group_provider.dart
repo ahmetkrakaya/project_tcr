@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../auth/domain/entities/user_entity.dart';
+import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/datasources/group_remote_datasource.dart';
 import '../../data/models/group_model.dart';
 import '../../domain/entities/group_entity.dart';
@@ -93,6 +94,9 @@ class GroupMembershipNotifier extends StateNotifier<AsyncValue<void>> {
       // Kullanıcının grup üyeliği değişti: etkinlik programları da yeniden hesaplanmalı.
       _ref.invalidate(userEventGroupProgramsProvider);
       _ref.invalidate(userEventMemberProgramsProvider);
+      _ref.invalidate(userPendingJoinRequestsProvider);
+      _ref.invalidate(allPendingJoinRequestsProvider);
+      _ref.invalidate(unassignedUsersProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       rethrow;
@@ -113,6 +117,7 @@ class GroupMembershipNotifier extends StateNotifier<AsyncValue<void>> {
       // Kullanıcının grup üyeliği değişti: etkinlik programları da yeniden hesaplanmalı.
       _ref.invalidate(userEventGroupProgramsProvider);
       _ref.invalidate(userEventMemberProgramsProvider);
+      _ref.invalidate(unassignedUsersProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -166,6 +171,7 @@ class GroupCreationNotifier extends StateNotifier<GroupCreationState> {
     int difficultyLevel = 1,
     String color = '#3B82F6',
     String icon = 'directions_run',
+    String? imageUrl,
     String groupType = 'normal',
   }) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -179,6 +185,7 @@ class GroupCreationNotifier extends StateNotifier<GroupCreationState> {
         difficultyLevel: difficultyLevel,
         color: color,
         icon: icon,
+        imageUrl: imageUrl,
         isActive: true,
         groupType: groupType,
         createdAt: DateTime.now(),
@@ -209,6 +216,7 @@ class GroupCreationNotifier extends StateNotifier<GroupCreationState> {
     int difficultyLevel = 1,
     String color = '#3B82F6',
     String icon = 'directions_run',
+    String? imageUrl,
     String groupType = 'normal',
   }) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -222,6 +230,7 @@ class GroupCreationNotifier extends StateNotifier<GroupCreationState> {
         difficultyLevel: difficultyLevel,
         color: color,
         icon: icon,
+        imageUrl: imageUrl,
         isActive: true,
         groupType: groupType,
         createdAt: DateTime.now(),
@@ -425,6 +434,7 @@ class JoinRequestActionNotifier extends StateNotifier<AsyncValue<void>> {
       _ref.invalidate(allGroupsProvider);
       _ref.invalidate(groupByIdProvider(groupId));
       _ref.invalidate(groupMembersProvider(groupId));
+      _ref.invalidate(unassignedUsersProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -711,6 +721,32 @@ final unassignedUsersProvider = FutureProvider<List<UserEntity>>((ref) async {
   return users;
 });
 
+/// Gruba dahil olmayan üye sayısı (admin — grupsuz üyeler ikon butonu)
+final unassignedUsersBadgeCountProvider = Provider<int>((ref) {
+  if (!ref.watch(isAdminProvider)) return 0;
+  return ref.watch(unassignedUsersProvider).valueOrNull?.length ?? 0;
+});
+
+/// Bottom navigation Gruplar sekmesi badge sayısı
+final groupsNavBadgeCountProvider = Provider<int>((ref) {
+  final isAdmin = ref.watch(isAdminProvider);
+
+  if (isAdmin) {
+    final pendingUsers =
+        ref.watch(pendingUsersProvider).valueOrNull?.length ?? 0;
+    final joinRequests =
+        ref.watch(allPendingJoinRequestsProvider).valueOrNull?.length ?? 0;
+    final unassigned =
+        ref.watch(unassignedUsersProvider).valueOrNull?.length ?? 0;
+    return pendingUsers + joinRequests + unassigned;
+  }
+
+  final groupsAsync = ref.watch(allGroupsProvider);
+  if (!groupsAsync.hasValue) return 0;
+  final hasGroup = groupsAsync.value!.any((g) => g.isUserMember);
+  return hasGroup ? 0 : 1;
+});
+
 // ==================== Upcoming Birthdays ====================
 
 /// Yaklaşan doğum günleri provider
@@ -834,6 +870,31 @@ int birthdayAge(UserEntity user) {
 
 // ==================== User Approval ====================
 
+/// Banlanan ve reddedilen kullanıcılar provider (sadece admin)
+final rejectedBannedUsersProvider = FutureProvider<List<UserEntity>>((ref) async {
+  final dataSource = ref.watch(groupDataSourceProvider);
+  final supabase = ref.watch(_supabaseProvider);
+  final models = await dataSource.getRejectedBannedUsers();
+
+  if (models.isEmpty) return [];
+
+  final userIds = models.map((m) => m.id).toList();
+
+  final rolesResponse = await supabase
+      .from('user_roles')
+      .select('user_id, role')
+      .inFilter('user_id', userIds);
+
+  final rolesMap = <String, List<String>>{};
+  for (final roleData in rolesResponse as List) {
+    final userId = roleData['user_id'] as String;
+    final role = roleData['role'] as String;
+    rolesMap.putIfAbsent(userId, () => []).add(role);
+  }
+
+  return models.map((m) => m.toEntity(roles: rolesMap[m.id] ?? ['member'])).toList();
+});
+
 /// Kullanıcı onaylama notifier
 class UserApprovalNotifier extends StateNotifier<AsyncValue<void>> {
   final GroupRemoteDataSource _dataSource;
@@ -847,10 +908,21 @@ class UserApprovalNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       await _dataSource.approveUser(userId);
       state = const AsyncValue.data(null);
-      
-      // Refresh providers
       _ref.invalidate(activeUsersProvider);
       _ref.invalidate(pendingUsersProvider);
+      _ref.invalidate(rejectedBannedUsersProvider);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  Future<void> rejectUser(String userId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.rejectUser(userId);
+      state = const AsyncValue.data(null);
+      _ref.invalidate(pendingUsersProvider);
+      _ref.invalidate(rejectedBannedUsersProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -861,10 +933,20 @@ class UserApprovalNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       await _dataSource.deactivateUser(userId);
       state = const AsyncValue.data(null);
-      
-      // Refresh providers
       _ref.invalidate(activeUsersProvider);
-      _ref.invalidate(pendingUsersProvider);
+      _ref.invalidate(rejectedBannedUsersProvider);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  Future<void> reactivateUser(String userId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.reactivateUser(userId);
+      state = const AsyncValue.data(null);
+      _ref.invalidate(activeUsersProvider);
+      _ref.invalidate(rejectedBannedUsersProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }

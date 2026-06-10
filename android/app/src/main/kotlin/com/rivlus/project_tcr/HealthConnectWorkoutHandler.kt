@@ -12,6 +12,10 @@ import androidx.health.connect.client.records.ExerciseCompletionGoal
 import androidx.health.connect.client.records.ExercisePerformanceTarget
 import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.units.Length
+import androidx.health.connect.client.units.Velocity
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CoroutineScope
@@ -201,7 +205,7 @@ class HealthConnectWorkoutHandler(
                         segmentType = segType,
                         exercisePhase = mapSegmentTypeToPhase(segType),
                         completionGoal = goal,
-                        performanceTargets = emptyList()
+                        performanceTargets = buildSpeedTargets(seg)
                     ))
                 }
                 "repeat" -> {
@@ -219,6 +223,41 @@ class HealthConnectWorkoutHandler(
             }
         }
         return blocks
+    }
+
+    private fun buildSpeedTargets(seg: Map<String, Any>): List<ExercisePerformanceTarget> {
+        var paceMin = (seg["paceSecondsPerKmMin"] as? Number)?.toInt()
+            ?: (seg["customPaceSecondsPerKm"] as? Number)?.toInt()
+            ?: (seg["paceSecondsPerKm"] as? Number)?.toInt()
+        var paceMax = (seg["paceSecondsPerKmMax"] as? Number)?.toInt() ?: paceMin
+
+        if (paceMin == null) {
+            val distanceM = (seg["distanceMeters"] as? Number)?.toDouble()
+            val splitMin = (seg["durationSecondsMin"] as? Number)?.toInt()
+            val splitMax = (seg["durationSecondsMax"] as? Number)?.toInt()
+            val split = (seg["durationSeconds"] as? Number)?.toInt()
+            if (distanceM != null && distanceM > 0) {
+                val km = distanceM / 1000.0
+                if (splitMin != null && splitMax != null) {
+                    paceMin = (splitMax / km).roundToInt()
+                    paceMax = (splitMin / km).roundToInt()
+                } else if (split != null) {
+                    paceMin = (split / km).roundToInt()
+                    paceMax = paceMin
+                }
+            }
+        }
+
+        if (paceMin == null || paceMin <= 0) return emptyList()
+        val resolvedMax = paceMax ?: paceMin
+        val speedHigh = 1000.0 / paceMin
+        val speedLow = 1000.0 / resolvedMax
+        return listOf(
+            ExercisePerformanceTarget.SpeedTarget(
+                minSpeed = Velocity.metersPerSecond(min(speedLow, speedHigh)),
+                maxSpeed = Velocity.metersPerSecond(max(speedLow, speedHigh)),
+            )
+        )
     }
 
     private fun mapSegmentTypeToPhase(segmentType: String): Int {

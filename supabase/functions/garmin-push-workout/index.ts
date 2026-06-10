@@ -130,6 +130,8 @@ interface TcrSegment {
   target_type: string;
   target: string;
   duration_seconds?: number;
+  duration_seconds_min?: number;
+  duration_seconds_max?: number;
   distance_meters?: number;
   pace_seconds_per_km?: number;
   pace_seconds_per_km_min?: number;
@@ -161,6 +163,26 @@ interface VdotContext {
   offsetMax: number | null;
 }
 
+function paceRangeFromSplit(seg: TcrSegment): { min: number; max: number } | null {
+  if (seg.target_type !== "distance" || seg.distance_meters == null || seg.distance_meters <= 0) {
+    return null;
+  }
+  const km = seg.distance_meters / 1000;
+  if (seg.duration_seconds_min != null && seg.duration_seconds_max != null) {
+    const minPace = Math.round(seg.duration_seconds_max / km);
+    const maxPace = Math.round(seg.duration_seconds_min / km);
+    return {
+      min: Math.min(minPace, maxPace),
+      max: Math.max(minPace, maxPace),
+    };
+  }
+  if (seg.duration_seconds != null) {
+    const pace = Math.round(seg.duration_seconds / km);
+    return { min: pace, max: pace };
+  }
+  return null;
+}
+
 function segmentPaceSecFromSegment(seg: TcrSegment, vdotCtx: VdotContext): number | null {
   let paceSec =
     seg.custom_pace_seconds_per_km ??
@@ -168,9 +190,14 @@ function segmentPaceSecFromSegment(seg: TcrSegment, vdotCtx: VdotContext): numbe
     seg.pace_seconds_per_km_min ??
     null;
 
+  if (paceSec == null) {
+    const splitRange = paceRangeFromSplit(seg);
+    if (splitRange) paceSec = splitRange.min;
+  }
+
   if (
     paceSec == null &&
-    seg.target === "pace" &&
+    (seg.target === "pace" || seg.target === "time") &&
     seg.use_vdot_for_pace === true &&
     vdotCtx.userVdot != null &&
     vdotCtx.userVdot > 0
@@ -392,8 +419,16 @@ function mapTarget(seg: TcrSegment, vdotCtx: VdotContext): any {
   let effectivePace = seg.custom_pace_seconds_per_km ?? seg.pace_seconds_per_km ?? seg.pace_seconds_per_km_min;
   let paceMaxSec = seg.pace_seconds_per_km_max;
 
+  if (!effectivePace) {
+    const splitRange = paceRangeFromSplit(seg);
+    if (splitRange) {
+      effectivePace = splitRange.min;
+      paceMaxSec = splitRange.max;
+    }
+  }
+
   // Segment'te VDOT modu açıksa VDOT'tan hesapla
-  if (seg.target === "pace" && seg.use_vdot_for_pace === true && vdotCtx.userVdot && vdotCtx.userVdot > 0) {
+  if ((seg.target === "pace" || seg.target === "time") && seg.use_vdot_for_pace === true && vdotCtx.userVdot && vdotCtx.userVdot > 0) {
     const range = getVdotPaceRange(vdotCtx.userVdot, seg.segment_type, vdotCtx.offsetMin, vdotCtx.offsetMax);
     if (range) {
       effectivePace = range.paceMinSec;
@@ -411,7 +446,14 @@ function mapTarget(seg: TcrSegment, vdotCtx: VdotContext): any {
     }
   }
 
-  if (effectivePace && effectivePace > 0 && (seg.target === "pace" || seg.use_vdot_for_pace === true || (vdotCtx.offsetMin != null && vdotCtx.userVdot))) {
+  const hasPaceTarget =
+    seg.target === "pace" ||
+    seg.target === "time" ||
+    seg.use_vdot_for_pace === true ||
+    (vdotCtx.offsetMin != null && vdotCtx.userVdot != null) ||
+    paceRangeFromSplit(seg) != null;
+
+  if (effectivePace && effectivePace > 0 && hasPaceTarget) {
     const speedMsHigh = 1000.0 / effectivePace;
     const speedMsLow = 1000.0 / (paceMaxSec ?? effectivePace);
     return {
@@ -680,8 +722,8 @@ serve(async (req: Request) => {
 
     if (mode === "single_user" && body.user_id) {
       userIds = [body.user_id];
-    } else if (mode === "single" && body.user_id && body.event_id && body.program_id) {
-      // Tekil antrenman gönder
+    } else if (mode === "single" && body.user_id && body.program_id) {
+      // Tekil haftalık plan satırı gönder
       return await handleSinglePush(supabase, body);
     } else {
       // Cron: tüm Garmin bağlı kullanıcılar
@@ -767,51 +809,60 @@ async function syncUserWorkouts(
     return { sent: 0, skipped: 0, updated: 0, cleaned };
   }
 
-  // 4. Gelecek 7 günün training etkinliklerini al
+  // 4. Gelecek 7 günün haftalık/aylık plan satırları
   const now = new Date();
   const startDate = now.toISOString().split("T")[0];
   const endDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
     .toISOString()
     .split("T")[0];
 
-  const { data: events } = await supabase
-    .from("events")
-    .select("id, title, start_time, end_time, event_type, participation_type, lane_config, route_id, routes(total_distance), status")
-    .eq("event_type", "training")
-    .eq("status", "published")
-    .gte("start_time", `${startDate}T00:00:00`)
-    .lte("start_time", `${endDate}T23:59:59`)
-    .order("start_time", { ascending: true });
+  const { data: planRows } = await supabase
+    .from("monthly_program_entries")
+    .select(`
+      id,
+      plan_date,
+      scope_type,
+      training_group_id,
+      user_id,
+      workout_definition,
+      training_type_id,
+      program_content,
+      training_groups(name),
+      training_types(display_name, description, threshold_offset_min_seconds, threshold_offset_max_seconds)
+    `)
+    .gte("plan_date", startDate)
+    .lte("plan_date", endDate)
+    .not("workout_definition", "is", null)
+    .order("plan_date", { ascending: true });
 
-  if (!events || events.length === 0) {
+  const programs = (planRows ?? []).filter((row: any) => {
+    const scope = row.scope_type ?? "";
+    if (scope === "group") {
+      return groupIds.includes(row.training_group_id);
+    }
+    if (scope === "member") {
+      return row.user_id === userId;
+    }
+    return false;
+  });
+
+  if (programs.length === 0) {
     const cleaned = await cleanupExpiredWorkouts(supabase, accessToken, userId);
     return { sent: 0, skipped: 0, updated: 0, cleaned };
   }
 
-  // 5. Event group programs (workout definition'ları)
-  const eventIds = events.map((e: any) => e.id);
-  const { data: programs } = await supabase
-    .from("event_group_programs")
-    .select("id, event_id, training_group_id, workout_definition, training_type_id, order_index, program_content")
-    .in("event_id", eventIds)
-    .in("training_group_id", groupIds)
-    .not("workout_definition", "is", null);
+  const programIds = programs.map((p: any) => p.id);
 
-  if (!programs || programs.length === 0) {
-    const cleaned = await cleanupExpiredWorkouts(supabase, accessToken, userId);
-    return { sent: 0, skipped: 0, updated: 0, cleaned };
-  }
-
-  // 6. Zaten gönderilmiş olanları al (hash karşılaştırması için)
+  // 5. Zaten gönderilmiş olanları al (hash karşılaştırması için)
   const { data: sentWorkouts } = await supabase
     .from("garmin_sent_workouts")
-    .select("event_id, program_id, garmin_workout_id, definition_hash")
+    .select("program_id, garmin_workout_id, definition_hash")
     .eq("user_id", userId)
-    .in("event_id", eventIds);
+    .in("program_id", programIds);
 
   const sentMap = new Map<string, { garmin_workout_id: number | null; definition_hash: string | null }>(
     (sentWorkouts ?? []).map((s: any) => [
-      `${s.event_id}:${s.program_id}`,
+      s.program_id,
       { garmin_workout_id: s.garmin_workout_id, definition_hash: s.definition_hash },
     ])
   );
@@ -835,26 +886,13 @@ async function syncUserWorkouts(
     }
   }
 
-  const eventsById = Object.fromEntries(events.map((e: any) => [e.id, e]));
-
   let sent = 0;
   let skipped = 0;
   let updated = 0;
 
   for (const program of programs) {
-    const key = `${program.event_id}:${program.id}`;
+    const key = program.id;
     const existing = sentMap.get(key);
-    const event = eventsById[program.event_id];
-    if (!event) {
-      skipped++;
-      continue;
-    }
-
-    const participationType = event.participation_type ?? "team";
-    if (participationType !== "team" && participationType !== "individual") {
-      skipped++;
-      continue;
-    }
 
     const rawDef = program.workout_definition;
     let definition: TcrWorkoutDefinition;
@@ -883,26 +921,36 @@ async function syncUserWorkouts(
       updated++;
     }
 
-    const ttInfo = program.training_type_id ? trainingTypes[program.training_type_id] : null;
-    const eventDate = new Date(event.start_time);
-    const dayName = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"][eventDate.getDay()];
-    const workoutName = `${dayName} - ${event.title ?? "Antrenman"}`;
+    const ttFromJoin = program.training_types ?? null;
+    const ttInfo = program.training_type_id
+      ? (trainingTypes[program.training_type_id] ?? {
+          name: "",
+          displayName: ttFromJoin?.display_name ?? "",
+          description: ttFromJoin?.description ?? "",
+          offsetMin: ttFromJoin?.threshold_offset_min_seconds ?? null,
+          offsetMax: ttFromJoin?.threshold_offset_max_seconds ?? null,
+        })
+      : null;
+
+    const planDate = new Date(`${program.plan_date}T08:00:00`);
+    const dayName = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"][planDate.getDay()];
+    const typeLabel =
+      ttInfo?.displayName ||
+      program.training_groups?.name ||
+      "Antrenman";
+    const workoutName = `${dayName} - ${typeLabel}`;
 
     const vdotCtx: VdotContext = {
       userVdot,
       offsetMin: ttInfo?.offsetMin ?? null,
       offsetMax: ttInfo?.offsetMax ?? null,
     };
-    const routeTotalKm =
-      event.routes && typeof event.routes.total_distance !== "undefined"
-        ? Number(event.routes.total_distance)
-        : null;
 
     const lapInfo = computeLapTimesForGarmin(
       definition,
       vdotCtx,
-      event.lane_config ?? null,
-      routeTotalKm,
+      null,
+      null,
     );
 
     const description = buildGarminDescription(lapInfo);
@@ -912,13 +960,13 @@ async function syncUserWorkouts(
     const workoutId = await createGarminWorkout(accessToken, garminJson);
     if (!workoutId) continue;
 
-    const scheduleDateStr = eventDate.toISOString().split("T")[0];
+    const scheduleDateStr = program.plan_date;
     const scheduleId = await createGarminSchedule(accessToken, workoutId, scheduleDateStr);
 
     await supabase.from("garmin_sent_workouts").upsert(
       {
         user_id: userId,
-        event_id: program.event_id,
+        event_id: null,
         program_id: program.id,
         garmin_workout_id: workoutId,
         garmin_schedule_id: scheduleId,
@@ -926,7 +974,7 @@ async function syncUserWorkouts(
         workout_name: workoutName,
         definition_hash: currentHash,
       },
-      { onConflict: "user_id,event_id,program_id" }
+      { onConflict: "user_id,program_id" }
     );
 
     sent++;
@@ -949,7 +997,7 @@ async function handleSinglePush(
   supabase: ReturnType<typeof createClient>,
   body: any
 ): Promise<Response> {
-  const { user_id, event_id, program_id } = body;
+  const { user_id, program_id } = body;
 
   const { data: integration } = await supabase
     .from("user_integrations")
@@ -975,10 +1023,17 @@ async function handleSinglePush(
   const singleUserVdot: number | null = userData?.vdot ?? null;
 
   const { data: program } = await supabase
-    .from("event_group_programs")
-    .select("id, event_id, workout_definition, training_type_id, program_content")
+    .from("monthly_program_entries")
+    .select(`
+      id,
+      plan_date,
+      workout_definition,
+      training_type_id,
+      program_content,
+      training_groups(name),
+      training_types(display_name, description, threshold_offset_min_seconds, threshold_offset_max_seconds)
+    `)
     .eq("id", program_id)
-    .eq("event_id", event_id)
     .single();
 
   if (!program?.workout_definition) {
@@ -988,38 +1043,15 @@ async function handleSinglePush(
     });
   }
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("id, title, start_time, lane_config, route_id, routes(total_distance)")
-    .eq("id", event_id)
-    .single();
+  const tt = program.training_types ?? null;
+  const singleTypeDisplayName = tt?.display_name ?? program.training_groups?.name ?? "Antrenman";
+  const singleTypeDescription = tt?.description ?? "";
+  const singleOffsetMin = tt?.threshold_offset_min_seconds ?? null;
+  const singleOffsetMax = tt?.threshold_offset_max_seconds ?? null;
 
-  if (!event) {
-    return new Response(JSON.stringify({ error: "Event not found" }), {
-      status: 404,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  let singleTypeDisplayName = "";
-  let singleTypeDescription = "";
-  let singleOffsetMin: number | null = null;
-  let singleOffsetMax: number | null = null;
-  if (program.training_type_id) {
-    const { data: tt } = await supabase
-      .from("training_types")
-      .select("name, display_name, description, threshold_offset_min_seconds, threshold_offset_max_seconds")
-      .eq("id", program.training_type_id)
-      .single();
-    singleTypeDisplayName = tt?.display_name ?? tt?.name ?? "";
-    singleTypeDescription = tt?.description ?? "";
-    singleOffsetMin = tt?.threshold_offset_min_seconds ?? null;
-    singleOffsetMax = tt?.threshold_offset_max_seconds ?? null;
-  }
-
-  const eventDate = new Date(event.start_time);
-  const dayName = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"][eventDate.getDay()];
-  const workoutName = `${dayName} - ${event.title ?? "Antrenman"}`;
+  const planDate = new Date(`${program.plan_date}T08:00:00`);
+  const dayName = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"][planDate.getDay()];
+  const workoutName = `${dayName} - ${singleTypeDisplayName}`;
 
   const singleRawDef = program.workout_definition;
   let singleDef: TcrWorkoutDefinition;
@@ -1039,16 +1071,12 @@ async function handleSinglePush(
     offsetMin: singleOffsetMin,
     offsetMax: singleOffsetMax,
   };
-  const singleRouteTotalKm =
-    event.routes && typeof event.routes.total_distance !== "undefined"
-      ? Number(event.routes.total_distance)
-      : null;
 
   const singleLapInfo = computeLapTimesForGarmin(
     singleDef,
     singleVdotCtx,
-    event.lane_config ?? null,
-    singleRouteTotalKm,
+    null,
+    null,
   );
 
   const singleDescription = buildGarminDescription(singleLapInfo);
@@ -1058,7 +1086,6 @@ async function handleSinglePush(
     .from("garmin_sent_workouts")
     .select("garmin_workout_id")
     .eq("user_id", user_id)
-    .eq("event_id", event_id)
     .eq("program_id", program_id)
     .single();
 
@@ -1076,7 +1103,7 @@ async function handleSinglePush(
     });
   }
 
-  const scheduleDateStr = eventDate.toISOString().split("T")[0];
+  const scheduleDateStr = program.plan_date;
   const scheduleId = await createGarminSchedule(accessToken, workoutId, scheduleDateStr);
 
   const singleDefHash = await hashDefinition(program.workout_definition);
@@ -1084,7 +1111,7 @@ async function handleSinglePush(
   await supabase.from("garmin_sent_workouts").upsert(
     {
       user_id,
-      event_id,
+      event_id: null,
       program_id,
       garmin_workout_id: workoutId,
       garmin_schedule_id: scheduleId,
@@ -1092,7 +1119,7 @@ async function handleSinglePush(
       workout_name: workoutName,
       definition_hash: singleDefHash,
     },
-    { onConflict: "user_id,event_id,program_id" }
+    { onConflict: "user_id,program_id" }
   );
 
   return new Response(

@@ -6,6 +6,8 @@ class WorkoutSegmentModel {
   final String targetType;
   final String target;
   final int? durationSeconds;
+  final int? durationSecondsMin;
+  final int? durationSecondsMax;
   final double? distanceMeters;
   final int? paceSecondsPerKm;
   final int? paceSecondsPerKmMin;
@@ -24,6 +26,8 @@ class WorkoutSegmentModel {
     required this.targetType,
     required this.target,
     this.durationSeconds,
+    this.durationSecondsMin,
+    this.durationSecondsMax,
     this.distanceMeters,
     this.paceSecondsPerKm,
     this.paceSecondsPerKmMin,
@@ -44,6 +48,8 @@ class WorkoutSegmentModel {
       targetType: json['target_type'] as String? ?? json['targetType'] as String? ?? 'duration',
       target: json['target'] as String? ?? 'none',
       durationSeconds: json['duration_seconds'] as int? ?? json['durationSeconds'] as int?,
+      durationSecondsMin: json['duration_seconds_min'] as int? ?? json['durationSecondsMin'] as int?,
+      durationSecondsMax: json['duration_seconds_max'] as int? ?? json['durationSecondsMax'] as int?,
       distanceMeters: (json['distance_meters'] as num?)?.toDouble() ?? (json['distanceMeters'] as num?)?.toDouble(),
       paceSecondsPerKm: json['pace_seconds_per_km'] as int? ?? json['paceSecondsPerKm'] as int?,
       paceSecondsPerKmMin: json['pace_seconds_per_km_min'] as int? ?? json['paceSecondsPerKmMin'] as int?,
@@ -65,6 +71,8 @@ class WorkoutSegmentModel {
       'target_type': targetType,
       'target': target,
       if (durationSeconds != null) 'duration_seconds': durationSeconds,
+      if (durationSecondsMin != null) 'duration_seconds_min': durationSecondsMin,
+      if (durationSecondsMax != null) 'duration_seconds_max': durationSecondsMax,
       if (distanceMeters != null) 'distance_meters': distanceMeters,
       if (paceSecondsPerKm != null) 'pace_seconds_per_km': paceSecondsPerKm,
       if (paceSecondsPerKmMin != null) 'pace_seconds_per_km_min': paceSecondsPerKmMin,
@@ -86,6 +94,8 @@ class WorkoutSegmentModel {
       targetType: _parseTargetType(targetType),
       target: _parseTarget(target),
       durationSeconds: durationSeconds,
+      durationSecondsMin: durationSecondsMin,
+      durationSecondsMax: durationSecondsMax,
       distanceMeters: distanceMeters,
       paceSecondsPerKm: paceSecondsPerKm,
       paceSecondsPerKmMin: paceSecondsPerKmMin,
@@ -130,6 +140,8 @@ class WorkoutSegmentModel {
       targetType: e.targetType.name,
       target: e.target == WorkoutTarget.heartRate ? 'heart_rate' : (e.target == WorkoutTarget.power ? 'power' : e.target.name),
       durationSeconds: e.durationSeconds,
+      durationSecondsMin: e.durationSecondsMin,
+      durationSecondsMax: e.durationSecondsMax,
       distanceMeters: e.distanceMeters,
       paceSecondsPerKm: e.paceSecondsPerKm,
       paceSecondsPerKmMin: e.paceSecondsPerKmMin,

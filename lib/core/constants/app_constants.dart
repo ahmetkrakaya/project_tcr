@@ -192,6 +192,8 @@ class RouteNames {
   static const String eventDetail = 'event-detail';
   static const String createEvent = 'create-event';
   static const String adminMonthlyProgramUpload = 'admin-monthly-program-upload';
+  static const String adminWeeklyProgramEditor = 'admin-weekly-program-editor';
+  static const String recurringEvents = 'recurring-events';
   static const String editEvent = 'edit-event';
   static const String eventReport = 'event-report';
   static const String eventReportDetail = 'event-report-detail';
@@ -213,6 +215,8 @@ class RouteNames {
   static const String upcomingBirthdays = 'upcoming-birthdays';
   static const String vdotThresholdList = 'vdot-threshold-list';
   static const String unassignedMembers = 'unassigned-members';
+  static const String groupRequests = 'group-requests';
+  static const String bannedRejectedUsers = 'banned-rejected-users';
 
   // Chat
   static const String chatRoom = 'chat-room';
@@ -222,6 +226,7 @@ class RouteNames {
 
   // Profile
   static const String profileEdit = 'profile-edit';
+  static const String profileDetails = 'profile-details';
   static const String userProfile = 'user-profile';
   static const String iceCard = 'ice-card';
   static const String iceCardEdit = 'ice-card-edit';
@@ -230,6 +235,8 @@ class RouteNames {
   static const String stravaActivityList = 'strava-activity-list';
   static const String statistics = 'statistics';
   static const String adminCreateNotification = 'admin-create-notification';
+  static const String userPointsLeaderboard = 'user-points-leaderboard';
+  static const String adminAppVersions = 'admin-app-versions';
 
   // Activity
   static const String activityDetail = 'activity-detail';
@@ -254,6 +261,7 @@ class RouteNames {
   static const String myListings = 'my-listings';
   static const String favorites = 'favorites';
   static const String ordersManagement = 'orders-management';
+  static const String stockAlertsAdmin = 'stock-alerts-admin';
   static const String myOrders = 'my-orders';
 
   // Club Races (TCR Yarış Takvimi)
@@ -269,6 +277,36 @@ class RouteNames {
   // Tools
   static const String paceCalculator = 'pace-calculator';
   static const String laneCalculator = 'lane-calculator';
+
+  // Strava Watch
+  static const String runningViewer = 'running-viewer';
+}
+
+/// Strava Watch sistemi sabitleri
+/// Ömer Oklu, Ahmet Karakaya ve Ayça Şen'e özel koşu takip sistemi
+class StravaWatchConstants {
+  StravaWatchConstants._();
+
+  static const String omerId = '376cd156-abdd-4c2e-85a8-35dc88043cc1';
+  static const String ahmetId = 'b30a2dbf-6c44-4cc9-b740-12ed0ed08e37';
+  static const String aycaId = 'a9cb8485-af1e-4299-a744-088bdadacbc9';
+
+  /// RunningViewerPage'e erişebilen kullanıcı ID listesi
+  static const List<String> allowedUserIds = [omerId, ahmetId, aycaId];
+
+  /// Koşu takip push bildirimlerinde kullanılan ses sayısı (strava_alarm_1 … _5)
+  static const int alarmSoundCount = 5;
+
+  static String alarmSoundResource(int index) {
+    final i = index.clamp(0, alarmSoundCount - 1);
+    return 'strava_alarm_${i + 1}';
+  }
+
+  static String? alarmSoundFromPayload(String? sound) {
+    if (sound == null || sound.isEmpty) return null;
+    if (sound.startsWith('strava_alarm')) return sound;
+    return null;
+  }
 }
 
 /// Asset Paths

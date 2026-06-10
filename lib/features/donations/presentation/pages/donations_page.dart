@@ -748,7 +748,7 @@ class _DonationCard extends ConsumerWidget {
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     final isOwn = donation.userId == currentUserId;
     final canDelete = isOwn || isAdmin;
-    final canEdit = isOwn && donation.canEdit;
+    final canEdit = isAdmin || (isOwn && donation.canEdit);
     final dateFormat = DateFormat('d MMM yyyy', 'tr_TR');
     final amountFormat = NumberFormat.currency(
       locale: 'tr_TR',

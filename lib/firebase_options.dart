@@ -2,7 +2,7 @@
 // ignore_for_file: type=lint
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+    show defaultTargetPlatform, TargetPlatform;
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
@@ -16,9 +16,6 @@ import 'package:flutter/foundation.dart'
 /// ```
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
-    if (kIsWeb) {
-      return web;
-    }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
@@ -45,18 +42,6 @@ class DefaultFirebaseOptions {
         );
     }
   }
-
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyADt9VvZKfuUZR-8JbgXQtikSxs7VnyP-Y',
-    appId: '1:454457021902:web:77177f7a9ac8f123e0479f',
-    messagingSenderId: '454457021902',
-    projectId: 'tcr-app-c73ee',
-    authDomain: 'tcr-app-c73ee.firebaseapp.com',
-    storageBucket: 'tcr-app-c73ee.firebasestorage.app',
-    measurementId: 'G-T9FKZQWQ95',
-  );
-
-  // 'flutterfire configure --platforms=web' ile otomatik oluşturulabilir.
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBEW-LZyGzeq5J2T-bu5WT1ycaEptG0yhA',

@@ -10,6 +10,7 @@ class TrainingGroupModel {
   final int difficultyLevel;
   final String color;
   final String icon;
+  final String? imageUrl;
   final bool isActive;
   final String groupType;
   final int memberCount;
@@ -25,6 +26,7 @@ class TrainingGroupModel {
     this.difficultyLevel = 1,
     this.color = '#3B82F6',
     this.icon = 'directions_run',
+    this.imageUrl,
     this.isActive = true,
     this.groupType = 'normal',
     this.memberCount = 0,
@@ -46,6 +48,7 @@ class TrainingGroupModel {
       difficultyLevel: json['difficulty_level'] as int? ?? 1,
       color: json['color'] as String? ?? '#3B82F6',
       icon: json['icon'] as String? ?? 'directions_run',
+      imageUrl: json['image_url'] as String?,
       isActive: json['is_active'] as bool? ?? true,
       groupType: json['group_type'] as String? ?? 'normal',
       memberCount: memberCount ?? 0,
@@ -65,6 +68,7 @@ class TrainingGroupModel {
       'difficulty_level': difficultyLevel,
       'color': color,
       'icon': icon,
+      'image_url': imageUrl,
       'is_active': isActive,
       'group_type': groupType,
       'created_by': createdBy,
@@ -80,6 +84,7 @@ class TrainingGroupModel {
       difficultyLevel: difficultyLevel,
       color: color,
       icon: icon,
+      imageUrl: imageUrl,
       isActive: isActive,
       groupType: groupType,
       memberCount: memberCount,
@@ -144,6 +149,7 @@ class EventGroupProgramModel {
   final String? groupName;
   final String? groupColor;
   final String programContent;
+  final String? coachNotes;
   final WorkoutDefinitionModel? workoutDefinition;
   final String? routeId;
   final String? routeName;
@@ -163,6 +169,7 @@ class EventGroupProgramModel {
     this.groupName,
     this.groupColor,
     required this.programContent,
+    this.coachNotes,
     this.workoutDefinition,
     this.routeId,
     this.routeName,
@@ -197,6 +204,7 @@ class EventGroupProgramModel {
       groupName: groupData?['name'] as String?,
       groupColor: groupData?['color'] as String?,
       programContent: json['program_content'] as String? ?? '',
+      coachNotes: json['coach_notes'] as String?,
       workoutDefinition: workoutDefinition,
       routeId: json['route_id'] as String?,
       routeName: routeData?['name'] as String?,
@@ -233,6 +241,7 @@ class EventGroupProgramModel {
       groupName: groupName,
       groupColor: groupColor,
       programContent: programContent,
+      coachNotes: coachNotes,
       workoutDefinition: workoutDefinition?.toEntity(),
       routeId: routeId,
       routeName: routeName,
@@ -253,6 +262,9 @@ class GroupJoinRequestModel {
   final String id;
   final String groupId;
   final String? groupName;
+  final String? fromGroupId;
+  final String? fromGroupName;
+  final String requestType;
   final String userId;
   final String userName;
   final String? userAvatarUrl;
@@ -265,6 +277,9 @@ class GroupJoinRequestModel {
     required this.id,
     required this.groupId,
     this.groupName,
+    this.fromGroupId,
+    this.fromGroupName,
+    this.requestType = 'join',
     required this.userId,
     required this.userName,
     this.userAvatarUrl,
@@ -283,10 +298,16 @@ class GroupJoinRequestModel {
     final groupData = json['training_groups'] as Map<String, dynamic>?;
     final groupName = groupData?['name'] as String?;
 
+    final fromGroupData = json['from_group'] as Map<String, dynamic>?;
+    final fromGroupName = fromGroupData?['name'] as String?;
+
     return GroupJoinRequestModel(
       id: json['id'] as String,
       groupId: json['group_id'] as String,
       groupName: groupName,
+      fromGroupId: json['from_group_id'] as String?,
+      fromGroupName: fromGroupName,
+      requestType: json['request_type'] as String? ?? 'join',
       userId: json['user_id'] as String,
       userName: userName.isEmpty ? 'Anonim' : userName,
       userAvatarUrl: userData?['avatar_url'] as String?,
@@ -304,6 +325,9 @@ class GroupJoinRequestModel {
       id: id,
       groupId: groupId,
       groupName: groupName,
+      fromGroupId: fromGroupId,
+      fromGroupName: fromGroupName,
+      requestType: requestType,
       userId: userId,
       userName: userName,
       userAvatarUrl: userAvatarUrl,
@@ -326,6 +350,7 @@ class EventMemberProgramModel {
   final String? groupName;
   final String? groupColor;
   final String programContent;
+  final String? coachNotes;
   final WorkoutDefinitionModel? workoutDefinition;
   final String? routeId;
   final String? routeName;
@@ -348,6 +373,7 @@ class EventMemberProgramModel {
     this.groupName,
     this.groupColor,
     required this.programContent,
+    this.coachNotes,
     this.workoutDefinition,
     this.routeId,
     this.routeName,
@@ -391,6 +417,7 @@ class EventMemberProgramModel {
       groupName: groupData?['name'] as String?,
       groupColor: groupData?['color'] as String?,
       programContent: json['program_content'] as String? ?? '',
+      coachNotes: json['coach_notes'] as String?,
       workoutDefinition: workoutDefinition,
       routeId: json['route_id'] as String?,
       routeName: routeData?['name'] as String?,
@@ -431,6 +458,7 @@ class EventMemberProgramModel {
       groupName: groupName,
       groupColor: groupColor,
       programContent: programContent,
+      coachNotes: coachNotes,
       workoutDefinition: workoutDefinition?.toEntity(),
       routeId: routeId,
       routeName: routeName,

@@ -13,7 +13,7 @@ import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../../shared/providers/auth_provider.dart';
 import '../../domain/entities/activity_entity.dart';
-import '../../presentation/providers/activity_provider.dart';
+import '../providers/activity_provider.dart';
 
 /// Activity History Page - Kullanıcının tüm aktiviteleri
 class ActivityHistoryPage extends ConsumerStatefulWidget {

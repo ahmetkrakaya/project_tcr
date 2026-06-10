@@ -8,6 +8,8 @@ import '../../data/models/event_report_model.dart';
 import '../../data/models/user_report_model.dart';
 import '../../data/models/event_activity_stat_model.dart';
 import '../../data/models/user_activity_report_model.dart';
+import '../../data/models/user_engagement_report_model.dart';
+import '../../data/models/recurring_event_series_model.dart';
 import '../../domain/entities/event_entity.dart';
 import '../../domain/entities/event_info_block_entity.dart';
 import '../../domain/entities/event_template_entity.dart';
@@ -75,6 +77,36 @@ final adminMonthlyProgramsForMonthProvider =
     FutureProvider.family<List<Map<String, dynamic>>, DateTime>((ref, monthFirst) async {
   final ds = ref.watch(eventDataSourceProvider);
   return ds.getMonthlyProgramsForMonth(monthFirst.year, monthFirst.month);
+});
+
+/// Kullanıcı — Etkinlikler sayfasında seçili ayın kişisel aylık plan satırları (antrenman görünümü)
+final userMonthlyProgramsForMonthProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, DateTime>((ref, monthFirst) async {
+  final userId = ref.watch(userIdProvider);
+  if (userId == null) return const [];
+  final ds = ref.watch(eventDataSourceProvider);
+  return ds.getMonthlyProgramsForMonthForUser(
+    userId: userId,
+    year: monthFirst.year,
+    month: monthFirst.month,
+  );
+});
+
+/// Kullanıcı — seçili aydan itibaren birkaç ayı kapsayan antrenman listesi (ay değişince "sadece o ay" kısıtı olmasın)
+final userMonthlyProgramsForWindowProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, DateTime>((ref, monthFirst) async {
+  final userId = ref.watch(userIdProvider);
+  if (userId == null) return const [];
+  final ds = ref.watch(eventDataSourceProvider);
+
+  // Pencere: seçili ayın 1'inden başlayıp 3 ay sonuna kadar (Nisan seçiliyken Mayıs/Haziran da görünsün)
+  final start = DateTime(monthFirst.year, monthFirst.month, 1);
+  final end = DateTime(monthFirst.year, monthFirst.month + 3, 0);
+  return ds.getMonthlyProgramsForUserInRange(
+    userId: userId,
+    startDate: start,
+    endDate: end,
+  );
 });
 
 /// Event results repository provider
@@ -219,6 +251,23 @@ final trainingGroupsProvider = FutureProvider<List<TrainingGroupEntity>>((ref) a
   return models.map((m) => m.toEntity()).toList();
 });
 
+/// Haftalık program editörü — seçili hafta + hedef için mevcut kayıtlar
+typedef WeeklyProgramTarget = ({
+  DateTime weekStartMonday,
+  String trainingGroupId,
+  String? memberUserId,
+});
+
+final weeklyProgramEntriesProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, WeeklyProgramTarget>((ref, target) async {
+  final ds = ref.watch(eventDataSourceProvider);
+  return ds.getWeeklyProgramEntries(
+    weekStartMonday: target.weekStartMonday,
+    trainingGroupId: target.trainingGroupId,
+    memberUserId: target.memberUserId,
+  );
+});
+
 /// Training Types Provider (Antrenman Türleri)
 final trainingTypesProvider = FutureProvider<List<TrainingTypeEntity>>((ref) async {
   final dataSource = ref.watch(eventDataSourceProvider);
@@ -238,6 +287,7 @@ class RsvpNotifier extends StateNotifier<AsyncValue<void>> {
     RsvpStatus status, {
     String? note,
     String? raceVariantLabel,
+    String? selectedRouteId,
   }) async {
     state = const AsyncValue.loading();
     try {
@@ -246,6 +296,7 @@ class RsvpNotifier extends StateNotifier<AsyncValue<void>> {
         status.toDbString(),
         note: note,
         raceVariantLabel: raceVariantLabel,
+        selectedRouteId: selectedRouteId,
       );
       // Refresh related providers and wait critical ones.
       _ref.invalidate(eventByIdProvider(eventId));
@@ -259,6 +310,18 @@ class RsvpNotifier extends StateNotifier<AsyncValue<void>> {
         _ref.read(eventParticipantsProvider(eventId).future),
       ]);
 
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  Future<void> updateParticipantRoute(String eventId, String? routeId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.updateParticipantRoute(eventId, routeId);
+      _ref.invalidate(eventParticipantsProvider(eventId));
+      await _ref.read(eventParticipantsProvider(eventId).future);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -291,6 +354,14 @@ class RsvpNotifier extends StateNotifier<AsyncValue<void>> {
 final rsvpProvider = StateNotifierProvider<RsvpNotifier, AsyncValue<void>>((ref) {
   final dataSource = ref.watch(eventDataSourceProvider);
   return RsvpNotifier(dataSource, ref);
+});
+
+/// Etkinlik rota seçenekleri provider (antrenman etkinlikleri)
+final eventRouteOptionsProvider =
+    FutureProvider.family<List<EventRouteOptionEntity>, String>((ref, eventId) async {
+  final dataSource = ref.watch(eventDataSourceProvider);
+  final models = await dataSource.getEventRouteOptions(eventId);
+  return models.map((m) => m.toEntity()).toList();
 });
 
 // ========== Event Info Blocks Providers ==========
@@ -559,6 +630,21 @@ final userReportProvider = FutureProvider.family<UserReportSummaryModel, ({DateT
   return UserReportSummaryModel.fromJson(raw);
 });
 
+/// Kullanıcı etkileşim analiz raporları (admin) — etkinlik katılım filtresi hariç
+final userEngagementReportsProvider =
+    FutureProvider<UserEngagementReportsModel>((ref) async {
+  final dataSource = ref.watch(eventDataSourceProvider);
+  return dataSource.getUserEngagementReports();
+});
+
+/// En çok etkinliğe katılanlar (etkinlik türüne göre filtrelenir)
+final topEventParticipantsProvider = FutureProvider.family<
+    List<UserEngagementReportItemModel>,
+    String?>((ref, eventType) async {
+  final dataSource = ref.watch(eventDataSourceProvider);
+  return dataSource.getTopEventParticipants(eventType: eventType);
+});
+
 /// Kullanıcı Aktivite Raporu Provider
 final userActivityReportProvider = FutureProvider.family<
     List<UserActivityReportModel>,
@@ -573,4 +659,11 @@ final userActivityReportProvider = FutureProvider.family<
     startDate: params.startDate,
     endDate: params.endDate,
   );
+});
+
+/// Admin: tekrarlayan etkinlik serileri
+final recurringEventSeriesProvider =
+    FutureProvider.autoDispose<List<RecurringEventSeriesModel>>((ref) async {
+  final dataSource = ref.watch(eventDataSourceProvider);
+  return dataSource.getRecurringEventSeriesList();
 });

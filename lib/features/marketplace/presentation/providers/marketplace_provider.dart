@@ -5,6 +5,7 @@ import '../../../../core/enums/gender.dart';
 import '../../data/datasources/marketplace_remote_datasource.dart';
 import '../../data/models/listing_model.dart';
 import '../../data/models/order_model.dart';
+import '../../data/models/stock_alert_model.dart';
 
 /// Supabase client provider
 final _supabaseProvider = Provider<SupabaseClient>((ref) {
@@ -219,6 +220,9 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
     List<String> imageUrls = const [],
     ListingGenderMode stockGenderMode = ListingGenderMode.unisex,
     Map<String, Map<ListingGender, int>>? stockBySizeAndGender,
+    int? discountPercent,
+    DateTime? discountStartsAt,
+    DateTime? discountEndsAt,
   }) async {
     state = const AsyncValue.loading();
 
@@ -241,6 +245,9 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
         stockBySize: stockBySize,
         stockGenderMode: stockGenderMode,
         stockBySizeAndGender: stockBySizeAndGender,
+        discountPercent: discountPercent,
+        discountStartsAt: discountStartsAt,
+        discountEndsAt: discountEndsAt,
         imageUrls: imageUrls,
         createdAt: DateTime.now(),
       );
@@ -283,6 +290,9 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
     List<String>? imageUrls,
     ListingGenderMode stockGenderMode = ListingGenderMode.unisex,
     Map<String, Map<ListingGender, int>>? stockBySizeAndGender,
+    int? discountPercent,
+    DateTime? discountStartsAt,
+    DateTime? discountEndsAt,
   }) async {
     state = const AsyncValue.loading();
 
@@ -305,6 +315,9 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
         stockBySize: stockBySize,
         stockGenderMode: stockGenderMode,
         stockBySizeAndGender: stockBySizeAndGender,
+        discountPercent: discountPercent,
+        discountStartsAt: discountStartsAt,
+        discountEndsAt: discountEndsAt,
         imageUrls: imageUrls ?? [],
         createdAt: DateTime.now(),
       );
@@ -553,6 +566,45 @@ final updateStockQuantityProvider = StateNotifierProvider<UpdateStockQuantityNot
   return UpdateStockQuantityNotifier(dataSource);
 });
 
+/// Update Listing Discount Notifier
+class UpdateListingDiscountNotifier extends StateNotifier<AsyncValue<void>> {
+  final MarketplaceRemoteDataSource _dataSource;
+
+  UpdateListingDiscountNotifier(this._dataSource) : super(const AsyncValue.data(null));
+
+  Future<void> updateDiscount({
+    required String listingId,
+    int? discountPercent,
+    DateTime? discountStartsAt,
+    DateTime? discountEndsAt,
+  }) async {
+    state = const AsyncValue.loading();
+
+    try {
+      await _dataSource.updateListingDiscount(
+        listingId,
+        discountPercent: discountPercent,
+        discountStartsAt: discountStartsAt,
+        discountEndsAt: discountEndsAt,
+      );
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  void reset() {
+    state = const AsyncValue.data(null);
+  }
+}
+
+/// Update Listing Discount Provider
+final updateListingDiscountProvider =
+    StateNotifierProvider<UpdateListingDiscountNotifier, AsyncValue<void>>((ref) {
+  final dataSource = ref.watch(marketplaceDataSourceProvider);
+  return UpdateListingDiscountNotifier(dataSource);
+});
+
 /// Get Stock By Size Provider
 final stockBySizeProvider = FutureProvider.family<Map<String, int>, String>((ref, listingId) async {
   final dataSource = ref.watch(marketplaceDataSourceProvider);
@@ -586,3 +638,76 @@ final updateStockBySizeProvider = StateNotifierProvider<UpdateStockBySizeNotifie
   final dataSource = ref.watch(marketplaceDataSourceProvider);
   return UpdateStockBySizeNotifier(dataSource);
 });
+
+String stockAlertScopeKey(
+  String listingId, {
+  String? size,
+  ListingGender? gender,
+}) {
+  return '$listingId::${size ?? ''}::${gender?.value ?? ''}';
+}
+
+/// Kullanıcının bir ürün için aktif stok bildirim abonelikleri
+final userStockAlertsForListingProvider =
+    FutureProvider.family<List<StockAlertSubscription>, String>((ref, listingId) async {
+  final dataSource = ref.watch(marketplaceDataSourceProvider);
+  return dataSource.getUserStockAlertsForListing(listingId);
+});
+
+/// Admin: bekleyen stok talepleri
+final pendingStockAlertGroupsProvider =
+    FutureProvider<List<ListingStockAlertGroup>>((ref) async {
+  final dataSource = ref.watch(marketplaceDataSourceProvider);
+  return dataSource.getPendingStockAlertGroups();
+});
+
+/// Stok bildirimi aboneliği toggle
+final toggleStockAlertProvider =
+    StateNotifierProvider<ToggleStockAlertNotifier, AsyncValue<void>>((ref) {
+  final dataSource = ref.watch(marketplaceDataSourceProvider);
+  return ToggleStockAlertNotifier(dataSource);
+});
+
+class ToggleStockAlertNotifier extends StateNotifier<AsyncValue<void>> {
+  final MarketplaceRemoteDataSource _dataSource;
+
+  ToggleStockAlertNotifier(this._dataSource) : super(const AsyncValue.data(null));
+
+  Future<void> subscribe({
+    required String listingId,
+    String? size,
+    ListingGender? gender,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.subscribeStockAlert(
+        listingId,
+        size: size,
+        gender: gender,
+      );
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+
+  Future<void> unsubscribe({
+    required String listingId,
+    String? size,
+    ListingGender? gender,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.unsubscribeStockAlert(
+        listingId,
+        size: size,
+        gender: gender,
+      );
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+}

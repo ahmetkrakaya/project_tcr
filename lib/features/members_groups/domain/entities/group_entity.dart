@@ -9,6 +9,7 @@ class TrainingGroupEntity {
   final int difficultyLevel;
   final String color;
   final String icon;
+  final String? imageUrl;
   final bool isActive;
   final String groupType;
   final int memberCount;
@@ -24,6 +25,7 @@ class TrainingGroupEntity {
     this.difficultyLevel = 1,
     this.color = '#3B82F6',
     this.icon = 'directions_run',
+    this.imageUrl,
     this.isActive = true,
     this.groupType = 'normal',
     this.memberCount = 0,
@@ -33,6 +35,8 @@ class TrainingGroupEntity {
   });
 
   bool get isPerformanceGroup => groupType == 'performance';
+
+  bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
 
   /// Zorluk seviyesi metni
   String get difficultyText {
@@ -73,11 +77,14 @@ class GroupMemberEntity {
 }
 
 
-/// Group Join Request Entity - Performans Grubu Katılım Talebi
+/// Group Join Request Entity - Katılım veya grup değişim talebi
 class GroupJoinRequestEntity {
   final String id;
   final String groupId;
   final String? groupName;
+  final String? fromGroupId;
+  final String? fromGroupName;
+  final String requestType;
   final String userId;
   final String userName;
   final String? userAvatarUrl;
@@ -90,6 +97,9 @@ class GroupJoinRequestEntity {
     required this.id,
     required this.groupId,
     this.groupName,
+    this.fromGroupId,
+    this.fromGroupName,
+    this.requestType = 'join',
     required this.userId,
     required this.userName,
     this.userAvatarUrl,
@@ -102,6 +112,8 @@ class GroupJoinRequestEntity {
   bool get isPending => status == 'pending';
   bool get isApproved => status == 'approved';
   bool get isRejected => status == 'rejected';
+  bool get isTransfer => requestType == 'transfer';
+  bool get isJoin => requestType == 'join';
 }
 
 /// Event Member Program Entity - Performans Grubu Kişisel Antrenman Programı
@@ -115,6 +127,7 @@ class EventMemberProgramEntity {
   final String? groupName;
   final String? groupColor;
   final String programContent;
+  final String? coachNotes;
   final WorkoutDefinitionEntity? workoutDefinition;
   final String? routeId;
   final String? routeName;
@@ -137,6 +150,7 @@ class EventMemberProgramEntity {
     this.groupName,
     this.groupColor,
     required this.programContent,
+    this.coachNotes,
     this.workoutDefinition,
     this.routeId,
     this.routeName,
@@ -159,6 +173,7 @@ class EventGroupProgramEntity {
   final String? groupName;
   final String? groupColor;
   final String programContent;
+  final String? coachNotes;
   /// Yapılandırılmış antrenman (segment, hedef, yineleme). FIT/TCX export için.
   final WorkoutDefinitionEntity? workoutDefinition;
   final String? routeId;
@@ -181,6 +196,7 @@ class EventGroupProgramEntity {
     this.groupName,
     this.groupColor,
     required this.programContent,
+    this.coachNotes,
     this.workoutDefinition,
     this.routeId,
     this.routeName,

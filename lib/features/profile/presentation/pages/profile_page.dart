@@ -6,6 +6,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_card.dart';
+import '../../../../shared/widgets/full_screen_image_viewer.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../activity/presentation/providers/activity_provider.dart';
 import '../../../auth/domain/entities/user_entity.dart';
@@ -205,6 +206,9 @@ class ProfilePage extends ConsumerWidget {
                 showBorder: true,
                 borderColor: Colors.white,
                 borderWidth: 3,
+                onTap: user?.avatarUrl != null && user!.avatarUrl!.isNotEmpty
+                    ? () => showFullScreenImage(context, user.avatarUrl!)
+                    : null,
               ),
               const SizedBox(height: 12),
               Text(
@@ -491,7 +495,9 @@ class ProfilePage extends ConsumerWidget {
   List<Widget> _buildMenuItems(BuildContext context, WidgetRef ref, bool isOwnProfile) {
     final menuItems = <Widget>[];
     final viewingUserIsAdmin = ref.watch(isAdminProvider);
-    final targetUserId = userId ?? ref.watch(userIdProvider);
+    final currentUserId = ref.watch(userIdProvider);
+    final targetUserId = userId ?? currentUserId;
+    final canSeeAdminTools = isOwnProfile && (ref.watch(isAdminOrCoachProvider) || viewingUserIsAdmin);
     
     // Kendi profilinde gösterilecek öğeler
     if (isOwnProfile) {
@@ -534,42 +540,152 @@ class ProfilePage extends ConsumerWidget {
           onTap: () => context.pushNamed(RouteNames.paceCalculator),
         ),
       );
-
-      // Rotalar - Sadece admin ve koçlar görebilir
-      if (ref.watch(isAdminOrCoachProvider)) {
-        menuItems.add(
-          _buildMenuItem(
-            context,
-            icon: Icons.route_outlined,
-            title: 'Rotalar',
-            subtitle: 'GPX rotalarını görüntüle ve yönet',
-            iconColor: AppColors.tertiary,
-            onTap: () => context.pushNamed(RouteNames.routes),
-          ),
-        );
-      }
       
       // Bağlantılar - Sadece kendisi görebilir
       menuItems.add(_buildIntegrationsMenuItem(context, ref));
 
-      // Bildirim Oluştur - Sadece admin
-      if (viewingUserIsAdmin) {
+      // Aktivite Geçmişi
+      menuItems.add(
+        _buildMenuItem(
+          context,
+          icon: Icons.history,
+          title: 'Aktivite Geçmişim',
+          subtitle: 'Tüm koşularım',
+          onTap: () {
+            context.pushNamed(
+              RouteNames.activityHistory,
+              queryParameters: {},
+            );
+          },
+        ),
+      );
+
+      // Strava Watch: sadece 3 kişi görebilir
+      if (currentUserId != null &&
+          StravaWatchConstants.allowedUserIds.contains(currentUserId)) {
         menuItems.add(
           _buildMenuItem(
             context,
-            icon: Icons.notifications_active_outlined,
-            title: 'Bildirim Oluştur',
-            subtitle: 'Hedef kitle seçip manuel bildirim gönder',
-            iconColor: AppColors.warning,
-            onTap: () => context.pushNamed(RouteNames.adminCreateNotification),
+            icon: Icons.visibility,
+            title: 'Ahmet & Ayça\'nın Koşuları',
+            subtitle: 'Deli mi bunlar, dur bir bak!',
+            iconColor: const Color(0xFFFC4C02),
+            onTap: () => context.pushNamed(RouteNames.runningViewer),
           ),
         );
       }
-      
-      menuItems.add(const Divider(height: 32));
+
+      // İstatistikler
+      menuItems.add(
+        _buildMenuItem(
+          context,
+          icon: Icons.bar_chart,
+          title: 'İstatistikler',
+          subtitle: 'Haftalık ve aylık istatistikler',
+          iconColor: AppColors.tertiary,
+          onTap: () {
+            context.pushNamed(
+              RouteNames.statistics,
+              queryParameters: {},
+            );
+          },
+        ),
+      );
+
+      if (canSeeAdminTools) {
+        menuItems.add(const Divider(height: 32));
+
+        menuItems.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Yönetim Araçları',
+                  style: AppTypography.titleMedium.copyWith(
+                    color: AppColors.neutral500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        );
+
+        // Rotalar - Sadece admin ve koçlar görebilir
+        if (ref.watch(isAdminOrCoachProvider)) {
+          menuItems.add(
+            _buildMenuItem(
+              context,
+              icon: Icons.route_outlined,
+              title: 'Rotalar',
+              subtitle: 'GPX rotalarını görüntüle ve yönet',
+              iconColor: AppColors.tertiary,
+              onTap: () => context.pushNamed(RouteNames.routes),
+            ),
+          );
+        }
+
+        // Bildirim Oluştur - Sadece admin
+        if (viewingUserIsAdmin) {
+          menuItems.add(
+            _buildMenuItem(
+              context,
+              icon: Icons.notifications_active_outlined,
+              title: 'Bildirim Oluştur',
+              subtitle: 'Hedef kitle seçip manuel bildirim gönder',
+              iconColor: AppColors.warning,
+              onTap: () => context.pushNamed(RouteNames.adminCreateNotification),
+            ),
+          );
+        }
+
+        // Kullanıcı Puanları - Sadece admin
+        if (viewingUserIsAdmin) {
+          menuItems.add(
+            _buildMenuItem(
+              context,
+              icon: Icons.emoji_events_outlined,
+              title: 'Kullanıcı Puanları',
+              subtitle: 'En yüksek puandan en aza doğru sıralama',
+              iconColor: const Color(0xFFFF8F00),
+              onTap: () => context.pushNamed(RouteNames.userPointsLeaderboard),
+            ),
+          );
+        }
+
+        // App Versiyon - Sadece admin
+        if (viewingUserIsAdmin) {
+          menuItems.add(
+            _buildMenuItem(
+              context,
+              icon: Icons.system_update_alt_outlined,
+              title: 'App Versiyon',
+              subtitle: 'iOS ve Android güncelleme ayarları',
+              iconColor: AppColors.primary,
+              onTap: () => context.pushNamed(RouteNames.adminAppVersions),
+            ),
+          );
+        }
+      }
     } else {
-      // Başka kullanıcının profilinde - Sadece admin ise Acil Durum Kartını göster
+      // Başka kullanıcının profilinde - Admin profil bilgilerini görebilir
       if (viewingUserIsAdmin && targetUserId != null) {
+        menuItems.add(
+          _buildMenuItem(
+            context,
+            icon: Icons.person_outline,
+            title: 'Profil Bilgileri',
+            subtitle: 'Ad, soyad, iletişim bilgileri',
+            onTap: () {
+              context.pushNamed(
+                RouteNames.profileDetails,
+                queryParameters: {'userId': targetUserId},
+              );
+            },
+          ),
+        );
         menuItems.add(
           _buildMenuItem(
             context,
@@ -578,7 +694,6 @@ class ProfilePage extends ConsumerWidget {
             subtitle: 'ICE bilgileri',
             iconColor: AppColors.error,
             onTap: () {
-              // Başka kullanıcının ICE kartını göster
               context.pushNamed(
                 RouteNames.iceCard,
                 queryParameters: {'userId': targetUserId},
@@ -592,46 +707,60 @@ class ProfilePage extends ConsumerWidget {
     
     // Herkes görebilir (hem kendi hem başkalarının profilinde)
     // Aktivite Geçmişi
-    menuItems.add(
-      _buildMenuItem(
-        context,
-        icon: Icons.history,
-        title: isOwnProfile ? 'Aktivite Geçmişim' : 'Aktivite Geçmişi',
-        subtitle: isOwnProfile ? 'Tüm koşularım' : 'Tüm koşuları',
-        onTap: () {
-          // pushNamed kullan ki geri dönünce aynı profile sayfasına dönsün
-          // Eğer başka kullanıcının profilindeyse, userId'yi geçir
-          context.pushNamed(
-            RouteNames.activityHistory,
-            queryParameters: !isOwnProfile && targetUserId != null
-                ? {'userId': targetUserId}
-                : {},
-          );
-        },
-      ),
-    );
+    if (!isOwnProfile) {
+      menuItems.add(
+        _buildMenuItem(
+          context,
+          icon: Icons.history,
+          title: 'Aktivite Geçmişi',
+          subtitle: 'Tüm koşuları',
+          onTap: () {
+            context.pushNamed(
+              RouteNames.activityHistory,
+              queryParameters: targetUserId != null ? {'userId': targetUserId} : {},
+            );
+          },
+        ),
+      );
+    }
     
     // İstatistikler
-    menuItems.add(
-      _buildMenuItem(
-        context,
-        icon: Icons.bar_chart,
-        title: 'İstatistikler',
-        subtitle: 'Haftalık ve aylık istatistikler',
-        iconColor: AppColors.tertiary,
-        onTap: () {
-          // pushNamed kullan ki geri dönünce aynı profile sayfasına dönsün
-          // Eğer başka kullanıcının profilindeyse, userId'yi geçir
-          context.pushNamed(
-            RouteNames.statistics,
-            queryParameters: !isOwnProfile && targetUserId != null
-                ? {'userId': targetUserId}
-                : {},
-          );
-        },
-      ),
-    );
-    
+    if (!isOwnProfile) {
+      menuItems.add(
+        _buildMenuItem(
+          context,
+          icon: Icons.bar_chart,
+          title: 'İstatistikler',
+          subtitle: 'Haftalık ve aylık istatistikler',
+          iconColor: AppColors.tertiary,
+          onTap: () {
+            context.pushNamed(
+              RouteNames.statistics,
+              queryParameters: targetUserId != null ? {'userId': targetUserId} : {},
+            );
+          },
+        ),
+      );
+    }
+
+    // Strava Watch: sadece 3 kişinin profilinde ve sadece 3 kişiye görünür
+    if (!isOwnProfile &&
+        currentUserId != null &&
+        StravaWatchConstants.allowedUserIds.contains(currentUserId) &&
+        targetUserId != null &&
+        StravaWatchConstants.allowedUserIds.contains(targetUserId)) {
+      menuItems.add(
+        _buildMenuItem(
+          context,
+          icon: Icons.directions_run,
+          title: 'Koşuları Gör',
+          subtitle: 'Ahmet & Ayça\'nın tüm koşuları',
+          iconColor: const Color(0xFFFC4C02),
+          onTap: () => context.pushNamed(RouteNames.runningViewer),
+        ),
+      );
+    }
+
     menuItems.add(const SizedBox(height: 100));
     
     return menuItems;

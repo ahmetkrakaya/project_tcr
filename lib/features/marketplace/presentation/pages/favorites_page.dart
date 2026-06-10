@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../data/models/listing_model.dart';
+import '../../utils/listing_price_utils.dart';
 import '../providers/marketplace_provider.dart';
 
 /// Favorites Page
@@ -303,22 +304,9 @@ class _FavoritesPageState extends ConsumerState<FavoritesPage> {
                         ),
                       ],
                       const Spacer(),
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              listing.price != null
-                                  ? '₺${listing.price!.toStringAsFixed(0)}'
-                                  : 'Fiyat Sorunuz',
-                              style: AppTypography.titleMedium.copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                      ListingPriceDisplay(
+                        listing: listing,
+                        compact: true,
                       ),
                     ],
                   ),

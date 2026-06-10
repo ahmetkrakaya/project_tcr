@@ -15,7 +15,6 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/responsive.dart';
 import '../../../../shared/widgets/force_update_dialog.dart';
 import '../providers/auth_notifier.dart';
-import '../../../members_groups/presentation/providers/group_provider.dart';
 
 /// Splash Page
 class SplashPage extends ConsumerStatefulWidget {
@@ -163,24 +162,8 @@ class _SplashPageState extends ConsumerState<SplashPage>
         return;
       }
 
-      // Grup üyeliği kontrolü
-      try {
-        final userGroups = await ref.read(userGroupsProvider.future);
-        if (!mounted) return;
-        
-        if (userGroups.isEmpty) {
-          // Gruba üye değil - onboarding'e yönlendir
-          context.goNamed(RouteNames.onboarding);
-        } else {
-          // Her şey tamam - ana sayfaya git
-          context.go('/home');
-        }
-        _navigateFromPendingNotificationAfterFrame(router);
-      } catch (e) {
-        // Grup kontrolü başarısız olursa yine de ana sayfaya git
-        context.go('/home');
-        _navigateFromPendingNotificationAfterFrame(router);
-      }
+      context.go('/home');
+      _navigateFromPendingNotificationAfterFrame(router);
     } else {
       // Giriş yok → pending deep link varsa login'de sonra kullanılacak; yoksa normal login
       context.go('/login');

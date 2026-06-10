@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/errors/exceptions.dart';
@@ -288,9 +289,111 @@ class PostDetailPage extends ConsumerWidget {
         return _buildDividerBlock();
       case PostBlockType.image:
         return _buildImageBlock(block);
+      case PostBlockType.link:
+        return _buildLinkBlock(context, block);
       case PostBlockType.raceResults:
         return _buildRaceResultsBlock(block);
     }
+  }
+
+  Future<void> _openExternalLink(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Link açılamadı')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Link açılamadı')),
+        );
+      }
+    }
+  }
+
+  Widget _buildLinkBlock(BuildContext context, PostBlockEntity block) {
+    final url = block.content.trim();
+    final label = block.subContent?.trim().isNotEmpty == true
+        ? block.subContent!.trim()
+        : url;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Material(
+        color: AppColors.infoContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => _openExternalLink(context, url),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.info.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.link,
+                    color: AppColors.info,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.info,
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
+                          decorationColor: AppColors.info,
+                        ),
+                      ),
+                      if (label != url) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          url,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.neutral600,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.open_in_new,
+                  size: 18,
+                  color: AppColors.info,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildHeaderBlock(PostBlockEntity block) {

@@ -324,6 +324,31 @@ enum RsvpStatus {
   }
 }
 
+/// Etkinliğe bağlı rota seçeneği (antrenman etkinlikleri için)
+class EventRouteOptionEntity {
+  final String id;
+  final String eventId;
+  final String routeId;
+  final String? label;
+  final int sortOrder;
+  final String routeName;
+  final double? routeDistance;
+
+  const EventRouteOptionEntity({
+    required this.id,
+    required this.eventId,
+    required this.routeId,
+    this.label,
+    this.sortOrder = 0,
+    required this.routeName,
+    this.routeDistance,
+  });
+
+  /// Özel etiket varsa onu, yoksa rota adını döner
+  String get displayName =>
+      (label != null && label!.isNotEmpty) ? label! : routeName;
+}
+
 /// Etkinlik katılımcısı
 class EventParticipantEntity {
   final String id;
@@ -338,6 +363,9 @@ class EventParticipantEntity {
   final DateTime? checkedInAt;
   /// Yarış etkinliklerinde kullanıcının seçtiği kategori etiketi (örn. 10K)
   final String? raceVariantLabel;
+  /// Antrenman etkinliklerinde kullanıcının seçtiği rota
+  final String? selectedRouteId;
+  final String? selectedRouteName;
 
   const EventParticipantEntity({
     required this.id,
@@ -351,6 +379,8 @@ class EventParticipantEntity {
     this.checkedIn = false,
     this.checkedInAt,
     this.raceVariantLabel,
+    this.selectedRouteId,
+    this.selectedRouteName,
   });
 }
 

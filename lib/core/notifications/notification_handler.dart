@@ -59,6 +59,14 @@ void navigateFromNotification(GoRouter router, RemoteMessage message) {
   final listingId = data['listing_id'] as String?;
   final roomId = data['room_id'] as String?;
   final target = data['target'] as String?;
+  final activityId = data['activity_id'] as String?;
+
+  // Strava watch: Ahmet/Ayça koştu, RunningViewerPage'e git
+  if (type == 'strava_watch_run') {
+    final queryParams = activityId != null ? {'activityId': activityId} : <String, String>{};
+    router.goNamed(RouteNames.runningViewer, queryParameters: queryParams);
+    return;
+  }
 
   // Etkinlik oluşturuldu/güncellendi, ortak araç başvurusu/yanıtı → etkinlik detay
   if (eventId != null &&
@@ -81,24 +89,23 @@ void navigateFromNotification(GoRouter router, RemoteMessage message) {
     return;
   }
   // Yeni ürün → ürün detay
-  if (listingId != null && type == 'listing_created') {
+  if (listingId != null &&
+      (type == 'listing_created' ||
+          type == 'listing_back_in_stock' ||
+          type == 'listing_stock_updated' ||
+          type == 'listing_discount')) {
     router.goNamed(RouteNames.listingDetail,
         pathParameters: {'listingId': listingId});
-    return;
-  }
-  // Yeni sipariş → sipariş yönetimi
-  if (type == 'order_created') {
-    router.goNamed(RouteNames.ordersManagement);
-    return;
-  }
-  // Sipariş durumu → siparişlerim (sipariş durumu sayfası)
-  if (type == 'order_status_changed') {
-    router.goNamed(RouteNames.myOrders);
     return;
   }
   // Yeni üye başvurusu (admin) → Üyeler/Gruplar sayfası
   if (type == 'new_member_pending') {
     router.goNamed(RouteNames.groups);
+    return;
+  }
+  // Mazaret bildirimi: uygulama açılsın, engel popup otomatik gösterilir
+  if (type == NotificationTypes.engagementExcuseRequest) {
+    router.goNamed(RouteNames.home);
     return;
   }
   // Admin manuel bildirimler: generic target bazlı yönlendirme
@@ -134,6 +141,12 @@ const String _channelId = 'tcr_notifications';
 const String _channelName = 'TCR Bildirimleri';
 const String _channelDescription = 'Etkinlik, duyuru ve mesaj bildirimleri';
 
+// Strava watch için özel yüksek öncelikli kanal
+// v2: çoklu ses desteği (kanal ayarı değişince yeni id gerekir)
+const String _stravaWatchChannelId = 'strava_watch_channel_v2';
+const String _stravaWatchChannelName = 'Koşu Takip';
+const String _stravaWatchChannelDescription = 'Ahmet ve Ayça\'nın koşu bildirimleri';
+
 const AndroidNotificationChannel _channel = AndroidNotificationChannel(
   _channelId,
   _channelName,
@@ -141,6 +154,22 @@ const AndroidNotificationChannel _channel = AndroidNotificationChannel(
   importance: Importance.high,
   playSound: true,
 );
+
+const AndroidNotificationChannel _stravaWatchChannel = AndroidNotificationChannel(
+  _stravaWatchChannelId,
+  _stravaWatchChannelName,
+  description: _stravaWatchChannelDescription,
+  importance: Importance.max,
+  playSound: true,
+);
+
+/// FCM data.sound → Android raw kaynağı (strava_alarm_1 … strava_alarm_5)
+String _stravaWatchSoundResource(Map<String, dynamic> data) {
+  final fromPayload = StravaWatchConstants.alarmSoundFromPayload(
+    data['sound'] as String?,
+  );
+  return fromPayload ?? StravaWatchConstants.alarmSoundResource(0);
+}
 
 final FlutterLocalNotificationsPlugin _localNotifications =
     FlutterLocalNotificationsPlugin();
@@ -167,18 +196,40 @@ Future<void> showForegroundNotification(RemoteMessage message) async {
     }
   }
 
-  final androidDetails = AndroidNotificationDetails(
-    _channelId,
-    _channelName,
-    channelDescription: _channelDescription,
-    importance: Importance.high,
-    priority: Priority.high,
-  );
-  final iosDetails = const DarwinNotificationDetails(
-    presentAlert: true,
-    presentBadge: true,
-    presentSound: true,
-  );
+  final isStravaWatch = type == 'strava_watch_run';
+  final stravaSoundRes = isStravaWatch
+      ? _stravaWatchSoundResource(data)
+      : null;
+
+  final androidDetails = isStravaWatch
+      ? AndroidNotificationDetails(
+          _stravaWatchChannelId,
+          _stravaWatchChannelName,
+          channelDescription: _stravaWatchChannelDescription,
+          importance: Importance.max,
+          priority: Priority.max,
+          sound: RawResourceAndroidNotificationSound(stravaSoundRes!),
+        )
+      : const AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          channelDescription: _channelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+        );
+
+  final iosDetails = isStravaWatch
+      ? DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+          sound: '$stravaSoundRes.wav',
+        )
+      : const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        );
   // Payload: değerlerde = veya & olabilir; encode ederek tap'te doğru parse ederiz
   final payload = message.data.entries
       .map((e) =>
@@ -208,12 +259,13 @@ Future<void> initNotificationHandler(void Function(RemoteMessage) onTap) async {
   if (_initialized) return;
   if (kIsWeb) return;
 
-  // Android bildirim kanalı
+  // Android bildirim kanalları
   if (defaultTargetPlatform == TargetPlatform.android) {
-    await _localNotifications
+    final androidPlugin = _localNotifications
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_channel);
+            AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(_channel);
+    await androidPlugin?.createNotificationChannel(_stravaWatchChannel);
   }
 
   const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');

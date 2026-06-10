@@ -1,11 +1,16 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../providers/group_provider.dart';
+import '../widgets/group_avatar.dart';
 
 /// Grup Oluşturma Sayfası (Admin/Coach)
 class CreateGroupPage extends ConsumerStatefulWidget {
@@ -28,8 +33,12 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
   int _selectedDifficulty = 1;
   String _selectedColor = '#3B82F6';
   String _selectedIcon = 'directions_run';
+  String _selectedGroupType = 'normal';
+  String _visualType = 'icon';
+  String? _imageUrl;
+  Uint8List? _localImageBytes;
+  bool _isUploadingImage = false;
   String _targetDistanceUnit = 'km'; // km veya m
-  String _selectedGroupType = 'normal'; // 'normal' veya 'performance'
   bool _isEditing = false;
 
   final List<Map<String, dynamic>> _colorOptions = [
@@ -80,6 +89,10 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
         _selectedColor = group.color;
         _selectedIcon = group.icon;
         _selectedGroupType = group.groupType;
+        if (group.hasImage) {
+          _visualType = 'photo';
+          _imageUrl = group.imageUrl;
+        }
       });
     } catch (e) {
       if (mounted) {
@@ -158,8 +171,6 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
               const SizedBox(height: 24),
 
               // Grup Türü
-              Text('Grup Türü', style: AppTypography.labelLarge),
-              const SizedBox(height: 12),
               _buildGroupTypeSelector(),
               const SizedBox(height: 24),
 
@@ -263,16 +274,25 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
               _buildDifficultySelector(),
               const SizedBox(height: 24),
 
+              // Görsel Türü
+              _buildVisualTypeSelector(),
+              const SizedBox(height: 24),
+
               // Renk Seçimi
               Text('Grup Rengi', style: AppTypography.labelLarge),
               const SizedBox(height: 12),
               _buildColorSelector(),
               const SizedBox(height: 24),
 
-              // İkon Seçimi
-              Text('Grup İkonu', style: AppTypography.labelLarge),
-              const SizedBox(height: 12),
-              _buildIconSelector(),
+              if (_visualType == 'icon') ...[
+                Text('Grup İkonu', style: AppTypography.labelLarge),
+                const SizedBox(height: 12),
+                _buildIconSelector(),
+              ] else ...[
+                Text('Grup Fotoğrafı', style: AppTypography.labelLarge),
+                const SizedBox(height: 12),
+                _buildPhotoSelector(),
+              ],
               const SizedBox(height: 40),
             ],
           ),
@@ -313,11 +333,6 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
 
   Widget _buildPreview() {
     final color = _parseColor(_selectedColor);
-    final iconData = _iconOptions
-        .firstWhere(
-          (i) => i['icon'] == _selectedIcon,
-          orElse: () => _iconOptions.first,
-        )['iconData'] as IconData;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -334,19 +349,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              iconData,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
+          _buildPreviewAvatar(),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -370,6 +373,21 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    _selectedGroupType == 'performance' ? 'Performans Grubu' : 'Normal Grup',
+                    style: AppTypography.labelSmall.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -382,137 +400,96 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedGroupType = 'normal'),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: _selectedGroupType == 'normal'
-                        ? AppColors.primary.withValues(alpha: 0.1)
-                        : AppColors.neutral100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _selectedGroupType == 'normal'
-                          ? AppColors.primary
-                          : AppColors.neutral200,
-                      width: _selectedGroupType == 'normal' ? 2 : 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.groups,
-                        color: _selectedGroupType == 'normal'
-                            ? AppColors.primary
-                            : AppColors.neutral500,
-                        size: 28,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Normal Grup',
-                        style: AppTypography.titleSmall.copyWith(
-                          color: _selectedGroupType == 'normal'
-                              ? AppColors.primary
-                              : AppColors.neutral700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Herkes katılabilir',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedGroupType = 'performance'),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: _selectedGroupType == 'performance'
-                        ? AppColors.secondary.withValues(alpha: 0.1)
-                        : AppColors.neutral100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _selectedGroupType == 'performance'
-                          ? AppColors.secondary
-                          : AppColors.neutral200,
-                      width: _selectedGroupType == 'performance' ? 2 : 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.star,
-                        color: _selectedGroupType == 'performance'
-                            ? AppColors.secondary
-                            : AppColors.neutral500,
-                        size: 28,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Performans',
-                        style: AppTypography.titleSmall.copyWith(
-                          color: _selectedGroupType == 'performance'
-                              ? AppColors.secondary
-                              : AppColors.neutral700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Admin onayı gerekir',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
+        Text('Grup Türü', style: AppTypography.labelLarge),
+        const SizedBox(height: 12),
+        _buildGroupTypeOption(
+          type: 'normal',
+          title: 'Normal Grup',
+          description: 'Antrenman programı tüm grup üyelerine uygulanır.',
+          icon: Icons.groups_outlined,
         ),
-        if (_selectedGroupType == 'performance') ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: AppColors.secondary.withValues(alpha: 0.2),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, size: 18, color: AppColors.secondary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Performans grubuna katılım admin onayı gerektirir. Etkinliklerde her üyeye özel antrenman programı atanır.',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral600,
-                    ),
-                  ),
-                ),
-              ],
+        const SizedBox(height: 8),
+        _buildGroupTypeOption(
+          type: 'performance',
+          title: 'Performans Grubu',
+          description: 'Her üye için ayrı antrenman programı tanımlanır.',
+          icon: Icons.star_outline,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Her iki grup türüne katılım admin onayı ile yapılır.',
+          style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGroupTypeOption({
+    required String type,
+    required String title,
+    required String description,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedGroupType == type;
+    final accentColor =
+        type == 'performance' ? AppColors.secondary : AppColors.primary;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _selectedGroupType = type),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? accentColor.withValues(alpha: 0.08)
+                : AppColors.neutral100,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? accentColor : AppColors.neutral200,
+              width: isSelected ? 2 : 1,
             ),
           ),
-        ],
-      ],
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: accentColor, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTypography.titleSmall.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? accentColor : null,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      description,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.neutral500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                Icon(Icons.check_circle, color: accentColor, size: 22),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -606,6 +583,267 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
     );
   }
 
+  Widget _buildPreviewAvatar() {
+    if (_visualType == 'photo' && _localImageBytes != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.memory(
+          _localImageBytes!,
+          width: 64,
+          height: 64,
+          fit: BoxFit.cover,
+        ),
+      );
+    }
+
+    return GroupAvatar(
+      imageUrl: _visualType == 'photo' ? _imageUrl : null,
+      icon: _selectedIcon,
+      color: _selectedColor,
+      size: 64,
+      borderRadius: 16,
+      isPerformanceGroup: _selectedGroupType == 'performance',
+    );
+  }
+
+  Widget _buildVisualTypeSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Görsel', style: AppTypography.labelLarge),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildVisualTypeChip(
+                type: 'icon',
+                label: 'İkon',
+                icon: Icons.emoji_emotions_outlined,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildVisualTypeChip(
+                type: 'photo',
+                label: 'Fotoğraf',
+                icon: Icons.photo_outlined,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVisualTypeChip({
+    required String type,
+    required String label,
+    required IconData icon,
+  }) {
+    final isSelected = _visualType == type;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _visualType = type),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.08)
+                : AppColors.neutral100,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.neutral200,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isSelected ? AppColors.primary : AppColors.neutral500,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: AppTypography.titleSmall.copyWith(
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? AppColors.primary : AppColors.neutral600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoSelector() {
+    final hasPhoto =
+        _localImageBytes != null || (_imageUrl != null && _imageUrl!.isNotEmpty);
+
+    return Center(
+      child: Stack(
+        children: [
+          GestureDetector(
+            onTap: _isUploadingImage ? null : _pickGroupPhoto,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: AppColors.neutral100,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.neutral200),
+              ),
+              child: _isUploadingImage
+                  ? const Center(child: CircularProgressIndicator())
+                  : hasPhoto
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: _localImageBytes != null
+                              ? Image.memory(
+                                  _localImageBytes!,
+                                  width: 120,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                )
+                              : GroupAvatar(
+                                  imageUrl: _imageUrl,
+                                  icon: _selectedIcon,
+                                  color: _selectedColor,
+                                  size: 120,
+                                  borderRadius: 20,
+                                ),
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_a_photo_outlined,
+                              size: 32,
+                              color: AppColors.neutral400,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Fotoğraf Seç',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.neutral500,
+                              ),
+                            ),
+                          ],
+                        ),
+            ),
+          ),
+          if (hasPhoto && !_isUploadingImage)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Material(
+                color: AppColors.primary,
+                shape: const CircleBorder(),
+                child: IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.white, size: 18),
+                  onPressed: _pickGroupPhoto,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickGroupPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Galeriden Seç'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Kamera ile Çek'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      if (pickedFile == null) return;
+
+      final bytes = await pickedFile.readAsBytes();
+      setState(() {
+        _localImageBytes = bytes;
+        _visualType = 'photo';
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fotoğraf seçilemedi: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<String?> _uploadGroupImage() async {
+    if (_localImageBytes == null) return _imageUrl;
+
+    setState(() => _isUploadingImage = true);
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) throw Exception('Kullanıcı bulunamadı');
+
+      final groupKey = widget.groupId ?? userId;
+      final fileName =
+          '$groupKey/group_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      await supabase.storage.from('group-images').uploadBinary(
+            fileName,
+            _localImageBytes!,
+            fileOptions: const FileOptions(
+              upsert: true,
+              contentType: 'image/jpeg',
+            ),
+          );
+
+      return supabase.storage.from('group-images').getPublicUrl(fileName);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fotoğraf yüklenemedi: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return null;
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
+      }
+    }
+  }
+
   Widget _buildIconSelector() {
     return Wrap(
       spacing: 12,
@@ -638,8 +876,23 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
     );
   }
 
-  void _submitForm() {
+  Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_visualType == 'photo' &&
+        _localImageBytes == null &&
+        (_imageUrl == null || _imageUrl!.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lütfen bir grup fotoğrafı seçin')),
+      );
+      return;
+    }
+
+    String? finalImageUrl;
+    if (_visualType == 'photo') {
+      finalImageUrl = await _uploadGroupImage();
+      if (finalImageUrl == null && _localImageBytes != null) return;
+    }
 
     final notifier = ref.read(groupCreationProvider.notifier);
 
@@ -656,6 +909,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
         difficultyLevel: _selectedDifficulty,
         color: _selectedColor,
         icon: _selectedIcon,
+        imageUrl: finalImageUrl,
         groupType: _selectedGroupType,
       );
     } else {
@@ -670,6 +924,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
         difficultyLevel: _selectedDifficulty,
         color: _selectedColor,
         icon: _selectedIcon,
+        imageUrl: finalImageUrl,
         groupType: _selectedGroupType,
       );
     }

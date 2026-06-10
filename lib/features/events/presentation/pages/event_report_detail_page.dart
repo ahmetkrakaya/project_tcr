@@ -6,7 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../members_groups/presentation/providers/group_provider.dart';
 import '../../../members_groups/domain/entities/group_entity.dart';
-import '../../presentation/providers/event_provider.dart';
+import '../providers/event_provider.dart';
 import '../../data/models/event_activity_stat_model.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';

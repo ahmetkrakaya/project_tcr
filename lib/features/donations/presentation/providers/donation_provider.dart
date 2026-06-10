@@ -27,6 +27,20 @@ final userParticipatedRaceEventsProvider =
   return dataSource.getUserParticipatedRaceEvents();
 });
 
+/// Tüm yayınlanmış yarış etkinlikleri (admin bağış girişi için)
+final allRaceEventsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final dataSource = ref.watch(donationDataSourceProvider);
+  return dataSource.getAllRaceEvents();
+});
+
+/// Aktif üye listesi (admin bağış girişi için)
+final activeMembersProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final dataSource = ref.watch(donationDataSourceProvider);
+  return dataSource.getActiveMembers();
+});
+
 /// Bağış oluşturma
 class DonationCreationNotifier extends StateNotifier<AsyncValue<void>> {
   final DonationRemoteDataSource _dataSource;
@@ -41,6 +55,7 @@ class DonationCreationNotifier extends StateNotifier<AsyncValue<void>> {
     DateTime? raceDate,
     required String foundationId,
     required double amount,
+    String? targetUserId,
   }) async {
     state = const AsyncValue.loading();
     try {
@@ -50,6 +65,7 @@ class DonationCreationNotifier extends StateNotifier<AsyncValue<void>> {
         raceDate: raceDate,
         foundationId: foundationId,
         amount: amount,
+        targetUserId: targetUserId,
       );
       _ref.invalidate(allDonationsProvider);
       state = const AsyncValue.data(null);

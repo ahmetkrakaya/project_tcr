@@ -11,7 +11,9 @@ import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../../events/domain/entities/event_entity.dart' show EventEntity;
 import '../../../events/presentation/providers/event_provider.dart';
 import '../../../routes/presentation/providers/route_provider.dart';
-import '../../../workout/domain/entities/workout_entity.dart' show WorkoutDefinitionEntity, WorkoutStepEntity, WorkoutSegmentType, WorkoutTarget;
+import '../../../workout/domain/entities/workout_entity.dart'
+    show WorkoutDefinitionEntity, WorkoutStepEntity, WorkoutSegmentEntity, WorkoutSegmentType, WorkoutTargetType;
+import '../../../workout/utils/segment_target_resolver.dart';
 import '../../domain/entities/group_entity.dart';
 import '../../data/datasources/group_remote_datasource.dart';
 import '../providers/group_provider.dart';
@@ -95,6 +97,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
                     groupName: mp.groupName,
                     groupColor: mp.groupColor,
                     programContent: mp.programContent,
+                    coachNotes: mp.coachNotes,
                     workoutDefinition: mp.workoutDefinition,
                     routeId: mp.routeId,
                     routeName: mp.routeName,
@@ -352,6 +355,16 @@ class UserGroupProgramViewer extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (program.coachNotes?.trim().isNotEmpty == true) ...[
+                  Text(
+                    program.coachNotes!,
+                    style: AppTypography.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 if (program.workoutDefinition != null &&
                     !program.workoutDefinition!.isEmpty &&
                     (userVdot == null || userVdot <= 0) &&
@@ -654,13 +667,17 @@ class UserGroupProgramViewer extends ConsumerWidget {
     for (final step in sortedSteps) {
       if (step.isSegment && step.segment != null) {
         final s = step.segment!;
-        final dur = s.durationSeconds != null ? _formatDuration(s.durationSeconds!) : null;
+        final dur = s.targetType == WorkoutTargetType.duration && s.durationSeconds != null
+            ? _formatDuration(s.durationSeconds!)
+            : null;
         final dist = s.distanceMeters != null ? '${(s.distanceMeters! / 1000).toStringAsFixed(1)} km' : null;
+        final split = effectiveSplitDisplay(s);
         final pace = _segmentPaceDisplay(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax, isAdminView: isAdminView);
 
         final parts = <String>[s.segmentType.displayName];
         if (dur != null) parts.add(dur);
         if (dist != null) parts.add(dist);
+        if (split != null && s.targetType == WorkoutTargetType.distance) parts.add('$split split');
         if (pace != null) parts.add('$pace pace');
         // Pist kulvarda tur/mesafe ve tur süresi: sadece ana antrenman ve toparlanma (ısınma/soğuma hariç)
         if (trackLengthKm != null && trackLengthKm > 0 &&
@@ -725,10 +742,18 @@ class UserGroupProgramViewer extends ConsumerWidget {
         for (final e in step.steps!) {
           if (e.isSegment && e.segment != null) {
             final seg = e.segment!;
-            final dur = seg.durationSeconds != null ? _formatDuration(seg.durationSeconds!) : null;
+            final dur = seg.targetType == WorkoutTargetType.duration && seg.durationSeconds != null
+                ? _formatDuration(seg.durationSeconds!)
+                : null;
+            final dist = seg.distanceMeters != null
+                ? '${(seg.distanceMeters! / 1000).toStringAsFixed(1)} km'
+                : null;
+            final split = effectiveSplitDisplay(seg);
             final paceStr = _segmentPaceDisplay(seg, userVdot, offsetMin: offsetMin, offsetMax: offsetMax, isAdminView: isAdminView);
             final parts = <String>[];
             if (dur != null) parts.add(dur);
+            if (dist != null) parts.add(dist);
+            if (split != null && seg.targetType == WorkoutTargetType.distance) parts.add('$split split');
             if (paceStr != null) parts.add('$paceStr pace');
             if (trackLengthKm != null && trackLengthKm > 0 &&
                 seg.segmentType != WorkoutSegmentType.warmup &&
@@ -829,48 +854,19 @@ class UserGroupProgramViewer extends ConsumerWidget {
   /// Bir segment için gösterilecek pace metni (VDOT veya manuel). Isınma/tekrar içi aynı mantık.
   /// [isAdminView] true ise VDOT bazlı pace yerine "VDOT Pace Değeri" metni döner.
   String? _segmentPaceDisplay(
-    dynamic s,
+    WorkoutSegmentEntity s,
     double? userVdot, {
     int? offsetMin,
     int? offsetMax,
     bool isAdminView = false,
   }) {
-    if (s.target == WorkoutTarget.pace) {
-      if (s.useVdotForPace == true) {
-        if (isAdminView) return 'VDOT Pace Değeri';
-        if (userVdot != null && userVdot > 0) {
-          final paceStr = VdotCalculator.getPaceForSegmentType(
-            userVdot,
-            s.segmentType.name,
-            offsetMin,
-            offsetMax,
-          );
-          if (paceStr != null) return paceStr;
-        }
-      } else {
-        final paceMin = s.customPaceSecondsPerKm ?? s.paceSecondsPerKmMin ?? s.paceSecondsPerKm;
-        final paceMax = s.paceSecondsPerKmMax;
-        if (paceMin != null) {
-          if (paceMax != null && paceMax != paceMin) {
-            return '${VdotCalculator.formatPace(paceMin)} / ${VdotCalculator.formatPace(paceMax)}';
-          }
-          return VdotCalculator.formatPace(paceMin);
-        }
-      }
-    }
-    if (isAdminView && (offsetMin != null || offsetMax != null)) {
-      return 'VDOT Pace Değeri';
-    }
-    if (userVdot != null && userVdot > 0 && (offsetMin != null || offsetMax != null)) {
-      final paceStr = VdotCalculator.getPaceForSegmentType(
-        userVdot,
-        s.segmentType.name,
-        offsetMin,
-        offsetMax,
-      );
-      if (paceStr != null) return paceStr;
-    }
-    return null;
+    return effectivePaceDisplay(
+      s,
+      userVdot: userVdot,
+      offsetMin: offsetMin,
+      offsetMax: offsetMax,
+      isAdminView: isAdminView,
+    );
   }
 
   /// Segment başlığını çıkarıp sadece detayları döndürür (süre, pace, tur vb.)
@@ -1127,6 +1123,13 @@ class UserGroupProgramViewer extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 10),
+          if (mp.coachNotes?.trim().isNotEmpty == true) ...[
+            Text(
+              mp.coachNotes!,
+              style: AppTypography.bodyMedium.copyWith(height: 1.4),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (mp.workoutDefinition != null && !mp.workoutDefinition!.isEmpty) ...[
             Text(
               'Program',
@@ -1241,6 +1244,16 @@ class UserGroupProgramViewer extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (program.coachNotes?.trim().isNotEmpty == true) ...[
+                  Text(
+                    program.coachNotes!,
+                    style: AppTypography.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 if (program.workoutDefinition != null && !program.workoutDefinition!.isEmpty) ...[
                   Text(
                     'Program',

@@ -9,7 +9,6 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/responsive.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
-import '../../../members_groups/presentation/providers/group_provider.dart';
 
 /// Verify Email Page
 class VerifyEmailPage extends ConsumerStatefulWidget {
@@ -253,30 +252,12 @@ class _VerifyEmailPageState extends ConsumerState<VerifyEmailPage> {
           );
         }
       } else if (result.isSuccess) {
-        // Başarılı doğrulama - profil ve grup kontrolü yap
         final user = result.user!;
-        
-        // Profil tamamlanmamışsa veya gruba üye değilse onboarding'e git
+
         if (user.firstName == null || user.firstName!.isEmpty) {
           context.goNamed(RouteNames.onboarding);
         } else {
-          // Grup üyeliği kontrolü
-          try {
-            ref.invalidate(userGroupsProvider);
-            final userGroups = await ref.read(userGroupsProvider.future);
-            if (!mounted) return;
-            
-            if (userGroups.isEmpty) {
-              // Gruba üye değil - onboarding'e yönlendir
-              context.goNamed(RouteNames.onboarding);
-            } else {
-              // Her şey tamam - ana sayfaya git
-              context.go('/home');
-            }
-          } catch (e) {
-            // Grup kontrolü başarısız olursa yine de ana sayfaya git
-            context.go('/home');
-          }
+          context.go('/home');
         }
       }
     }

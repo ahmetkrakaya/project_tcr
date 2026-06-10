@@ -1,0 +1,10 @@
+Strava Watch bildirim sesleri — Mixkit License (ücretsiz, ticari kullanım)
+https://mixkit.co/license/#sfxFree
+
+strava_alarm_1 — Funny alarm loop (Mixkit #2975)
+strava_alarm_2 — Industry alarm tone (Mixkit #2979)
+strava_alarm_3 — Urgent digital alarm tone loop (Mixkit #2973)
+strava_alarm_4 — Urgent simple tone loop (Mixkit #2976)
+strava_alarm_5 — Simple cricket alarm tone (Mixkit #2978)
+
+Kaynak: https://mixkit.co/free-sound-effects/emergency/

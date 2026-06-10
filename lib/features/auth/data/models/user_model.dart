@@ -21,6 +21,7 @@ class UserModel {
   final bool isDeleted;
   final String? deletionRequestedAt;
   final String? deletionEffectiveAt;
+  final String userStatus;
   final String? createdAt;
   final String? updatedAt;
 
@@ -44,6 +45,7 @@ class UserModel {
     this.isDeleted = false,
     this.deletionRequestedAt,
     this.deletionEffectiveAt,
+    this.userStatus = 'pending',
     this.createdAt,
     this.updatedAt,
   });
@@ -69,6 +71,7 @@ class UserModel {
       isDeleted: json['is_deleted'] as bool? ?? false,
       deletionRequestedAt: json['deletion_requested_at'] as String?,
       deletionEffectiveAt: json['deletion_effective_at'] as String?,
+      userStatus: json['user_status'] as String? ?? 'pending',
       createdAt: json['created_at'] as String?,
       updatedAt: json['updated_at'] as String?,
     );
@@ -95,6 +98,7 @@ class UserModel {
       'is_deleted': isDeleted,
       'deletion_requested_at': deletionRequestedAt,
       'deletion_effective_at': deletionEffectiveAt,
+      'user_status': userStatus,
       'created_at': createdAt,
       'updated_at': updatedAt,
     };
@@ -125,6 +129,7 @@ class UserModel {
       deletionEffectiveAt:
           deletionEffectiveAt != null ? DateTime.tryParse(deletionEffectiveAt!) : null,
       roles: roles?.map(_parseRole).toList() ?? [UserRole.member],
+      userStatus: _parseUserStatus(userStatus),
       createdAt: createdAt != null ? DateTime.parse(createdAt!) : null,
       updatedAt: updatedAt != null ? DateTime.parse(updatedAt!) : null,
     );
@@ -260,6 +265,19 @@ class UserModel {
         return UserRole.coach;
       default:
         return UserRole.member;
+    }
+  }
+
+  static UserStatus _parseUserStatus(String? value) {
+    switch (value) {
+      case 'active':
+        return UserStatus.active;
+      case 'rejected':
+        return UserStatus.rejected;
+      case 'banned':
+        return UserStatus.banned;
+      default:
+        return UserStatus.pending;
     }
   }
 }

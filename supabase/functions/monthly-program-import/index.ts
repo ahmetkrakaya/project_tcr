@@ -371,13 +371,10 @@ serve(async (req) => {
         }
       | null;
 
-    const monthKey = body?.month_key?.trim();
+    const requestedMonthKey = body?.month_key?.trim();
     const fileBytes = body?.file_bytes;
     const fileName = body?.file_name?.trim() || "monthly_program.xlsx";
 
-    if (!monthKey || !/^\d{4}-(0[1-9]|1[0-2])$/.test(monthKey)) {
-      return new Response("month_key invalid", { status: 400, headers: corsHeaders });
-    }
     if (!fileBytes || !Array.isArray(fileBytes) || fileBytes.length === 0) {
       return new Response("file_bytes required", { status: 400, headers: corsHeaders });
     }
@@ -744,6 +741,28 @@ serve(async (req) => {
       );
     }
 
+    // Dosyadaki ayları otomatik çıkar (YYYY-MM-DD -> YYYY-MM). İstemci month_key yollasa da,
+    // Excel birden fazla ay içeriyorsa hepsi import edilir.
+    const monthKeysInFile = new Set<string>();
+    for (const e of rawEntries) {
+      const d = String(e.planDate ?? "");
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        monthKeysInFile.add(d.slice(0, 7));
+      }
+    }
+    if (monthKeysInFile.size === 0) {
+      return new Response(
+        JSON.stringify({ success: false, message: "Dosyada geçerli tarih bulunamadı" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Geriye uyumluluk: Eski client month_key yolluyorsa formatını kontrol et, ama import'u
+    // onunla sınırlama. (UI ay seçimi artık sadece referans.)
+    if (requestedMonthKey && !/^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonthKey)) {
+      return new Response("month_key invalid", { status: 400, headers: corsHeaders });
+    }
+
     const { data: users } = await supabase
       .from("users")
       .select("id,email");
@@ -870,53 +889,76 @@ serve(async (req) => {
       );
     }
 
-    // Replace month data atomically-ish
-    const { data: monthBatches } = await supabase
-      .from("monthly_program_batches")
-      .select("id")
-      .eq("month_key", monthKey);
-    const batchIds = (monthBatches ?? []).map((b) => b.id as string);
-    if (batchIds.length > 0) {
-      await supabase.from("monthly_program_entries").delete().in("batch_id", batchIds);
-      await supabase.from("monthly_program_batches").delete().in("id", batchIds);
-    }
+    // Replace affected months (multi-month import).
+    // Her ay için ayrı batch oluştur, eski batch'leri temizle.
+    const monthKeys = Array.from(monthKeysInFile).sort();
+    const createdBatchIds: string[] = [];
+    let totalInserted = 0;
 
-    const { data: batch, error: batchErr } = await supabase
-      .from("monthly_program_batches")
-      .insert({
-        month_key: monthKey,
-        title: body?.title ?? `${monthKey} Programi`,
-        status: "active",
-        source_file_name: fileName,
-        row_count: insertRows.length,
-        error_count: 0,
-        uploaded_by: userId,
-      })
-      .select("id")
-      .single();
+    for (const mk of monthKeys) {
+      // 1) İlgili ayın eski batch'lerini sil
+      const { data: monthBatches } = await supabase
+        .from("monthly_program_batches")
+        .select("id")
+        .eq("month_key", mk);
+      const batchIds = (monthBatches ?? []).map((b) => b.id as string);
+      if (batchIds.length > 0) {
+        await supabase.from("monthly_program_entries").delete().in("batch_id", batchIds);
+        await supabase.from("monthly_program_batches").delete().in("id", batchIds);
+      }
 
-    if (batchErr || !batch) {
-      return new Response("Batch create failed", { status: 500, headers: corsHeaders });
-    }
+      // 2) Bu aya ait satırları ayır
+      const rowsForMonth = insertRows.filter((r) => {
+        const d = String(r.plan_date ?? "");
+        return d.slice(0, 7) === mk;
+      });
+      if (rowsForMonth.length === 0) continue;
 
-    const rowsWithBatch = insertRows.map((r) => ({ ...r, batch_id: batch.id }));
-    const { error: insertErr } = await supabase
-      .from("monthly_program_entries")
-      .insert(rowsWithBatch);
-    if (insertErr) {
-      await supabase.from("monthly_program_batches").delete().eq("id", batch.id);
-      return new Response(
-        JSON.stringify({ success: false, message: insertErr.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      // 3) Yeni batch oluştur
+      const titleBase = body?.title?.trim();
+      const batchTitle = titleBase ? `${titleBase} (${mk})` : `${mk} Programı`;
+      const { data: batch, error: batchErr } = await supabase
+        .from("monthly_program_batches")
+        .insert({
+          month_key: mk,
+          title: batchTitle,
+          status: "active",
+          source_file_name: fileName,
+          row_count: rowsForMonth.length,
+          error_count: 0,
+          uploaded_by: userId,
+        })
+        .select("id")
+        .single();
+
+      if (batchErr || !batch) {
+        return new Response("Batch create failed", { status: 500, headers: corsHeaders });
+      }
+      createdBatchIds.push(String(batch.id));
+
+      // 4) Satırları batch_id ile yaz
+      const rowsWithBatch = rowsForMonth.map((r) => ({ ...r, batch_id: batch.id }));
+      const { error: insertErr } = await supabase
+        .from("monthly_program_entries")
+        .insert(rowsWithBatch);
+      if (insertErr) {
+        await supabase.from("monthly_program_batches").delete().eq("id", batch.id);
+        return new Response(
+          JSON.stringify({ success: false, message: insertErr.message }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      totalInserted += rowsWithBatch.length;
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        accepted_rows: rowsWithBatch.length,
+        accepted_rows: totalInserted,
         rejected_rows: 0,
         errors: [],
+        imported_month_keys: monthKeys,
+        created_batch_ids: createdBatchIds,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

@@ -15,7 +15,6 @@ import '../../../../core/ui/responsive.dart';
 import '../../../../shared/providers/auth_provider.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
-import '../../../members_groups/presentation/providers/group_provider.dart';
 import '../../../events/presentation/providers/event_provider.dart';
 
 /// Login Page
@@ -505,34 +504,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           return;
         }
 
-        // Profil ve grup kontrolü yap
         final user = result.user!;
-        
-        // Profil tamamlanmamışsa veya gruba üye değilse onboarding'e git
+
+        ref.invalidate(thisWeekEventsProvider);
+        ref.invalidate(allEventsProvider);
+        ref.invalidate(upcomingEventsProvider);
+
         if (user.firstName == null || user.firstName!.isEmpty) {
           context.goNamed(RouteNames.onboarding);
         } else {
-          // Grup üyeliği kontrolü
-          try {
-            ref.invalidate(userGroupsProvider);
-            // Event provider'larını da invalidate et (giriş yapıldığında filtreleme doğru uygulanması için)
-            ref.invalidate(thisWeekEventsProvider);
-            ref.invalidate(allEventsProvider);
-            ref.invalidate(upcomingEventsProvider);
-            final userGroups = await ref.read(userGroupsProvider.future);
-            if (!mounted) return;
-            
-            if (userGroups.isEmpty) {
-              // Gruba üye değil - onboarding'e yönlendir
-              context.goNamed(RouteNames.onboarding);
-            } else {
-              // Her şey tamam - ana sayfaya git
-              context.go('/home');
-            }
-          } catch (e) {
-            // Grup kontrolü başarısız olursa yine de ana sayfaya git
-            context.go('/home');
-          }
+          context.go('/home');
         }
       }
     } else {
