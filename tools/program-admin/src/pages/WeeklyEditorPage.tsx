@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WeekDayForm } from "../components/WeekDayForm";
 import {
   type DayDraft,
@@ -22,15 +22,17 @@ const emptyDays = (): DayDraft[] =>
     trainingTypeOverride: null,
   }));
 
+function memberKey(ids: Iterable<string>): string {
+  return [...ids].sort().join(",");
+}
+
 export function WeeklyEditorPage() {
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
   const [groups, setGroups] = useState<TrainingGroup[]>([]);
   const [trainingTypes, setTrainingTypes] = useState<TrainingType[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [members, setMembers] = useState<GroupMember[]>([]);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(
-    new Set(),
-  );
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [days, setDays] = useState<DayDraft[]>(emptyDays);
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -41,47 +43,67 @@ export function WeeklyEditorPage() {
     text: string;
   } | null>(null);
 
+  const loadRequestRef = useRef(0);
+
   const selectedGroup = groups.find((g) => g.id === selectedGroupId);
   const isPerformance = selectedGroup?.group_type === "performance";
+  const selectedMemberKey = useMemo(
+    () => memberKey(selectedMemberIds),
+    [selectedMemberIds],
+  );
 
-  const loadWeekData = useCallback(
-    async (clearFirst = false) => {
-      if (!selectedGroupId) return;
+  const loadWeekData = useCallback(async () => {
+    if (!selectedGroupId) return;
 
-      if (isPerformance && selectedMemberIds.size > 1) {
-        if (clearFirst) setDays(emptyDays());
-        setDirty(false);
-        return;
-      }
+    const requestId = ++loadRequestRef.current;
 
-      if (clearFirst) setDays(emptyDays());
-      setLoadingWeek(true);
-      setMessage(null);
-      try {
-        const memberId =
-          isPerformance && selectedMemberIds.size === 1
-            ? [...selectedMemberIds][0]
-            : null;
+    if (isPerformance && selectedMemberIds.length > 1) {
+      setDays(emptyDays());
+      setDirty(false);
+      return;
+    }
 
-        const rows = await getWeeklyProgramEntries({
-          weekStartMonday: weekStart,
-          trainingGroupId: selectedGroupId,
-          memberUserId: memberId,
-        });
-        setDays(rowsToDayDrafts(rows, weekStart));
-        setDirty(false);
-      } catch (err) {
-        setMessage({
-          type: "error",
-          text:
-            err instanceof Error ? err.message : "Haftalık plan yüklenemedi",
-        });
-      } finally {
+    if (isPerformance && selectedMemberIds.length === 0) {
+      setDays(emptyDays());
+      setDirty(false);
+      return;
+    }
+
+    setLoadingWeek(true);
+    try {
+      const memberId =
+        isPerformance && selectedMemberIds.length === 1
+          ? selectedMemberIds[0]
+          : null;
+
+      const rows = await getWeeklyProgramEntries({
+        weekStartMonday: weekStart,
+        trainingGroupId: selectedGroupId,
+        memberUserId: memberId,
+      });
+
+      if (requestId !== loadRequestRef.current) return;
+
+      setDays(rowsToDayDrafts(rows, weekStart));
+      setDirty(false);
+    } catch (err) {
+      if (requestId !== loadRequestRef.current) return;
+      setMessage({
+        type: "error",
+        text:
+          err instanceof Error ? err.message : "Haftalık plan yüklenemedi",
+      });
+    } finally {
+      if (requestId === loadRequestRef.current) {
         setLoadingWeek(false);
       }
-    },
-    [selectedGroupId, weekStart, isPerformance, selectedMemberIds],
-  );
+    }
+  }, [
+    selectedGroupId,
+    weekStart,
+    isPerformance,
+    selectedMemberIds,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,7 +144,6 @@ export function WeeklyEditorPage() {
         const m = await fetchGroupMembers(selectedGroupId);
         if (cancelled) return;
         setMembers(m);
-        setSelectedMemberIds(new Set());
       } catch (err) {
         if (!cancelled) {
           setMessage({
@@ -140,8 +161,8 @@ export function WeeklyEditorPage() {
 
   useEffect(() => {
     if (!selectedGroupId || loading) return;
-    loadWeekData(true);
-  }, [selectedGroupId, weekStart, selectedMemberIds, loading, loadWeekData]);
+    void loadWeekData();
+  }, [selectedGroupId, weekStart, selectedMemberKey, loading, loadWeekData]);
 
   function shiftWeek(delta: number) {
     if (dirty && !confirm("Kaydedilmemiş değişiklikler var. Devam edilsin mi?")) {
@@ -160,8 +181,9 @@ export function WeeklyEditorPage() {
       return;
     }
     setSelectedGroupId(groupId);
-    setSelectedMemberIds(new Set());
+    setSelectedMemberIds([]);
     setDirty(false);
+    setMessage(null);
   }
 
   function toggleMember(userId: string) {
@@ -172,11 +194,12 @@ export function WeeklyEditorPage() {
       return;
     }
     setSelectedMemberIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
-      return next;
+      if (prev.includes(userId)) {
+        return prev.filter((id) => id !== userId);
+      }
+      return [...prev, userId];
     });
+    setMessage(null);
   }
 
   function updateDay(index: number, patch: Partial<DayDraft>) {
@@ -194,8 +217,8 @@ export function WeeklyEditorPage() {
       const prevMonday = new Date(weekStart);
       prevMonday.setDate(prevMonday.getDate() - 7);
       const memberId =
-        isPerformance && selectedMemberIds.size === 1
-          ? [...selectedMemberIds][0]
+        isPerformance && selectedMemberIds.length === 1
+          ? selectedMemberIds[0]
           : null;
       const rows = await getWeeklyProgramEntries({
         weekStartMonday: prevMonday,
@@ -221,7 +244,7 @@ export function WeeklyEditorPage() {
   async function handleSave() {
     if (!selectedGroup) return;
 
-    if (isPerformance && selectedMemberIds.size === 0) {
+    if (isPerformance && selectedMemberIds.length === 0) {
       setMessage({
         type: "warning",
         text: "Performans grubu için en az bir sporcu seçin",
@@ -232,8 +255,7 @@ export function WeeklyEditorPage() {
     setSaving(true);
     setMessage(null);
     const payload = dayDraftsToPayload(days, weekStart);
-    const targets =
-      isPerformance ? [...selectedMemberIds] : [null as string | null];
+    const targets = isPerformance ? selectedMemberIds : [null as string | null];
 
     const allErrors: Array<{ plan_date: string; message: string }> = [];
 
@@ -269,7 +291,7 @@ export function WeeklyEditorPage() {
               ? `${targets.length} sporcu için program kaydedildi`
               : "Program kaydedildi",
         });
-        await loadWeekData(false);
+        await loadWeekData();
       }
     } catch (err) {
       setMessage({
@@ -298,6 +320,11 @@ export function WeeklyEditorPage() {
           </button>
         </div>
         <div className="row">
+          {loadingWeek && (
+            <span className="muted" aria-live="polite">
+              Program yükleniyor…
+            </span>
+          )}
           <button
             type="button"
             className="btn"
@@ -351,7 +378,7 @@ export function WeeklyEditorPage() {
                 <button
                   key={m.user_id}
                   type="button"
-                  className={`chip ${selectedMemberIds.has(m.user_id) ? "selected" : ""}`}
+                  className={`chip ${selectedMemberIds.includes(m.user_id) ? "selected" : ""}`}
                   onClick={() => toggleMember(m.user_id)}
                 >
                   {m.userName}
@@ -361,7 +388,7 @@ export function WeeklyEditorPage() {
                 <span className="muted">Bu grupta üye yok</span>
               )}
             </div>
-            {selectedMemberIds.size > 1 && (
+            {selectedMemberIds.length > 1 && (
               <div className="alert alert-warning">
                 Çoklu sporcu modu: mevcut hafta yüklenmez; girdiğiniz program
                 seçili tüm sporculara kaydedilir.
@@ -371,17 +398,18 @@ export function WeeklyEditorPage() {
         )}
       </div>
 
-      {loadingWeek ? (
-        <p className="muted">Hafta yükleniyor…</p>
-      ) : (
+      <div
+        className={`day-grid-wrapper${loadingWeek ? " day-grid-wrapper--loading" : ""}`}
+        aria-busy={loadingWeek}
+      >
         <WeekDayForm
           weekStartMonday={weekStart}
           days={days}
           trainingTypes={trainingTypes}
-          disabled={saving}
+          disabled={saving || loadingWeek}
           onChange={updateDay}
         />
-      )}
+      </div>
     </div>
   );
 }

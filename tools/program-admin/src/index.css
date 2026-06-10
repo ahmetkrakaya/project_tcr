@@ -236,9 +236,19 @@ textarea {
   color: var(--primary-hover);
 }
 
+.day-grid-wrapper {
+  position: relative;
+}
+
+.day-grid-wrapper--loading .day-grid {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .day-grid {
   display: grid;
   gap: 12px;
+  transition: opacity 0.15s ease;
 }
 
 @media (min-width: 900px) {
