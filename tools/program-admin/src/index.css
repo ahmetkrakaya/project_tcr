@@ -303,6 +303,18 @@ textarea {
   font-size: 0.85rem;
 }
 
+.day-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .day-field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .muted {
   color: var(--text-muted);
   font-size: 0.875rem;
@@ -396,6 +408,18 @@ textarea {
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-bottom: 8px;
+}
+
+.preview-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.preview-chip--lane {
+  background: var(--tertiary-container);
+  color: var(--tertiary);
 }
 
 .preview-chip {

@@ -30,6 +30,7 @@ const emptyDays = (): DayDraft[] =>
     workout: "",
     coachNotes: "",
     trainingTypeOverride: null,
+    trackLane: null,
     workoutDefinition: null,
     persistedCoachText: null,
   }));

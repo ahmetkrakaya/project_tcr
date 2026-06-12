@@ -28,6 +28,8 @@ export type DayDraft = {
   workout: string;
   coachNotes: string;
   trainingTypeOverride: string | null;
+  /** Pist referans kulvarı (1-8). null = pist dışı. */
+  trackLane: number | null;
   /** Kayıtlı yapılandırılmış antrenman; önizleme için (metin alanında gösterilmez). */
   workoutDefinition?: WorkoutDefinition | null;
   /** Sunucudaki kısa metin; UI'da gösterilmez, kayıtta antrenman korunması için. */
@@ -39,6 +41,7 @@ export type ProgramEntryRow = {
   program_content: string | null;
   coach_notes: string | null;
   workout_definition: WorkoutDefinition | null;
+  track_lane: number | null;
   training_types: { name: string; display_name: string } | null;
 };
 
@@ -109,7 +112,7 @@ export async function getWeeklyProgramEntries({
   let query = supabase
     .from("monthly_program_entries")
     .select(
-      "plan_date, program_content, coach_notes, workout_definition, training_types(display_name, name)",
+      "plan_date, program_content, coach_notes, workout_definition, track_lane, training_types(display_name, name)",
     )
     .gte("plan_date", ymd(start))
     .lte("plan_date", ymd(end))
@@ -140,6 +143,7 @@ export async function getWeeklyProgramEntries({
       program_content: row.program_content as string | null,
       coach_notes: row.coach_notes as string | null,
       workout_definition,
+      track_lane: (row.track_lane as number | null) ?? null,
       training_types,
     };
   });
@@ -161,6 +165,7 @@ export function rowsToDayDrafts(
       workout: row?.program_content ?? "",
       coachNotes: row?.coach_notes ?? "",
       trainingTypeOverride: row?.training_types?.name ?? null,
+      trackLane: row?.track_lane ?? null,
       workoutDefinition: hasStructuredWorkout ? row?.workout_definition ?? null : null,
       persistedCoachText: null,
     };
@@ -180,6 +185,7 @@ export function dayDraftsToPayload(days: DayDraft[], weekStartMonday: Date) {
       text: text.length === 0 ? "REST" : text,
       coach_notes: coachNotes.length > 0 ? coachNotes : undefined,
       training_type_override: day.trainingTypeOverride,
+      track_lane: day.trackLane,
     };
   });
 }

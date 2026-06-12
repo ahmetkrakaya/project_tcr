@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/track_lane_calculator.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../../members_groups/data/models/group_model.dart';
 import '../../../members_groups/domain/entities/group_entity.dart';
@@ -18,6 +19,7 @@ class _DayDraft {
   final TextEditingController workoutController;
   final TextEditingController notesController;
   String? trainingTypeOverride;
+  int? trackLane;
 
   _DayDraft({String workout = '', String notes = ''})
       : workoutController = TextEditingController(text: workout),
@@ -33,12 +35,14 @@ class _GroupDraftSnapshot {
   final List<String> workouts;
   final List<String> coachNotes;
   final List<String?> trainingTypes;
+  final List<int?> trackLanes;
   final bool dirty;
 
   const _GroupDraftSnapshot({
     required this.workouts,
     required this.coachNotes,
     required this.trainingTypes,
+    required this.trackLanes,
     this.dirty = false,
   });
 
@@ -52,6 +56,7 @@ class _GroupDraftSnapshot {
       workouts: days.map((d) => d.workoutController.text).toList(),
       coachNotes: days.map((d) => d.notesController.text).toList(),
       trainingTypes: days.map((d) => d.trainingTypeOverride).toList(),
+      trackLanes: days.map((d) => d.trackLane).toList(),
       dirty: dirty,
     );
   }
@@ -151,6 +156,7 @@ class _AdminWeeklyProgramEditorPageState
       _days[i].workoutController.text = snapshot.workouts[i];
       _days[i].notesController.text = snapshot.coachNotes[i];
       _days[i].trainingTypeOverride = snapshot.trainingTypes[i];
+      _days[i].trackLane = snapshot.trackLanes[i];
     }
     _suppressDirty = false;
     _dirty = snapshot.dirty;
@@ -172,6 +178,20 @@ class _AdminWeeklyProgramEditorPageState
       _days[i].notesController.text = row?['coach_notes'] as String? ?? '';
       final tt = row?['training_types'] as Map<String, dynamic>?;
       _days[i].trainingTypeOverride = tt?['name'] as String?;
+      final lane = row?['track_lane'];
+      if (lane is int &&
+          lane >= TrackLaneCalculator.minLane &&
+          lane <= TrackLaneCalculator.maxLane) {
+        _days[i].trackLane = lane;
+      } else if (lane is num) {
+        final v = lane.round();
+        _days[i].trackLane = v >= TrackLaneCalculator.minLane &&
+                v <= TrackLaneCalculator.maxLane
+            ? v
+            : null;
+      } else {
+        _days[i].trackLane = null;
+      }
     }
     _suppressDirty = false;
     _dirty = markDirty;
@@ -325,11 +345,56 @@ class _AdminWeeklyProgramEditorPageState
     });
   }
 
+  Future<void> _pickTrackLane(int dayIndex) async {
+    final items = [
+      const ProgramPickerItem(
+        id: '__none__',
+        label: 'Pistte değil',
+        subtitle: 'Kulvar dönüşümü uygulanmaz',
+        icon: Icons.close_rounded,
+      ),
+      ...List.generate(
+        TrackLaneCalculator.maxLane,
+        (i) {
+          final lane = i + 1;
+          return ProgramPickerItem(
+            id: '$lane',
+            label: 'Kulvar $lane',
+            icon: Icons.track_changes_rounded,
+            accentColor: AppColors.tertiary,
+          );
+        },
+      ),
+    ];
+
+    final current = _days[dayIndex].trackLane?.toString() ?? '__none__';
+    final picked = await showProgramSinglePickerSheet(
+      context: context,
+      title: 'Pist',
+      subtitle: _dayLabels[dayIndex],
+      headerIcon: Icons.track_changes_rounded,
+      items: items,
+      selectedId: current,
+    );
+    if (picked == null) return;
+    setState(() {
+      _days[dayIndex].trackLane =
+          picked == '__none__' ? null : int.tryParse(picked);
+      _dirty = true;
+    });
+  }
+
+  String _trackLaneLabel(int? lane) {
+    if (lane == null) return 'Pistte değil';
+    return 'Kulvar $lane';
+  }
+
   void _clearDays() {
     for (var i = 0; i < 7; i++) {
       _days[i].workoutController.text = '';
       _days[i].notesController.text = '';
       _days[i].trainingTypeOverride = null;
+      _days[i].trackLane = null;
     }
   }
 
@@ -467,6 +532,7 @@ class _AdminWeeklyProgramEditorPageState
           workouts: cached.workouts,
           coachNotes: cached.coachNotes,
           trainingTypes: cached.trainingTypes,
+          trackLanes: cached.trackLanes,
           dirty: true,
         ));
       } else {
@@ -528,6 +594,7 @@ class _AdminWeeklyProgramEditorPageState
         'plan_date': _ymd(_dayDate(i)),
         'text': text.isEmpty ? 'REST' : text,
         'training_type_override': snapshot.trainingTypes[i],
+        'track_lane': snapshot.trackLanes[i],
         ...notesPayload,
       });
     }
@@ -567,6 +634,7 @@ class _AdminWeeklyProgramEditorPageState
         workouts: snapshot.workouts,
         coachNotes: snapshot.coachNotes,
         trainingTypes: snapshot.trainingTypes,
+        trackLanes: snapshot.trackLanes,
         dirty: false,
       );
       _savedDraftKeys.add(cacheKey);
@@ -817,6 +885,7 @@ class _AdminWeeklyProgramEditorPageState
           'plan_date': _ymd(_dayDate(dayIndex)),
           'program_content': '',
           'coach_notes': coachNotes,
+          'track_lane': _days[dayIndex].trackLane,
           'training_groups': {'name': ''},
           'training_types': {'display_name': typeLabel ?? 'Otomatik'},
           'source': 'weekly_editor',
@@ -837,6 +906,7 @@ class _AdminWeeklyProgramEditorPageState
       'program_content': parsed.programContent,
       'workout_definition': parsed.workoutDefinition,
       'coach_notes': coachNotes,
+      'track_lane': _days[dayIndex].trackLane,
       'training_groups': {'name': ''},
       'training_types': {'display_name': typeLabel ?? 'Otomatik'},
       'source': 'weekly_editor',
@@ -1116,11 +1186,26 @@ class _AdminWeeklyProgramEditorPageState
                                   types,
                                 ) ??
                                 'Otomatik';
-                            return ProgramEditorPickerField(
-                              label: 'Antrenman türü',
-                              valueText: typeLabel,
-                              hintText: 'Otomatik',
-                              onTap: () => _pickTrainingType(i, types),
+                            return Row(
+                              children: [
+                                Expanded(
+                                  child: ProgramEditorPickerField(
+                                    label: 'Antrenman türü',
+                                    valueText: typeLabel,
+                                    hintText: 'Otomatik',
+                                    onTap: () => _pickTrainingType(i, types),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ProgramEditorPickerField(
+                                    label: 'Pist',
+                                    valueText: _trackLaneLabel(_days[i].trackLane),
+                                    hintText: 'Pistte değil',
+                                    onTap: () => _pickTrackLane(i),
+                                  ),
+                                ),
+                              ],
                             );
                           },
                           loading: () => const SizedBox.shrink(),

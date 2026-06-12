@@ -1,5 +1,6 @@
 import { parseCoachText } from "../lib/coach_text_parser";
 import type { TrainingType, WorkoutDefinition } from "../lib/api";
+import { adjustSegmentJsonForLane } from "../lib/track_lane";
 
 type WorkoutStep = {
   type?: string;
@@ -47,20 +48,30 @@ function formatDistance(meters: number): string {
   return `${Math.round(meters)} m`;
 }
 
-function segmentDetails(seg: NonNullable<WorkoutStep["segment"]>): string[] {
+function segmentDetails(
+  seg: NonNullable<WorkoutStep["segment"]>,
+  referenceLane: number | null,
+  viewLane: number | null,
+): string[] {
+  const adjusted =
+    referenceLane != null &&
+    viewLane != null &&
+    referenceLane !== viewLane
+      ? adjustSegmentJsonForLane(seg, referenceLane, viewLane)
+      : seg;
   const out: string[] = [];
-  if (seg.target_type === "duration" && seg.duration_seconds) {
-    out.push(formatDuration(seg.duration_seconds));
+  if (adjusted.target_type === "duration" && adjusted.duration_seconds) {
+    out.push(formatDuration(adjusted.duration_seconds));
   }
-  if (seg.distance_meters && seg.distance_meters > 0) {
-    out.push(formatDistance(seg.distance_meters));
+  if (adjusted.distance_meters && adjusted.distance_meters > 0) {
+    out.push(formatDistance(adjusted.distance_meters));
   }
-  if (seg.duration_seconds_min && seg.duration_seconds_max) {
+  if (adjusted.duration_seconds_min && adjusted.duration_seconds_max) {
     out.push(
-      `${formatDuration(seg.duration_seconds_min)}-${formatDuration(seg.duration_seconds_max)}`,
+      `${formatDuration(adjusted.duration_seconds_min)}-${formatDuration(adjusted.duration_seconds_max)}`,
     );
-  } else if (seg.duration_seconds_min) {
-    out.push(formatDuration(seg.duration_seconds_min));
+  } else if (adjusted.duration_seconds_min) {
+    out.push(formatDuration(adjusted.duration_seconds_min));
   }
   if (seg.use_vdot_for_pace) {
     out.push("VDOT pace");
@@ -76,17 +87,43 @@ function segmentDetails(seg: NonNullable<WorkoutStep["segment"]>): string[] {
   return out;
 }
 
-function StepList({ steps, depth = 0 }: { steps: WorkoutStep[]; depth?: number }) {
+function StepList({
+  steps,
+  depth = 0,
+  referenceLane,
+  viewLane,
+}: {
+  steps: WorkoutStep[];
+  depth?: number;
+  referenceLane: number | null;
+  viewLane: number | null;
+}) {
   return (
     <>
       {steps.map((step, i) => (
-        <StepNode key={`${depth}-${i}`} step={step} depth={depth} />
+        <StepNode
+          key={`${depth}-${i}`}
+          step={step}
+          depth={depth}
+          referenceLane={referenceLane}
+          viewLane={viewLane}
+        />
       ))}
     </>
   );
 }
 
-function StepNode({ step, depth }: { step: WorkoutStep; depth: number }) {
+function StepNode({
+  step,
+  depth,
+  referenceLane,
+  viewLane,
+}: {
+  step: WorkoutStep;
+  depth: number;
+  referenceLane: number | null;
+  viewLane: number | null;
+}) {
   if (step.type === "repeat" && step.steps) {
     return (
       <div className="preview-step" style={{ marginLeft: depth * 12 }}>
@@ -94,7 +131,12 @@ function StepNode({ step, depth }: { step: WorkoutStep; depth: number }) {
           <span className="preview-repeat-icon">↻</span>
           {step.repeat_count ?? 1}x tekrar
         </div>
-        <StepList steps={step.steps} depth={depth + 1} />
+        <StepList
+          steps={step.steps}
+          depth={depth + 1}
+          referenceLane={referenceLane}
+          viewLane={viewLane}
+        />
       </div>
     );
   }
@@ -102,7 +144,7 @@ function StepNode({ step, depth }: { step: WorkoutStep; depth: number }) {
   if (step.type === "segment" && step.segment) {
     const seg = step.segment;
     const label = SEGMENT_LABELS[seg.segment_type ?? "main"] ?? "Ana";
-    const details = segmentDetails(seg);
+    const details = segmentDetails(seg, referenceLane, viewLane);
     return (
       <div className="preview-step" style={{ marginLeft: depth * 12 }}>
         <div className="preview-segment">
@@ -134,6 +176,7 @@ type Props = {
   trainingTypeOverride: string | null;
   trainingTypes: TrainingType[];
   workoutDefinition?: WorkoutDefinition | null;
+  trackLane?: number | null;
   planDateLabel?: string;
 };
 
@@ -143,6 +186,7 @@ export function ProgramPreviewCard({
   trainingTypeOverride,
   trainingTypes,
   workoutDefinition,
+  trackLane = null,
   planDateLabel,
 }: Props) {
   const typeLabel =
@@ -193,12 +237,23 @@ export function ProgramPreviewCard({
     return (
       <div className="preview-card">
         {planDateLabel && <div className="preview-meta">{planDateLabel}</div>}
-        <span className="preview-chip">{typeLabel}</span>
+        <div className="preview-chip-row">
+          <span className="preview-chip">{typeLabel}</span>
+          {trackLane != null && (
+            <span className="preview-chip preview-chip--lane">
+              Kulvar {trackLane}
+            </span>
+          )}
+        </div>
         {coachNotes.trim() && <p className="preview-notes">{coachNotes}</p>}
         {steps.length > 0 && (
           <div className="preview-structure">
             <div className="preview-structure-label">Antrenman yapısı</div>
-            <StepList steps={steps} />
+            <StepList
+              steps={steps}
+              referenceLane={trackLane}
+              viewLane={trackLane}
+            />
           </div>
         )}
       </div>
@@ -208,11 +263,22 @@ export function ProgramPreviewCard({
   return (
     <div className="preview-card">
       {planDateLabel && <div className="preview-meta">{planDateLabel}</div>}
-      <span className="preview-chip">{typeLabel}</span>
+      <div className="preview-chip-row">
+        <span className="preview-chip">{typeLabel}</span>
+        {trackLane != null && (
+          <span className="preview-chip preview-chip--lane">
+            Kulvar {trackLane}
+          </span>
+        )}
+      </div>
       {coachNotes.trim() && <p className="preview-notes">{coachNotes}</p>}
       <div className="preview-structure">
         <div className="preview-structure-label">Antrenman yapısı</div>
-        <StepList steps={storedSteps} />
+        <StepList
+          steps={storedSteps}
+          referenceLane={trackLane}
+          viewLane={trackLane}
+        />
       </div>
     </div>
   );

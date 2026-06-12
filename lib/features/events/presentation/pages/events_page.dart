@@ -732,7 +732,10 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             ...dayRows.map(
               (r) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: AdminMonthlyProgramEntryCard(row: r),
+                child: AdminMonthlyProgramEntryCard(
+                  row: r,
+                  enableLanePicker: true,
+                ),
               ),
             ),
           ],

@@ -1,5 +1,6 @@
 import type { DayDraft, TrainingType } from "../lib/api";
 import { DAY_LABELS, dayDate, ymd } from "../lib/dates";
+import { TRACK_LANE_OPTIONS } from "../lib/track_lane";
 import { dayHasPreviewContent, ProgramPreviewCard } from "./ProgramPreviewCard";
 
 type Props = {
@@ -74,25 +75,48 @@ export function WeekDayForm({
                   }
                 />
               </label>
-              <label>
-                Antrenman türü
-                <select
-                  value={day.trainingTypeOverride ?? ""}
-                  disabled={fieldsDisabled}
-                  onChange={(e) =>
-                    onChange(index, {
-                      trainingTypeOverride: e.target.value || null,
-                    })
-                  }
-                >
-                  <option value="">Otomatik (metinden)</option>
-                  {trainingTypes.map((t) => (
-                    <option key={t.id} value={t.name}>
-                      {t.display_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="day-field-row">
+                <label>
+                  Antrenman türü
+                  <select
+                    value={day.trainingTypeOverride ?? ""}
+                    disabled={fieldsDisabled}
+                    onChange={(e) =>
+                      onChange(index, {
+                        trainingTypeOverride: e.target.value || null,
+                      })
+                    }
+                  >
+                    <option value="">Otomatik (metinden)</option>
+                    {trainingTypes.map((t) => (
+                      <option key={t.id} value={t.name}>
+                        {t.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Pist
+                  <select
+                    value={day.trackLane ?? ""}
+                    disabled={fieldsDisabled}
+                    onChange={(e) =>
+                      onChange(index, {
+                        trackLane: e.target.value
+                          ? Number(e.target.value)
+                          : null,
+                      })
+                    }
+                  >
+                    <option value="">Pistte değil</option>
+                    {TRACK_LANE_OPTIONS.map((lane) => (
+                      <option key={lane} value={lane}>
+                        Kulvar {lane}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               {showInlinePreview && dayHasPreviewContent(day) && (
                   <div className="day-inline-preview">
                     <div className="day-inline-preview-label">Önizleme</div>
@@ -102,6 +126,7 @@ export function WeekDayForm({
                       trainingTypeOverride={day.trainingTypeOverride}
                       trainingTypes={trainingTypes}
                       workoutDefinition={day.workoutDefinition}
+                      trackLane={day.trackLane}
                     />
                   </div>
                 )}

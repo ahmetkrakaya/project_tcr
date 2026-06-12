@@ -17,6 +17,7 @@ type DayInput = {
   text?: string;
   coach_notes?: string;
   training_type_override?: string | null;
+  track_lane?: number | null;
 };
 
 async function getOrCreateWeeklyBatch(
@@ -259,6 +260,11 @@ serve(async (req) => {
         continue;
       }
 
+      let trackLane: number | null = null;
+      if (typeof day.track_lane === "number" && day.track_lane >= 1 && day.track_lane <= 8) {
+        trackLane = Math.round(day.track_lane);
+      }
+
       const row = {
         batch_id: batchId,
         plan_date: planDate,
@@ -269,6 +275,7 @@ serve(async (req) => {
         program_content: parsed.programContent,
         workout_definition: parsed.workoutDefinition,
         coach_notes: day.coach_notes?.trim() || null,
+        track_lane: trackLane,
         source: "weekly_editor",
         sort_order: 0,
       };
