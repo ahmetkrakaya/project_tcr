@@ -356,6 +356,37 @@ function computeLapTimesForGarmin(
   return { laneNumber, mainLapSec, recoveryLapSec };
 }
 
+function lapInfoForViewLane(
+  definition: TcrWorkoutDefinition,
+  vdotCtx: VdotContext,
+  viewLane: number | null | undefined,
+  lane1TrackKm = 0.4,
+): { laneNumber?: number; mainLapSec?: number; recoveryLapSec?: number } {
+  if (viewLane == null || viewLane < 1) return {};
+
+  const trackKm = trackLengthKmForLane(lane1TrackKm, viewLane);
+  if (!trackKm || trackKm <= 0) return { laneNumber: viewLane };
+
+  const { main, recovery } = pickRepresentativeSegments(definition);
+  if (!main) return { laneNumber: viewLane };
+
+  const mainPaceSec = segmentPaceSecFromSegment(main, vdotCtx);
+  if (!mainPaceSec || mainPaceSec <= 0) return { laneNumber: viewLane };
+
+  const recoveryPaceSec = recovery
+    ? segmentPaceSecFromSegment(recovery, vdotCtx)
+    : null;
+
+  return {
+    laneNumber: viewLane,
+    mainLapSec: trackKm * mainPaceSec,
+    recoveryLapSec:
+      recoveryPaceSec && recoveryPaceSec > 0
+        ? trackKm * recoveryPaceSec
+        : undefined,
+  };
+}
+
 function buildGarminDescription(options: {
   laneNumber?: number;
   mainLapSec?: number;
@@ -997,7 +1028,11 @@ async function handleSinglePush(
   supabase: ReturnType<typeof createClient>,
   body: any
 ): Promise<Response> {
-  const { user_id, program_id } = body;
+  const { user_id, program_id, workout_definition: workoutDefinitionOverride, view_lane: viewLaneRaw } = body;
+  const viewLane =
+    typeof viewLaneRaw === "number" && viewLaneRaw >= 1 && viewLaneRaw <= 8
+      ? Math.round(viewLaneRaw)
+      : null;
 
   const { data: integration } = await supabase
     .from("user_integrations")
@@ -1028,6 +1063,7 @@ async function handleSinglePush(
       id,
       plan_date,
       workout_definition,
+      track_lane,
       training_type_id,
       program_content,
       training_groups(name),
@@ -1053,7 +1089,7 @@ async function handleSinglePush(
   const dayName = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"][planDate.getDay()];
   const workoutName = `${dayName} - ${singleTypeDisplayName}`;
 
-  const singleRawDef = program.workout_definition;
+  const singleRawDef = workoutDefinitionOverride ?? program.workout_definition;
   let singleDef: TcrWorkoutDefinition;
   if (Array.isArray(singleRawDef)) {
     singleDef = { steps: singleRawDef };
@@ -1072,12 +1108,13 @@ async function handleSinglePush(
     offsetMax: singleOffsetMax,
   };
 
-  const singleLapInfo = computeLapTimesForGarmin(
-    singleDef,
-    singleVdotCtx,
-    null,
-    null,
-  );
+  const effectiveViewLane =
+    viewLane ??
+    (typeof program.track_lane === "number" ? program.track_lane : null);
+
+  const singleLapInfo = effectiveViewLane != null
+    ? lapInfoForViewLane(singleDef, singleVdotCtx, effectiveViewLane)
+    : computeLapTimesForGarmin(singleDef, singleVdotCtx, null, null);
 
   const singleDescription = buildGarminDescription(singleLapInfo);
 
@@ -1106,7 +1143,7 @@ async function handleSinglePush(
   const scheduleDateStr = program.plan_date;
   const scheduleId = await createGarminSchedule(accessToken, workoutId, scheduleDateStr);
 
-  const singleDefHash = await hashDefinition(program.workout_definition);
+  const singleDefHash = await hashDefinition(singleRawDef);
 
   await supabase.from("garmin_sent_workouts").upsert(
     {

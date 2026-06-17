@@ -49,7 +49,7 @@ class HealthConnectWorkoutSyncService {
     final userVdot = _ref.read(userVdotProvider);
 
     for (final item in items) {
-      final key = weeklyProgramSyncKey(item.entryId);
+      final key = weeklyProgramSyncKey(item.entryId, viewLane: item.viewLane);
       if (sentKeys.contains(key)) continue;
 
       payloads.add(
@@ -79,6 +79,33 @@ class HealthConnectWorkoutSyncService {
     for (final p in limited) {
       sentKeys.add(p.id);
     }
+    await _storage.saveSentKeys(sentKeys);
+  }
+
+  Future<void> syncSingleMonthlyProgram(WeeklyProgramDeviceSyncItem item) async {
+    final supported = await HealthConnectChannel.isSupported();
+    if (!supported) {
+      throw Exception('Health Connect bu cihazda desteklenmiyor');
+    }
+
+    final userVdot = _ref.read(userVdotProvider);
+    final key = weeklyProgramSyncKey(item.entryId, viewLane: item.viewLane);
+    final payload = HealthConnectWorkoutPayload(
+      id: key,
+      title: item.title,
+      scheduledAt: item.scheduledAt,
+      definition: item.definition,
+      trainingTypeName: item.trainingTypeName,
+      userVdot: userVdot,
+      thresholdOffsetMinSeconds: item.thresholdOffsetMinSeconds,
+      thresholdOffsetMaxSeconds: item.thresholdOffsetMaxSeconds,
+    );
+
+    await HealthConnectChannel.syncScheduledWorkouts(payloads: [payload]);
+
+    final sentKeys = await _storage.loadSentKeys();
+    sentKeys.removeWhere((k) => k.startsWith('monthly:${item.entryId}'));
+    sentKeys.add(key);
     await _storage.saveSentKeys(sentKeys);
   }
 }

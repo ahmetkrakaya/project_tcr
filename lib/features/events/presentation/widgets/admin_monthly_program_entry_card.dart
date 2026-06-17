@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/track_lane_calculator.dart';
 import '../../../../shared/widgets/app_card.dart';
+import '../../../integrations/shared/monthly_program_device_sync_service.dart';
+import '../../../integrations/shared/weekly_program_device_sync.dart';
 import '../../../workout/data/models/workout_model.dart';
 import '../../../workout/domain/entities/workout_entity.dart';
 import '../../../workout/utils/segment_target_resolver.dart';
 
 /// Aylık plan satırı: özet + yapılandırılmış antrenman adımları.
 /// [enableLanePicker] true ise sporcu pist kulvarını değiştirip pace/süre dönüşümü görebilir.
-class AdminMonthlyProgramEntryCard extends StatefulWidget {
+class AdminMonthlyProgramEntryCard extends ConsumerStatefulWidget {
   final Map<String, dynamic> row;
   final bool enableLanePicker;
 
@@ -21,12 +24,14 @@ class AdminMonthlyProgramEntryCard extends StatefulWidget {
   });
 
   @override
-  State<AdminMonthlyProgramEntryCard> createState() =>
+  ConsumerState<AdminMonthlyProgramEntryCard> createState() =>
       _AdminMonthlyProgramEntryCardState();
 }
 
-class _AdminMonthlyProgramEntryCardState extends State<AdminMonthlyProgramEntryCard> {
+class _AdminMonthlyProgramEntryCardState
+    extends ConsumerState<AdminMonthlyProgramEntryCard> {
   int? _viewLane;
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -84,18 +89,27 @@ class _AdminMonthlyProgramEntryCardState extends State<AdminMonthlyProgramEntryC
   }
 
   String? _splitLine(WorkoutSegmentEntity s) {
-    if (s.targetType != WorkoutTargetType.distance) return null;
     final split = effectiveSplitDisplay(s);
     if (split != null) return 'Süre $split';
     return null;
+  }
+
+  String? _lapTimeLine(WorkoutSegmentEntity s, int viewLane) {
+    final range = TrackLaneCalculator.lapTimeRangeForSegment(s, viewLane);
+    if (range == null) return null;
+    final (minSec, maxSec) = range;
+    if (minSec == maxSec) {
+      return 'tur ~${_formatDurationSec(minSec)}';
+    }
+    return 'tur ~${_formatDurationSec(minSec)} – ${_formatDurationSec(maxSec)}';
   }
 
   WorkoutDefinitionEntity? _displayDefinition(WorkoutDefinitionEntity? def) {
     if (def == null) return null;
     final ref = _referenceLane;
     final view = _viewLane;
-    if (ref == null || view == null || ref == view) return def;
-    return TrackLaneCalculator.adjustDefinitionForLane(
+    if (ref == null || view == null) return def;
+    return TrackLaneCalculator.prepareForTrackView(
       def,
       referenceLane: ref,
       viewLane: view,
@@ -109,47 +123,64 @@ class _AdminMonthlyProgramEntryCardState extends State<AdminMonthlyProgramEntryC
     final picked = await showModalBottomSheet<int>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) {
+        final maxHeight = MediaQuery.sizeOf(ctx).height * 0.72;
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-                child: Text(
-                  'Pist kulvarı',
-                  style: AppTypography.titleSmall.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                child: Text(
-                  'Koç $ref. kulvar için hazırladı. Farklı kulvarda koşacaksanız seçin; tempo aynı kalır, süreler güncellenir.',
-                  style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
-                ),
-              ),
-              for (var lane = TrackLaneCalculator.minLane;
-                  lane <= TrackLaneCalculator.maxLane;
-                  lane++)
-                ListTile(
-                  leading: Icon(
-                    Icons.track_changes,
-                    color: lane == _viewLane ? AppColors.tertiary : AppColors.neutral500,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                  child: Text(
+                    'Pist kulvarı',
+                    style: AppTypography.titleSmall.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                  title: Text('Kulvar $lane'),
-                  trailing: lane == ref
-                      ? Text(
-                          'Koç',
-                          style: AppTypography.labelSmall.copyWith(
-                            color: AppColors.neutral500,
-                          ),
-                        )
-                      : null,
-                  selected: lane == _viewLane,
-                  onTap: () => Navigator.pop(ctx, lane),
                 ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: Text(
+                    'Koç $ref. kulvar için hazırladı. Farklı kulvarda koşacaksanız seçin; tempo aynı kalır, süreler güncellenir.',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.neutral600,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: TrackLaneCalculator.maxLane,
+                    itemBuilder: (context, index) {
+                      final lane = index + 1;
+                      return ListTile(
+                        leading: Icon(
+                          Icons.track_changes,
+                          color: lane == _viewLane
+                              ? AppColors.tertiary
+                              : AppColors.neutral500,
+                        ),
+                        title: Text('Kulvar $lane'),
+                        trailing: lane == ref
+                            ? Text(
+                                'Koç',
+                                style: AppTypography.labelSmall.copyWith(
+                                  color: AppColors.neutral500,
+                                ),
+                              )
+                            : null,
+                        selected: lane == _viewLane,
+                        onTap: () => Navigator.pop(ctx, lane),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -157,6 +188,61 @@ class _AdminMonthlyProgramEntryCardState extends State<AdminMonthlyProgramEntryC
 
     if (picked != null && mounted) {
       setState(() => _viewLane = picked);
+    }
+  }
+
+  Future<void> _syncToDevices() async {
+    if (_isSyncing) return;
+
+    final entryId = widget.row['id'] as String?;
+    if (entryId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bu antrenman kaydı senkronize edilemiyor')),
+      );
+      return;
+    }
+
+    setState(() => _isSyncing = true);
+    try {
+      final result = await ref.read(monthlyProgramDeviceSyncServiceProvider).syncEntry(
+            row: widget.row,
+            viewLane: _viewLane ?? _referenceLane,
+          );
+
+      if (!mounted) return;
+
+      final buffer = StringBuffer();
+      if (result.syncedTargets.isNotEmpty) {
+        buffer.write('Güncellendi: ${result.syncedTargets.join(', ')}');
+      }
+      if (result.errors.isNotEmpty) {
+        if (buffer.isNotEmpty) buffer.write('\n');
+        buffer.write(result.errors.join('\n'));
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            buffer.isEmpty ? 'Senkronizasyon tamamlandı' : buffer.toString(),
+          ),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: result.hasError && !result.hasSuccess
+              ? AppColors.error
+              : null,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
     }
   }
 
@@ -183,6 +269,14 @@ class _AdminMonthlyProgramEntryCardState extends State<AdminMonthlyProgramEntryC
         programContent.isNotEmpty && !hasStructuredWorkout;
     final referenceLane = _referenceLane;
     final showLane = referenceLane != null;
+    final syncService = ref.watch(monthlyProgramDeviceSyncServiceProvider);
+    final canSyncDevices = widget.enableLanePicker &&
+        hasStructuredWorkout &&
+        monthlyRowHasStructuredWorkout(row) &&
+        row['id'] != null;
+    final deviceTargets = syncService.availableTargetLabels;
+    final laneChanged =
+        _viewLane != null && referenceLane != null && _viewLane != referenceLane;
 
     return AppCard(
       padding: const EdgeInsets.all(14),
@@ -243,10 +337,13 @@ class _AdminMonthlyProgramEntryCardState extends State<AdminMonthlyProgramEntryC
                   ],
                 ),
               ),
-              if (showLane) ...[
-                const SizedBox(width: 8),
-                _laneBadge(referenceLane),
-              ],
+              if (showLane)
+                Flexible(
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: _laneBadge(referenceLane),
+                  ),
+                ),
             ],
           ),
           if (coachNotes.isNotEmpty) ...[
@@ -281,6 +378,54 @@ class _AdminMonthlyProgramEntryCardState extends State<AdminMonthlyProgramEntryC
             ),
             const SizedBox(height: 10),
             ..._buildSteps(def.steps, 0),
+          ],
+          if (canSyncDevices) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isSyncing || deviceTargets.isEmpty ? null : _syncToDevices,
+                icon: _isSyncing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync, size: 18),
+                label: Text(
+                  laneChanged
+                      ? 'Kulvar ${_viewLane} ile cihazlara senkronize et'
+                      : 'Cihazlara senkronize et',
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.tertiary,
+                  side: BorderSide(color: AppColors.tertiary.withValues(alpha: 0.45)),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                ),
+              ),
+            ),
+            if (deviceTargets.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Bağlı cihaz yok. Bağlantılar ekranından Garmin veya saat uygulamanızı bağlayın.',
+                  style: AppTypography.labelSmall.copyWith(
+                    color: AppColors.neutral500,
+                    height: 1.35,
+                  ),
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Hedef: ${deviceTargets.join(', ')} · Seçili kulvar ve sürelerle güncellenir',
+                  style: AppTypography.labelSmall.copyWith(
+                    color: AppColors.neutral500,
+                    height: 1.35,
+                  ),
+                ),
+              ),
           ],
         ],
       ),
@@ -372,11 +517,14 @@ class _AdminMonthlyProgramEntryCardState extends State<AdminMonthlyProgramEntryC
           : null;
       final split = _splitLine(s);
       final pace = _paceLine(s);
+      final viewLane = _viewLane ?? _referenceLane;
+      final lapTime = viewLane != null ? _lapTimeLine(s, viewLane) : null;
       final details = <String>[];
       if (dur != null) details.add(dur);
       if (dist != null) details.add(dist);
       if (split != null) details.add(split);
       if (pace != null) details.add(pace);
+      if (lapTime != null) details.add(lapTime);
 
       return Padding(
         padding: pad,
@@ -408,11 +556,30 @@ class _AdminMonthlyProgramEntryCardState extends State<AdminMonthlyProgramEntryC
                     ),
                   ),
                   if (details.isNotEmpty)
-                    Text(
-                      details.join(' · '),
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral600,
-                        height: 1.35,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Wrap(
+                        spacing: 0,
+                        runSpacing: 2,
+                        children: [
+                          for (var i = 0; i < details.length; i++) ...[
+                            if (i > 0)
+                              Text(
+                                ' · ',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.neutral600,
+                                  height: 1.35,
+                                ),
+                              ),
+                            Text(
+                              details[i],
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.neutral600,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                 ],

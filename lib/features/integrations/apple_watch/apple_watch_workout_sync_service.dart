@@ -53,7 +53,7 @@ class AppleWatchWorkoutSyncService {
     final userVdot = _ref.read(userVdotProvider);
 
     for (final item in items) {
-      final key = weeklyProgramSyncKey(item.entryId);
+      final key = weeklyProgramSyncKey(item.entryId, viewLane: item.viewLane);
       if (sentKeys.contains(key)) continue;
 
       payloads.add(
@@ -83,6 +83,29 @@ class AppleWatchWorkoutSyncService {
     for (final p in limited) {
       sentKeys.add(p.id);
     }
+    await _storage.saveSentKeys(sentKeys);
+  }
+
+  /// Kulvar ayarlı tek plan satırını Apple Watch'a gönderir (önceki kulvar sürümünün üzerine yazar).
+  Future<void> syncSingleMonthlyProgram(WeeklyProgramDeviceSyncItem item) async {
+    final userVdot = _ref.read(userVdotProvider);
+    final key = weeklyProgramSyncKey(item.entryId, viewLane: item.viewLane);
+    final payload = AppleWatchScheduledWorkoutPayload(
+      id: key,
+      title: item.title,
+      scheduledAt: item.scheduledAt,
+      definition: item.definition,
+      trainingTypeName: item.trainingTypeName,
+      userVdot: userVdot,
+      thresholdOffsetMinSeconds: item.thresholdOffsetMinSeconds,
+      thresholdOffsetMaxSeconds: item.thresholdOffsetMaxSeconds,
+    );
+
+    await sendSingleProgram(payload: payload);
+
+    final sentKeys = await _storage.loadSentKeys();
+    sentKeys.removeWhere((k) => k.startsWith('monthly:${item.entryId}'));
+    sentKeys.add(key);
     await _storage.saveSentKeys(sentKeys);
   }
 

@@ -185,5 +185,60 @@ soğuma 1k 5:50/6:00''';
           ((cooldown.workoutDefinition!['steps'] as List).first as Map)['segment'] as Map;
       expect(cooldownSeg['segment_type'], 'cooldown');
     });
+
+    test('duration interval repeats with dk unit', () {
+      final r = parseCoachText('30dk 6:30/7:00 + 5x4dk (5:20p) R200');
+      expect(r.ok, isTrue, reason: r.error);
+      final steps = r.workoutDefinition!['steps'] as List;
+      expect(steps.length, 2);
+
+      final warmup = (steps[0] as Map)['segment'] as Map;
+      expect(warmup['duration_seconds'], 1800);
+      expect(warmup['pace_seconds_per_km_min'], 390);
+      expect(warmup['pace_seconds_per_km_max'], 420);
+
+      final repeat = steps[1] as Map;
+      expect(repeat['repeat_count'], 5);
+      final inner = repeat['steps'] as List;
+      expect(inner.length, 2);
+      final main = (inner[0] as Map)['segment'] as Map;
+      expect(main['target_type'], 'duration');
+      expect(main['duration_seconds'], 240);
+      expect(main['pace_seconds_per_km_min'], 320);
+      expect(main['pace_seconds_per_km_max'], 320);
+      final recovery = (inner[1] as Map)['segment'] as Map;
+      expect(recovery['distance_meters'], 200);
+    });
+
+    test('pace notation variants parse consistently', () {
+      const paceInputs = [
+        '4x500 (4:30p) R200',
+        '4x500 4:30 R200',
+        '4x500 (4:30) R200',
+        '15dk 4:30',
+        '15dk 4:30p',
+        '15dk (4:30p)',
+        '500m 4:30',
+        '500m 4:30p',
+        '500m (4:30p)',
+      ];
+      for (final input in paceInputs) {
+        final r = parseCoachText(input);
+        expect(r.ok, isTrue, reason: '${input}: ${r.error}');
+        final seg = _firstMainSegment(r.workoutDefinition!);
+        expect(seg['pace_seconds_per_km_min'], 270, reason: input);
+        expect(seg['pace_seconds_per_km_max'], 270, reason: input);
+      }
+    });
   });
+}
+
+Map _firstMainSegment(Map<String, dynamic> workoutDefinition) {
+  final steps = workoutDefinition['steps'] as List;
+  final first = steps.first as Map;
+  if (first['type'] == 'repeat') {
+    final inner = (first['steps'] as List).first as Map;
+    return inner['segment'] as Map;
+  }
+  return first['segment'] as Map;
 }

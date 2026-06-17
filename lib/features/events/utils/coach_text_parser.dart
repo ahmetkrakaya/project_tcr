@@ -87,9 +87,17 @@ int? parsePaceSeconds(String raw) {
   return mm * 60 + ss;
 }
 
+String _normalizePaceRaw(String raw) {
+  var t = raw.trim();
+  if (t.startsWith('(') && t.endsWith(')')) {
+    t = t.substring(1, t.length - 1).trim();
+  }
+  return t.replaceAll(RegExp(r'\s*p\s*$', caseSensitive: false), '');
+}
+
 CoachPaceSpec? parsePaceSpec(String? raw) {
   if (raw == null || raw.trim().isEmpty) return null;
-  final t = raw.trim().toLowerCase();
+  final t = _normalizePaceRaw(raw).toLowerCase();
   if (t == 'vdot') return const CoachPaceVdot();
   final rangeMatch = RegExp(
     r'^(\d{1,2}:\d{2})\s*[\/\-]\s*(\d{1,2}:\d{2})$',
@@ -177,6 +185,24 @@ bool _isLikelySplitPlusPace(int splitSec, int paceSecPerKm, int distM) {
 
 bool _isLikelyPaceRange(int aSec, int bSec) {
   return aSec >= 150 && bSec >= 150 && aSec <= 600 && bSec <= 600;
+}
+
+bool _isLikelySplitForDistance(int splitSec, int distM) {
+  if (distM <= 0) return false;
+  final km = distM / 1000;
+  final minSplit = (120 * km).round();
+  final maxSplit = (480 * km).round();
+  return splitSec >= minSplit && splitSec <= maxSplit;
+}
+
+CoachRepTarget _parseBareTimeTarget(int sec, int distM) {
+  if (_isLikelySplitForDistance(sec, distM)) {
+    return CoachRepTarget(splitSec: sec);
+  }
+  if (sec >= 150 && sec <= 600) {
+    return CoachRepTarget(pace: CoachPaceSingle(sec));
+  }
+  return CoachRepTarget(splitSec: sec);
 }
 
 CoachRepTarget? parseRepTarget(String? parenRaw, int distM) {
@@ -280,7 +306,10 @@ CoachRepTarget? parseRepTarget(String? parenRaw, int distM) {
   if (splitSingle != null) {
     final sec = parsePaceSeconds(splitSingle.group(1)!);
     if (sec != null) {
-      return CoachRepTarget(splitSec: sec);
+      if (RegExp(r'dk\s*$', caseSensitive: false).hasMatch(raw)) {
+        return CoachRepTarget(splitSec: sec);
+      }
+      return _parseBareTimeTarget(sec, distM);
     }
   }
 
@@ -290,10 +319,10 @@ CoachRepTarget? parseRepTarget(String? parenRaw, int distM) {
     if (pace != null) return CoachRepTarget(pace: pace);
   }
 
-  final cleaned = raw.replaceAll(RegExp(r'\s*p\s*$', caseSensitive: false), '');
+  final cleaned = _normalizePaceRaw(raw);
   final single = parsePaceSeconds(cleaned);
   if (single != null) {
-    return CoachRepTarget(splitSec: single);
+    return _parseBareTimeTarget(single, distM);
   }
 
   return null;
@@ -349,13 +378,15 @@ sealed class _ParsedBlock {}
 
 class _IntervalBlock extends _ParsedBlock {
   final int repeat;
-  final int distanceM;
+  final int? distanceM;
+  final int? durationMinutes;
   final CoachRepTarget? target;
   final int? recoveryM;
   final int? recoverySec;
   _IntervalBlock({
     required this.repeat,
-    required this.distanceM,
+    this.distanceM,
+    this.durationMinutes,
     this.target,
     this.recoveryM,
     this.recoverySec,
@@ -397,33 +428,41 @@ int _distanceMetersFromValue(double distVal, String? unitRaw) {
 _IntervalBlock? _parseIntervalBlock(String block) {
   final normalized = _normalizeBlock(block);
   final m = RegExp(
-    r'^(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(m|k|km)?(?:\s*\(([^)]+)\))?(?:\s+R\s*(\d+(?:\.\d+)?)\s*(m|k|km)?)?(?:\s+(\d{1,2}:\d{2}))?',
+    r'^(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(dk|m|k|km)?(?:\s*(?:\(([^)]+)\)|(\d{1,2}:\d{2})p?))?(?:\s+R\s*(\d+(?:\.\d+)?)\s*(m|k|km)?)?(?:\s+(\d{1,2}:\d{2}))?',
     caseSensitive: false,
   ).firstMatch(normalized);
   if (m == null) return null;
 
   final repeat = int.parse(m.group(1)!);
-  final distVal = double.parse(m.group(2)!);
-  final distM = _distanceMetersFromValue(distVal, m.group(3));
-  final target = parseRepTarget(m.group(4), distM);
+  final value = double.parse(m.group(2)!);
+  final unit = m.group(3)?.toLowerCase();
+  int? distanceM;
+  int? durationMinutes;
+  if (unit == 'dk') {
+    durationMinutes = value.round();
+  } else {
+    distanceM = _distanceMetersFromValue(value, unit);
+  }
+  final target = parseRepTarget(m.group(4) ?? m.group(5), distanceM ?? 0);
 
   int? recoveryM;
   int? recoverySec;
-  if (m.group(5) != null) {
-    final rv = double.parse(m.group(5)!);
-    final ru = (m.group(6) ?? 'm').toLowerCase();
+  if (m.group(6) != null) {
+    final rv = double.parse(m.group(6)!);
+    final ru = (m.group(7) ?? 'm').toLowerCase();
     recoveryM = _parseDistanceMeters(
       rv,
       ru == 'k' || ru == 'km' ? 'k' : ru,
     );
   }
-  if (m.group(7) != null) {
-    recoverySec = parsePaceSeconds(m.group(7)!);
+  if (m.group(8) != null) {
+    recoverySec = parsePaceSeconds(m.group(8)!);
   }
 
   return _IntervalBlock(
     repeat: repeat,
-    distanceM: distM,
+    distanceM: distanceM,
+    durationMinutes: durationMinutes,
     target: target,
     recoveryM: recoveryM,
     recoverySec: recoverySec,
@@ -463,6 +502,7 @@ _IntervalBlock? _parseStandaloneRepBlock(String block) {
   return _IntervalBlock(
     repeat: 1,
     distanceM: distM,
+    durationMinutes: null,
     target: target,
     recoveryM: recoveryM,
     recoverySec: recoverySec,
@@ -562,7 +602,13 @@ List<Map<String, dynamic>> _blockToSteps(
     return [buildDistanceSegment(kind, block.distanceM, block.pace)];
   }
   final b = block as _IntervalBlock;
-  final main = buildDistanceSegment(CoachSegmentKind.main, b.distanceM, b.target);
+  final main = b.distanceM != null
+      ? buildDistanceSegment(CoachSegmentKind.main, b.distanceM!, b.target)
+      : buildDurationSegment(
+          CoachSegmentKind.main,
+          (b.durationMinutes ?? 0) * 60,
+          b.target?.pace,
+        );
   final inner = <Map<String, dynamic>>[main];
   if (b.recoveryM != null && b.recoveryM! > 0) {
     inner.add(

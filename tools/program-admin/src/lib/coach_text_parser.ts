@@ -50,9 +50,17 @@ export function parsePaceSeconds(raw: string): number | null {
   return mm * 60 + ss;
 }
 
+function normalizePaceRaw(raw: string): string {
+  let t = raw.trim();
+  if (t.startsWith("(") && t.endsWith(")")) {
+    t = t.slice(1, -1).trim();
+  }
+  return t.replace(/\s*p\s*$/i, "");
+}
+
 export function parsePaceSpec(raw: string | null | undefined): PaceSpec | null {
   if (!raw) return null;
-  const t = raw.trim().toLowerCase();
+  const t = normalizePaceRaw(raw).toLowerCase();
   if (t === "vdot") return { mode: "vdot" };
   const rangeMatch = t.match(/^(\d{1,2}:\d{2})\s*[\/\-]\s*(\d{1,2}:\d{2})$/);
   if (rangeMatch) {
@@ -142,6 +150,24 @@ function isLikelyPaceRange(aSec: number, bSec: number): boolean {
   return aSec >= 150 && bSec >= 150 && aSec <= 600 && bSec <= 600;
 }
 
+function isLikelySplitForDistance(splitSec: number, distM: number): boolean {
+  if (distM <= 0) return false;
+  const km = distM / 1000;
+  const minSplit = Math.round(120 * km);
+  const maxSplit = Math.round(480 * km);
+  return splitSec >= minSplit && splitSec <= maxSplit;
+}
+
+function parseBareTimeTarget(sec: number, distM: number): RepTarget {
+  if (isLikelySplitForDistance(sec, distM)) {
+    return { splitSec: sec };
+  }
+  if (sec >= 150 && sec <= 600) {
+    return { pace: { mode: "single", secPerKm: sec } };
+  }
+  return { splitSec: sec };
+}
+
 function parseRepTarget(parenRaw: string | undefined, distM: number): RepTarget | null {
   const raw = parenRaw?.trim() ?? "";
   if (!raw) return null;
@@ -206,7 +232,10 @@ function parseRepTarget(parenRaw: string | undefined, distM: number): RepTarget 
   if (splitSingle) {
     const sec = parsePaceSeconds(splitSingle[1]);
     if (sec != null) {
-      return { splitSec: sec };
+      if (/dk\s*$/i.test(raw)) {
+        return { splitSec: sec };
+      }
+      return parseBareTimeTarget(sec, distM);
     }
   }
 
@@ -215,10 +244,10 @@ function parseRepTarget(parenRaw: string | undefined, distM: number): RepTarget 
     if (pace != null) return { pace };
   }
 
-  const cleaned = raw.replace(/\s*p\s*$/i, "");
+  const cleaned = normalizePaceRaw(raw);
   const single = parsePaceSeconds(cleaned);
   if (single != null) {
-    return { splitSec: single };
+    return parseBareTimeTarget(single, distM);
   }
 
   return null;
@@ -259,7 +288,7 @@ export function buildDistanceSegment(
 }
 
 type ParsedBlock =
-  | { type: "interval"; repeat: number; distanceM: number; target: RepTarget | null; recoveryM: number | null; recoverySec: number | null }
+  | { type: "interval"; repeat: number; distanceM: number | null; durationMinutes: number | null; target: RepTarget | null; recoveryM: number | null; recoverySec: number | null }
   | { type: "duration"; minutes: number; pace: PaceSpec | null }
   | { type: "distance"; distanceM: number; target: RepTarget | null };
 
@@ -282,24 +311,31 @@ function distanceMetersFromValue(distVal: number, unitRaw: string | undefined): 
 function parseIntervalBlock(block: string): ParsedBlock | null {
   const normalized = normalizeBlock(block);
   const m = normalized.match(
-    /^(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(m|k|km)?(?:\s*\(([^)]+)\))?(?:\s+R\s*(\d+(?:\.\d+)?)\s*(m|k|km)?)?(?:\s+(\d{1,2}:\d{2}))?/i,
+    /^(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(dk|m|k|km)?(?:\s*(?:\(([^)]+)\)|(\d{1,2}:\d{2})p?))?(?:\s+R\s*(\d+(?:\.\d+)?)\s*(m|k|km)?)?(?:\s+(\d{1,2}:\d{2}))?/i,
   );
   if (!m) return null;
   const repeat = Number(m[1]);
-  const distVal = Number(m[2]);
-  const distM = distanceMetersFromValue(distVal, m[3]);
-  const target = parseRepTarget(m[4], distM);
+  const value = Number(m[2]);
+  const unit = m[3]?.toLowerCase();
+  let distanceM: number | null = null;
+  let durationMinutes: number | null = null;
+  if (unit === "dk") {
+    durationMinutes = value;
+  } else {
+    distanceM = distanceMetersFromValue(value, unit);
+  }
+  const target = parseRepTarget(m[4] ?? m[5], distanceM ?? 0);
   let recoveryM: number | null = null;
   let recoverySec: number | null = null;
-  if (m[5]) {
-    const rv = Number(m[5]);
-    const ru = (m[6] ?? "m").toLowerCase();
+  if (m[6]) {
+    const rv = Number(m[6]);
+    const ru = (m[7] ?? "m").toLowerCase();
     recoveryM = parseDistanceMeters(rv, ru === "k" || ru === "km" ? "k" : ru);
   }
-  if (m[7]) {
-    recoverySec = parsePaceSeconds(m[7]);
+  if (m[8]) {
+    recoverySec = parsePaceSeconds(m[8]);
   }
-  return { type: "interval", repeat, distanceM: distM, target, recoveryM, recoverySec };
+  return { type: "interval", repeat, distanceM, durationMinutes, target, recoveryM, recoverySec };
 }
 
 function parseStandaloneRepBlock(block: string): ParsedBlock | null {
@@ -322,7 +358,7 @@ function parseStandaloneRepBlock(block: string): ParsedBlock | null {
   if (m[6]) {
     recoverySec = parsePaceSeconds(m[6]);
   }
-  return { type: "interval", repeat: 1, distanceM: distM, target, recoveryM, recoverySec };
+  return { type: "interval", repeat: 1, distanceM: distM, durationMinutes: null, target, recoveryM, recoverySec };
 }
 
 function parseDurationBlock(block: string): ParsedBlock | null {
@@ -395,7 +431,14 @@ function blockToSteps(
   if (block.type === "distance") {
     return [buildDistanceSegment(kind, block.distanceM, block.target)];
   }
-  const main = buildDistanceSegment("main", block.distanceM, block.target);
+  const main =
+    block.distanceM != null
+      ? buildDistanceSegment("main", block.distanceM, block.target)
+      : buildDurationSegment(
+          "main",
+          (block.durationMinutes ?? 0) * 60,
+          block.target?.pace ?? null,
+        );
   const inner: Array<Record<string, unknown>> = [main];
   if (block.recoveryM != null && block.recoveryM > 0) {
     inner.push(
