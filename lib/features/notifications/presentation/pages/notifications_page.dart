@@ -91,6 +91,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       });
       return;
     }
+    // Haftalık antrenman programı oluştu → Etkinlikler + antrenman görünümü
+    if (type == NotificationTypes.weeklyProgramCreated ||
+        (type == NotificationTypes.adminManual &&
+            data['target'] == 'events_workout')) {
+      context.goNamed(
+        RouteNames.events,
+        queryParameters: {'view': 'workout'},
+      );
+      return;
+    }
     // Admin manuel bildirim -> target bazlı yönlendirme
     if (type == NotificationTypes.adminManual && data['target'] != null) {
       final target = data['target'] as String;

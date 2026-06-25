@@ -21,6 +21,8 @@ import '../../../integrations/health_connect/health_connect_provider.dart';
 import '../../../integrations/health_connect/health_connect_workout_sync_service.dart';
 import '../../../posts/domain/entities/post_entity.dart';
 import '../../../posts/presentation/providers/post_provider.dart';
+import '../../../auth/domain/entities/user_entity.dart';
+import '../../../admin/presentation/widgets/admin_home_menu_sheet.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 
 /// Home Page Scroll Controller Provider
@@ -178,12 +180,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       const SizedBox(width: 12),
                       const _NotificationIcon(),
                       const SizedBox(width: 8),
-                      UserAvatar(
-                        imageUrl: user?.avatarUrl,
-                        name: user?.fullName,
-                        size: 44,
-                        onTap: () => context.goNamed(RouteNames.profile),
-                      ),
+                      _HomeProfileAvatar(user: user),
                     ],
                   ),
                 ),
@@ -972,10 +969,9 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
             // Cover Image (opsiyonel - %50 şansla göster)
             if (DateTime.now().millisecond % 2 == 0)
-              Container(
-                width: double.infinity,
-                height: 200,
-                color: Colors.grey[300],
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: ColoredBox(color: Colors.grey[300]!),
               ),
             // Title
             Padding(
@@ -1139,12 +1135,14 @@ class _HomePageState extends ConsumerState<HomePage> {
             
             // Cover Image
             if (post.coverImageUrl != null)
-              Image.network(
-                post.coverImageUrl!,
-                width: double.infinity,
-                height: 200,
-                fit: BoxFit.fill,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.network(
+                  post.coverImageUrl!,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
               ),
             
             // Title
@@ -1203,6 +1201,40 @@ class _NotificationIcon extends ConsumerWidget {
         ],
       ),
       tooltip: 'Bildirimler',
+    );
+  }
+}
+
+class _HomeProfileAvatar extends ConsumerWidget {
+  const _HomeProfileAvatar({required this.user});
+
+  final UserEntity? user;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isAdmin = ref.watch(isAdminProvider);
+
+    return UserAvatar(
+      imageUrl: user?.avatarUrl,
+      name: user?.fullName,
+      size: 44,
+      onTap: () async {
+        if (isAdmin) {
+          final action = await AdminHomeMenuSheet.show(context, user: user);
+          if (!context.mounted || action == null) return;
+
+          switch (action) {
+            case AdminMenuAction.profile:
+              context.goNamed(RouteNames.profile);
+            case AdminMenuAction.reports:
+              context.pushNamed(RouteNames.adminReportsDashboard);
+            case AdminMenuAction.management:
+              context.pushNamed(RouteNames.adminReportsHub);
+          }
+        } else {
+          context.goNamed(RouteNames.profile);
+        }
+      },
     );
   }
 }

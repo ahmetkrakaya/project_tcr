@@ -16,6 +16,12 @@ class AppConstants {
     defaultValue: 'https://play.google.com/store/apps/details?id=com.rivlus.project_tcr',
   );
 
+  // Strava App Store URLs (onboarding / indirme yönlendirmesi)
+  static const String stravaAppStoreUrl =
+      'https://apps.apple.com/tr/app/strava-ko%C5%9F-s%C3%BCr-y%C3%BCr%C3%BC/id426826309?l=tr';
+  static const String stravaPlayStoreUrl =
+      'https://play.google.com/store/apps/details?id=com.strava';
+
   // Supabase
   static const String supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
@@ -165,6 +171,12 @@ class StorageKeys {
   static const String themeMode = 'theme_mode';
   static const String notificationsEnabled = 'notifications_enabled';
   static const String selectedTrainingGroup = 'selected_training_group';
+  static const String stravaOnboardingFirstCompleted =
+      'strava_onboarding_first_completed';
+  static const String stravaOnboardingPermanentlyDismissed =
+      'strava_onboarding_permanently_dismissed';
+  static const String stravaOnboardingLastShownAt =
+      'strava_onboarding_last_shown_at';
 }
 
 /// Route Names
@@ -237,6 +249,21 @@ class RouteNames {
   static const String adminCreateNotification = 'admin-create-notification';
   static const String userPointsLeaderboard = 'user-points-leaderboard';
   static const String adminAppVersions = 'admin-app-versions';
+  static const String adminReportsHub = 'admin-reports-hub';
+  static const String adminReportsDashboard = 'admin-reports-dashboard';
+  static const String userEngagementReports = 'user-engagement-reports';
+  static const String adminVdotThresholdList = 'admin-vdot-threshold-list';
+  static const String adminParticipationReports = 'admin-participation-reports';
+  static const String adminParticipationReportDetail =
+      'admin-participation-report-detail';
+  static const String adminBannedRejectedUsers = 'admin-banned-rejected-users';
+  static const String adminStravaConnectionReport = 'admin-strava-connection-report';
+  static const String adminTrainingLoad = 'admin-training-load';
+  static const String adminTrainingLoadDetail = 'admin-training-load-detail';
+  static const String adminEventTrainingLoad = 'admin-event-training-load';
+  static const String adminEventTypeTrend = 'admin-event-type-trend';
+  static const String adminGroupStatus = 'admin-group-status';
+  static const String adminPerson360 = 'admin-person-360';
 
   // Activity
   static const String activityDetail = 'activity-detail';
@@ -318,6 +345,7 @@ class AssetPaths {
   static const String logo = '$imagesPath/logo.png';
   /// Paylaşım önizlemesinde gösterilecek uygulama logosu (share sheet ikonu)
   static const String shareLogo = '$imagesPath/tcr_logo.jpg';
+  static const String tcrLogoWithText = '$imagesPath/tcr_logo_with_text.png';
   static const String logoWhite = '$imagesPath/logo_white.png';
   static const String onboarding1 = '$imagesPath/onboarding_1.png';
   static const String onboarding2 = '$imagesPath/onboarding_2.png';
@@ -331,6 +359,8 @@ class AssetPaths {
   static const String appleIcon = '$iconsPath/apple.svg';
   static const String stravaIcon = '$iconsPath/strava.svg';
   static const String connectWithStravaIcon = '$iconsPath/connect_with_strava.svg';
+  static const String btnStravaConnectOrange =
+      '$iconsPath/btn_strava_connect_with_orange.svg';
   static const String garminConnectIcon = '$iconsPath/garmin_connect.png';
   static const String garminConnectBadge = '$imagesPath/garmin_connect_badge.png';
 }

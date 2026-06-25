@@ -21,6 +21,7 @@ import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/flip_countdown_widget.dart';
+import '../../../../shared/widgets/linkify_text.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
@@ -279,72 +280,63 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Sol: Yarış altında Başlık — Sağ: Geri sayım
-                  Row(
+                  // Etkinlik tipi, başlık ve (varsa) geri sayım — dikey yerleşim
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _getEventTypeColor(event.eventType).withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    event.eventType.displayName,
-                                    style: AppTypography.labelMedium.copyWith(
-                                      color: _getEventTypeColor(event.eventType),
-                                    ),
-                                  ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getEventTypeColor(event.eventType).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              event.eventType.displayName,
+                              style: AppTypography.labelMedium.copyWith(
+                                color: _getEventTypeColor(event.eventType),
+                              ),
+                            ),
+                          ),
+                          if (event.eventType == EventType.training)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _isIndividualParticipation(event)
+                                    ? AppColors.primary.withValues(alpha: 0.2)
+                                    : AppColors.tertiary.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                _isIndividualParticipation(event) ? 'Bireysel' : 'Ekip',
+                                style: AppTypography.labelMedium.copyWith(
+                                  color: _isIndividualParticipation(event)
+                                      ? AppColors.primary
+                                      : AppColors.tertiary,
                                 ),
-                                if (event.eventType == EventType.training)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _isIndividualParticipation(event)
-                                          ? AppColors.primary.withValues(alpha: 0.2)
-                                          : AppColors.tertiary.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      _isIndividualParticipation(event) ? 'Bireysel' : 'Ekip',
-                                      style: AppTypography.labelMedium.copyWith(
-                                        color: _isIndividualParticipation(event)
-                                            ? AppColors.primary
-                                            : AppColors.tertiary,
-                                      ),
-                                    ),
-                                  ),
-                                // TODO: EventEntity visibility alanı eklendiğinde burada
-                                // kilit ikonlu \"Özel Etkinlik\" etiketi gösterilebilir.
-                              ],
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              event.title,
-                              style: AppTypography.headlineSmall,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
+                          // TODO: EventEntity visibility alanı eklendiğinde burada
+                          // kilit ikonlu \"Özel Etkinlik\" etiketi gösterilebilir.
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        event.title,
+                        style: AppTypography.headlineSmall,
                       ),
                       if (event.eventType == EventType.race &&
                           event.startTime.isAfter(DateTime.now())) ...[
-                        const SizedBox(width: 12),
+                        const SizedBox(height: 12),
                         FlipCountdownWidget(targetDate: event.startTime),
                       ],
                     ],
@@ -377,8 +369,8 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                       style: AppTypography.titleMedium,
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      event.description!,
+                    LinkifyText(
+                      text: event.description!,
                       style: AppTypography.bodyMedium.copyWith(
                         color: AppColors.neutral600,
                       ),

@@ -103,6 +103,15 @@ void navigateFromNotification(GoRouter router, RemoteMessage message) {
     router.goNamed(RouteNames.groups);
     return;
   }
+  // Haftalık antrenman programı oluştu → Etkinlikler + antrenman görünümü
+  if (type == NotificationTypes.weeklyProgramCreated ||
+      (type == NotificationTypes.adminManual && target == 'events_workout')) {
+    router.goNamed(
+      RouteNames.events,
+      queryParameters: {'view': 'workout'},
+    );
+    return;
+  }
   // Mazaret bildirimi: uygulama açılsın, engel popup otomatik gösterilir
   if (type == NotificationTypes.engagementExcuseRequest) {
     router.goNamed(RouteNames.home);
@@ -183,16 +192,18 @@ Future<void> showForegroundNotification(RemoteMessage message) async {
   final title = notification?.title ?? message.data['title'] ?? 'Bildirim';
   final body = notification?.body ?? message.data['body'] ?? '';
 
-  // Sohbet bildirimlerini (event_chat_message) aynı etkinlik için tek bildirim
-  // olacak şekilde gruplayabilmek için notificationId'yi sabitliyoruz.
+  // Her bildirim için benzersiz yerel bildirim kimliği (sohbet gruplaması yok).
   final data = message.data;
   final type = data['type'] as String?;
   int notificationId = message.hashCode;
 
   if (type == NotificationTypes.eventChatMessage) {
-    final eventId = data['event_id'] as String?;
-    if (eventId != null) {
-      notificationId = eventId.hashCode;
+    final messageId = data['message_id'] as String?;
+    final serverNotificationId = data['notification_id'] as String?;
+    if (messageId != null) {
+      notificationId = messageId.hashCode;
+    } else if (serverNotificationId != null) {
+      notificationId = serverNotificationId.hashCode;
     }
   }
 

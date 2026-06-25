@@ -6,12 +6,29 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/vdot_calculator.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
+import '../../../../shared/widgets/report_info_button.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../events/domain/entities/event_entity.dart' show TrainingTypeEntity;
 import '../../../events/presentation/providers/event_provider.dart';
 import '../providers/group_provider.dart';
+
+const _info = ReportInfo(
+  title: 'VDOT & Eşik Pace',
+  summary:
+      'Üyelerin koşu seviyesini (VDOT) ve buna karşılık gelen eşik temposunu '
+      'listeler; antrenman temposu planlamasında temel alınır.',
+  terms: [
+    ReportInfoTerm('VDOT', 'Koşu performans seviyesini gösteren tahmini değer; yüksek = daha hızlı.'),
+    ReportInfoTerm('Eşik Pace', 'Sürdürülebilir tempo sınırı (dk/km); antrenman bölgelerinin referansı.'),
+  ],
+  takeaways: [
+    'Eşik tempoya göre antrenman bölgelerini doğru ayarlayın.',
+    'VDOT güncel tutuldukça tempolar daha isabetli olur.',
+    'Benzer VDOT’lu sporcular birlikte antrenman yapabilir.',
+  ],
+);
 
 class VdotThresholdListPage extends ConsumerStatefulWidget {
   const VdotThresholdListPage({super.key});
@@ -37,6 +54,7 @@ class _VdotThresholdListPageState extends ConsumerState<VdotThresholdListPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('VDOT & Eşik Pace'),
+        actions: const [ReportInfoButton(info: _info)],
       ),
       body: activeUsersAsync.when(
         data: (users) {

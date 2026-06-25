@@ -1799,12 +1799,8 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
         };
       }
 
-      // Etkinlik ID'lerini ve tarihlerini topla
+      // Etkinlik ID'lerini topla
       final eventIds = events.map((e) => e['id'] as String).toList();
-      final eventDates = <String, DateTime>{};
-      for (final event in events) {
-        eventDates[event['id'] as String] = DateTime.parse(event['start_time'] as String);
-      }
 
       // Grup filtresi varsa, sadece o gruptaki kişilerin katılımlarını hesapla
       Set<String>? groupUserIds;
@@ -1841,55 +1837,13 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
         rsvpsByEvent.putIfAbsent(eventId, () => <String>{}).add(userId);
       }
 
-      // Tüm Strava aktivitelerini tek sorguda çek (tarih aralığına göre)
-      // Tüm etkinlik tarihlerini kapsayan aralık
-      final minDate = eventDates.values.reduce((a, b) => a.isBefore(b) ? a : b);
-      final maxDate = eventDates.values.reduce((a, b) => a.isAfter(b) ? a : b);
-      final activitiesStart = DateTime(minDate.year, minDate.month, minDate.day);
-      final activitiesEnd = DateTime(maxDate.year, maxDate.month, maxDate.day).add(const Duration(days: 1));
-
-      // Tüm Strava koşu aktivitelerini tek sorguda çek
-      var activitiesQuery = _supabase
-          .from('activities')
-          .select('user_id, start_time')
-          .gte('start_time', activitiesStart.toIso8601String())
-          .lt('start_time', activitiesEnd.toIso8601String())
-          .eq('source', 'strava')
-          .eq('activity_type', 'running');
-
-      // Grup filtresi varsa, sadece o gruptaki kişilerin aktivitelerini al
-      if (groupUserIds != null && groupUserIds.isNotEmpty) {
-        activitiesQuery = activitiesQuery.inFilter('user_id', groupUserIds.toList());
-      }
-
-      final allActivitiesResponse = await activitiesQuery;
-
-      // Her etkinlik için katılımcıları hesapla
+      // Her etkinlik için katılımcıları hesapla (yalnızca "katılıyorum" RSVP)
       final eventReports = <Map<String, dynamic>>[];
       int totalParticipants = 0;
 
       for (final event in events) {
         final eventId = event['id'] as String;
-        final eventDate = eventDates[eventId]!;
-        
-        // RSVP ile katılanlar
-        final rsvpUserIds = rsvpsByEvent[eventId] ?? <String>{};
-
-        // Etkinlik tarihinde Strava aktivitesi yapmış kullanıcıları bul
-        final eventDayStart = DateTime(eventDate.year, eventDate.month, eventDate.day);
-        final eventDayEnd = eventDayStart.add(const Duration(days: 1));
-
-        final activityUserIds = <String>{};
-        for (final activity in allActivitiesResponse as List<dynamic>) {
-          final activityStartTime = DateTime.parse(activity['start_time'] as String);
-          if (activityStartTime.isAfter(eventDayStart) && activityStartTime.isBefore(eventDayEnd)) {
-            activityUserIds.add(activity['user_id'] as String);
-          }
-        }
-
-        // İki kümenin birleşimi (tekrar edenler tek sayılacak)
-        final allParticipantIds = rsvpUserIds.union(activityUserIds);
-        final participantCount = allParticipantIds.length;
+        final participantCount = (rsvpsByEvent[eventId] ?? <String>{}).length;
         totalParticipants += participantCount;
 
         eventReports.add({
@@ -1936,7 +1890,21 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       final eventDayStart = DateTime(eventStartTime.year, eventStartTime.month, eventStartTime.day);
       final eventDayEnd = eventDayStart.add(const Duration(days: 1));
 
-      // Etkinlik tarihinde yapılan Strava koşu aktivitelerini al
+      final rsvpResponse = await _supabase
+          .from('event_participants')
+          .select('user_id')
+          .eq('event_id', eventId)
+          .eq('status', 'going');
+
+      final goingUserIds = (rsvpResponse as List<dynamic>)
+          .map((row) => row['user_id'] as String)
+          .toList();
+
+      if (goingUserIds.isEmpty) {
+        return [];
+      }
+
+      // Yalnızca "katılıyorum" diyen kullanıcıların etkinlik günü Strava koşuları
       final response = await _supabase
           .from('activities')
           .select('''
@@ -1947,6 +1915,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
             start_time,
             users!inner(first_name, last_name, avatar_url)
           ''')
+          .inFilter('user_id', goingUserIds)
           .gte('start_time', eventDayStart.toIso8601String())
           .lt('start_time', eventDayEnd.toIso8601String())
           .eq('source', 'strava')

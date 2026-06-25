@@ -61,7 +61,10 @@ enum EventInfoBlockType {
   checklistItem,
 
   /// Ayırıcı çizgi
-  divider;
+  divider,
+
+  /// Harici link
+  link;
 
   static EventInfoBlockType fromString(String value) {
     switch (value.toLowerCase()) {
@@ -87,6 +90,8 @@ enum EventInfoBlockType {
         return EventInfoBlockType.checklistItem;
       case 'divider':
         return EventInfoBlockType.divider;
+      case 'link':
+        return EventInfoBlockType.link;
       default:
         return EventInfoBlockType.text;
     }
@@ -116,6 +121,8 @@ enum EventInfoBlockType {
         return 'checklist_item';
       case EventInfoBlockType.divider:
         return 'divider';
+      case EventInfoBlockType.link:
+        return 'link';
     }
   }
 
@@ -143,6 +150,8 @@ enum EventInfoBlockType {
         return 'Kontrol Öğesi';
       case EventInfoBlockType.divider:
         return 'Ayırıcı';
+      case EventInfoBlockType.link:
+        return 'Link';
     }
   }
 
@@ -170,6 +179,8 @@ enum EventInfoBlockType {
         return '#2E7D32'; // Secondary
       case EventInfoBlockType.divider:
         return '#BDBDBD'; // Neutral 400
+      case EventInfoBlockType.link:
+        return '#1976D2'; // Info (Mavi)
     }
   }
 
@@ -197,6 +208,8 @@ enum EventInfoBlockType {
         return '☐';
       case EventInfoBlockType.divider:
         return '';
+      case EventInfoBlockType.link:
+        return '🔗';
     }
   }
 }

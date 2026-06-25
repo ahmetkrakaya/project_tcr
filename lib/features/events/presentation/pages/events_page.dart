@@ -16,7 +16,10 @@ import '../widgets/admin_monthly_program_entry_card.dart';
 
 /// Events Page
 class EventsPage extends ConsumerStatefulWidget {
-  const EventsPage({super.key});
+  const EventsPage({super.key, this.initialWorkoutView = false});
+
+  /// Bildirimle açıldığında doğrudan antrenman görünümünü aç.
+  final bool initialWorkoutView;
 
   @override
   ConsumerState<EventsPage> createState() => _EventsPageState();
@@ -51,6 +54,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   @override
   void initState() {
     super.initState();
+    _workoutView = widget.initialWorkoutView;
     final now = DateTime.now();
     _selectedDay = now; // İlk açılışta bugünün tarihi
     _currentMonthTitle = _getMonthTitle(now);

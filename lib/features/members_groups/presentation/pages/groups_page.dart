@@ -97,14 +97,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                       )
                     : const Icon(Icons.inbox_outlined),
               )
-            : isAdmin && _tabController.index == 1
-                ? IconButton(
-                    icon: const Icon(Icons.speed),
-                    tooltip: 'VDOT Eşik Değerleri',
-                    onPressed: () =>
-                        context.pushNamed(RouteNames.vdotThresholdList),
-                  )
-                : null,
+            : null,
         title: const Text('Gruplar ve Üyeler'),
         bottom: TabBar(
           controller: _tabController,
@@ -144,18 +137,6 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
               icon: const Icon(Icons.cake_outlined),
               tooltip: 'Yaklaşan Doğum Günleri',
               onPressed: () => context.pushNamed(RouteNames.upcomingBirthdays),
-            ),
-          if (isAdmin && _tabController.index == 1)
-            IconButton(
-              icon: const Icon(Icons.assessment),
-              tooltip: 'Etkinlik Raporu',
-              onPressed: () => context.pushNamed(RouteNames.eventReport),
-            ),
-          if (isAdmin && _tabController.index == 1)
-            IconButton(
-              icon: const Icon(Icons.person_off_outlined),
-              tooltip: 'Engellenen ve Reddedilenler',
-              onPressed: () => context.pushNamed(RouteNames.bannedRejectedUsers),
             ),
         ],
       ),

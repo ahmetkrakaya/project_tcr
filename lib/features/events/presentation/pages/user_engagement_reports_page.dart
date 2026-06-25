@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/loading_widget.dart';
+import '../../../../shared/widgets/report_info_button.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../data/models/engagement_excuse_model.dart';
 import '../../data/models/user_engagement_report_model.dart';
@@ -13,6 +14,24 @@ import '../../domain/entities/event_entity.dart';
 import '../providers/engagement_excuse_provider.dart';
 import '../providers/event_provider.dart';
 import 'engagement_excuses_admin_page.dart';
+
+const _info = ReportInfo(
+  title: 'Kullanıcı Analizleri',
+  summary:
+      'Uygulama kullanımı ve etkinlik katılımına göre üyeleri özetler; en aktif '
+      've en pasif üyeleri görmenizi sağlar.',
+  terms: [
+    ReportInfoTerm('En Çok Açanlar', 'Uygulamayı en sık açan üyeler.'),
+    ReportInfoTerm('Uygulamaya Girmeyenler', 'Son 30 günde uygulamayı açmayanlar.'),
+    ReportInfoTerm('Etkinliğe Katılmayanlar', 'Son dönemde etkinliklere gelmeyenler.'),
+    ReportInfoTerm('Mazaret', 'Pasif üyeler için kaydedilen gerekçe.'),
+  ],
+  takeaways: [
+    'Pasifleşen üyelere zamanında ulaşıp geri kazanın.',
+    'Aktif üyeleri ödüllendirmek bağlılığı artırır.',
+    'Mazaretleri inceleyerek gerçek nedenleri anlayın.',
+  ],
+);
 
 /// Admin kullanıcı etkileşim analizleri
 class UserEngagementReportsPage extends ConsumerStatefulWidget {
@@ -30,8 +49,12 @@ class _UserEngagementReportsPageState
   @override
   Widget build(BuildContext context) {
     final reportsAsync = ref.watch(userEngagementReportsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor =
+        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text('Kullanıcı Analizleri'),
         actions: [
@@ -46,6 +69,7 @@ class _UserEngagementReportsPageState
               );
             },
           ),
+          const ReportInfoButton(info: _info),
         ],
       ),
       body: reportsAsync.when(
@@ -55,49 +79,55 @@ class _UserEngagementReportsPageState
             ref.invalidate(topEventParticipantsProvider(_selectedEventType));
           },
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             children: [
-              _CollapsibleReportSection(
-                icon: Icons.smartphone,
-                title: 'Uygulamayı En Çok Açanlar',
-                subtitle: 'Top 10 — tüm zamanlar',
-                count: reports.topAppOpeners.length,
-                items: reports.topAppOpeners,
-                trailingBuilder: (item, index) => _RankBadge(
-                  rank: index + 1,
-                  value: '${item.openCount ?? 0} açılış',
+              Text(
+                'Uygulama kullanımı ve etkinlik katılımına göre özet listeler.',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.neutral500,
                 ),
               ),
+              const SizedBox(height: 20),
+              _LeaderboardSection(
+                isDark: isDark,
+                icon: Icons.smartphone_outlined,
+                iconColor: AppColors.info,
+                title: 'Uygulamayı En Çok Açanlar',
+                subtitle: 'Top 10 · tüm zamanlar',
+                items: reports.topAppOpeners,
+                valueBuilder: (item) => '${item.openCount ?? 0} açılış',
+              ),
               const SizedBox(height: 12),
-              _InactiveUsersReportSection(
+              _InactiveUsersSection(
+                isDark: isDark,
                 icon: Icons.person_off_outlined,
-                title: 'Son 30 Günde Uygulamaya Girmeyenler',
+                iconColor: AppColors.warning,
+                title: 'Uygulamaya Girmeyenler',
                 subtitle: 'Son 30 gün',
                 excuseType: EngagementExcuseType.inactiveApp,
                 items: reports.inactiveAppUsers,
-                trailingBuilder: (item, _) => _DateLabel(
-                  label: 'Son kullanım',
-                  date: item.lastActivityAt,
-                ),
+                dateLabel: 'Son kullanım',
+                dateValue: (item) => item.lastActivityAt,
               ),
               const SizedBox(height: 12),
               _TopEventParticipantsSection(
+                isDark: isDark,
                 selectedEventType: _selectedEventType,
                 onEventTypeChanged: (value) {
                   setState(() => _selectedEventType = value);
                 },
               ),
               const SizedBox(height: 12),
-              _InactiveUsersReportSection(
-                icon: Icons.event_busy,
-                title: 'Son 30 Günde Etkinliğe Katılmayanlar',
+              _InactiveUsersSection(
+                isDark: isDark,
+                icon: Icons.event_busy_outlined,
+                iconColor: AppColors.error,
+                title: 'Etkinliğe Katılmayanlar',
                 subtitle: 'Son 30 gün',
                 excuseType: EngagementExcuseType.inactiveEvent,
                 items: reports.inactiveEventUsers,
-                trailingBuilder: (item, _) => _DateLabel(
-                  label: 'Son katılım',
-                  date: item.lastParticipationAt,
-                ),
+                dateLabel: 'Son katılım',
+                dateValue: (item) => item.lastParticipationAt,
               ),
             ],
           ),
@@ -109,15 +139,12 @@ class _UserEngagementReportsPageState
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Rapor yüklenemedi',
-                  style: AppTypography.titleMedium,
-                ),
+                Text('Rapor yüklenemedi', style: AppTypography.titleSmall),
                 const SizedBox(height: 8),
                 Text(
                   error.toString(),
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.error,
+                    color: AppColors.neutral500,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -136,57 +163,76 @@ class _UserEngagementReportsPageState
   }
 }
 
-class _TopEventParticipantsSection extends ConsumerStatefulWidget {
-  final String? selectedEventType;
-  final ValueChanged<String?> onEventTypeChanged;
-
-  const _TopEventParticipantsSection({
-    required this.selectedEventType,
-    required this.onEventTypeChanged,
+class _SectionShell extends StatelessWidget {
+  const _SectionShell({
+    required this.isDark,
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.count,
+    required this.isExpanded,
+    required this.onToggle,
+    this.headerAction,
+    required this.child,
   });
 
-  @override
-  ConsumerState<_TopEventParticipantsSection> createState() =>
-      _TopEventParticipantsSectionState();
-}
-
-class _TopEventParticipantsSectionState
-    extends ConsumerState<_TopEventParticipantsSection> {
-  bool _isExpanded = false;
+  final bool isDark;
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final int count;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final Widget? headerAction;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final participantsAsync = ref.watch(
-      topEventParticipantsProvider(widget.selectedEventType),
-    );
-    final count = participantsAsync.valueOrNull?.length ?? 0;
+    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final borderColor =
+        isDark ? AppColors.surfaceVariantDark : AppColors.neutral300;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
-            onTap: () => setState(() => _isExpanded = !_isExpanded),
+            onTap: onToggle,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  const Icon(Icons.event_available,
-                      size: 20, color: AppColors.primary),
-                  const SizedBox(width: 8),
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: iconColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 22),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'En Çok Etkinliğe Katılanlar ($count)',
+                          title,
                           style: AppTypography.titleSmall.copyWith(
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
-                          'Top 10 — RSVP: Katılıyorum',
+                          subtitle,
                           style: AppTypography.bodySmall.copyWith(
                             color: AppColors.neutral500,
                           ),
@@ -194,73 +240,31 @@ class _TopEventParticipantsSectionState
                       ],
                     ),
                   ),
-                  if (participantsAsync.isLoading && _isExpanded)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    Icon(
-                      _isExpanded ? Icons.expand_less : Icons.expand_more,
-                      color: AppColors.neutral500,
-                    ),
+                  _CountChip(count: count),
+                  const SizedBox(width: 4),
+                  Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: AppColors.neutral400,
+                  ),
                 ],
               ),
             ),
           ),
-          if (_isExpanded) ...[
-            const Divider(height: 1),
+          if (isExpanded) ...[
+            Divider(
+              height: 1,
+              color: borderColor,
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildEventTypeFilter(),
-                  const SizedBox(height: 12),
-                  participantsAsync.when(
-                    data: (list) {
-                      if (list.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: EmptyStateWidget(
-                            icon: Icons.inbox_outlined,
-                            title: 'Kayıt yok',
-                            description:
-                                'Bu kriterlere uygun kullanıcı bulunamadı.',
-                          ),
-                        );
-                      }
-                      return Column(
-                        children: list.asMap().entries.map((entry) {
-                          final item = entry.value;
-                          return _UserRow(
-                            item: item,
-                            trailing: _RankBadge(
-                              rank: entry.key + 1,
-                              value:
-                                  '${item.participationCount ?? 0} etkinlik',
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                    loading: () => const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: LoadingWidget(size: 28),
-                      ),
-                    ),
-                    error: (error, _) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        'Liste yüklenemedi: $error',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.error,
-                        ),
-                      ),
-                    ),
-                  ),
+                  if (headerAction != null) ...[
+                    headerAction!,
+                    const SizedBox(height: 12),
+                  ],
+                  child,
                 ],
               ),
             ),
@@ -269,91 +273,114 @@ class _TopEventParticipantsSectionState
       ),
     );
   }
+}
 
-  Widget _buildEventTypeFilter() {
-    return Row(
-      children: [
-        Text(
-          'Etkinlik türü:',
-          style: AppTypography.bodySmall.copyWith(
-            color: AppColors.neutral600,
-          ),
+class _CountChip extends StatelessWidget {
+  const _CountChip({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        count.toString(),
+        style: AppTypography.labelSmall.copyWith(
+          color: AppColors.primary,
+          fontWeight: FontWeight.w700,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: DropdownButtonFormField<String?>(
-            value: widget.selectedEventType,
-            isExpanded: true,
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            items: [
-              const DropdownMenuItem<String?>(
-                value: null,
-                child: Text('Tümü'),
-              ),
-              ...EventType.values.map(
-                (type) => DropdownMenuItem<String?>(
-                  value: type.name,
-                  child: Text(_eventTypeLabel(type)),
-                ),
-              ),
-            ],
-            onChanged: widget.onEventTypeChanged,
-          ),
-        ),
-      ],
+      ),
     );
-  }
-
-  String _eventTypeLabel(EventType type) {
-    switch (type) {
-      case EventType.training:
-        return 'Antrenman';
-      case EventType.race:
-        return 'Yarış';
-      case EventType.social:
-        return 'Sosyal';
-      case EventType.workshop:
-        return 'Atölye';
-      case EventType.other:
-        return 'Diğer';
-    }
   }
 }
 
-class _InactiveUsersReportSection extends ConsumerStatefulWidget {
+class _LeaderboardSection extends StatefulWidget {
+  const _LeaderboardSection({
+    required this.isDark,
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.items,
+    required this.valueBuilder,
+  });
+
+  final bool isDark;
   final IconData icon;
+  final Color iconColor;
   final String title;
   final String subtitle;
-  final String excuseType;
   final List<UserEngagementReportItemModel> items;
-  final Widget Function(UserEngagementReportItemModel item, int index)
-      trailingBuilder;
+  final String Function(UserEngagementReportItemModel item) valueBuilder;
 
-  const _InactiveUsersReportSection({
+  @override
+  State<_LeaderboardSection> createState() => _LeaderboardSectionState();
+}
+
+class _LeaderboardSectionState extends State<_LeaderboardSection> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionShell(
+      isDark: widget.isDark,
+      icon: widget.icon,
+      iconColor: widget.iconColor,
+      title: widget.title,
+      subtitle: widget.subtitle,
+      count: widget.items.length,
+      isExpanded: _isExpanded,
+      onToggle: () => setState(() => _isExpanded = !_isExpanded),
+      child: widget.items.isEmpty
+          ? const _SectionEmptyState()
+          : Column(
+              children: widget.items.asMap().entries.map((entry) {
+                return _UserListTile(
+                  rank: entry.key + 1,
+                  name: entry.value.fullName,
+                  trailing: widget.valueBuilder(entry.value),
+                  showDivider: entry.key < widget.items.length - 1,
+                );
+              }).toList(),
+            ),
+    );
+  }
+}
+
+class _InactiveUsersSection extends ConsumerStatefulWidget {
+  const _InactiveUsersSection({
+    required this.isDark,
     required this.icon,
+    required this.iconColor,
     required this.title,
     required this.subtitle,
     required this.excuseType,
     required this.items,
-    required this.trailingBuilder,
+    required this.dateLabel,
+    required this.dateValue,
   });
 
+  final bool isDark;
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final String excuseType;
+  final List<UserEngagementReportItemModel> items;
+  final String dateLabel;
+  final DateTime? Function(UserEngagementReportItemModel item) dateValue;
+
   @override
-  ConsumerState<_InactiveUsersReportSection> createState() =>
-      _InactiveUsersReportSectionState();
+  ConsumerState<_InactiveUsersSection> createState() =>
+      _InactiveUsersSectionState();
 }
 
-class _InactiveUsersReportSectionState
-    extends ConsumerState<_InactiveUsersReportSection> {
+class _InactiveUsersSectionState extends ConsumerState<_InactiveUsersSection> {
   bool _isExpanded = false;
   bool _isSending = false;
   String? _sendingUserId;
@@ -427,345 +454,346 @@ class _InactiveUsersReportSectionState
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: () => setState(() => _isExpanded = !_isExpanded),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  Icon(widget.icon, size: 20, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${widget.title} (${widget.items.length})',
-                          style: AppTypography.titleSmall.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+    return _SectionShell(
+      isDark: widget.isDark,
+      icon: widget.icon,
+      iconColor: widget.iconColor,
+      title: widget.title,
+      subtitle: widget.subtitle,
+      count: widget.items.length,
+      isExpanded: _isExpanded,
+      onToggle: () => setState(() => _isExpanded = !_isExpanded),
+      headerAction: widget.items.isEmpty
+          ? null
+          : Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isSending
+                    ? null
+                    : () => _sendToUsers(
+                          widget.items.map((e) => e.userId).toList(),
                         ),
-                        Text(
-                          widget.subtitle,
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    _isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.neutral500,
-                  ),
-                ],
+                icon: _isSending && _sendingUserId == null
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_outlined, size: 18),
+                label: const Text('Tümüne bildir'),
               ),
             ),
-          ),
-          if (_isExpanded) ...[
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (widget.items.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _isSending
-                              ? null
-                              : () => _sendToUsers(
-                                    widget.items
-                                        .map((e) => e.userId)
-                                        .toList(),
-                                  ),
-                          icon: _isSending && _sendingUserId == null
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.send_outlined, size: 18),
-                          label: const Text('Hepsine Gönder'),
-                        ),
-                      ),
-                    ),
-                  if (widget.items.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: EmptyStateWidget(
-                        icon: Icons.inbox_outlined,
-                        title: 'Kayıt yok',
-                        description:
-                            'Bu kriterlere uygun kullanıcı bulunamadı.',
-                      ),
-                    )
-                  else
-                    ...widget.items.asMap().entries.map(
-                          (entry) => _UserRow(
-                            item: entry.value,
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                widget.trailingBuilder(
-                                  entry.value,
-                                  entry.key,
-                                ),
-                                const SizedBox(width: 4),
-                                IconButton(
-                                  tooltip: 'Mazaret Bildir',
-                                  onPressed: _isSending
-                                      ? null
-                                      : () => _sendToUsers(
-                                            [entry.value.userId],
-                                          ),
-                                  icon: _isSending &&
-                                          _sendingUserId == entry.value.userId
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(
-                                          Icons.send_outlined,
-                                          size: 20,
-                                          color: AppColors.primary,
-                                        ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                ],
-              ),
+      child: widget.items.isEmpty
+          ? const _SectionEmptyState()
+          : Column(
+              children: widget.items.asMap().entries.map((entry) {
+                final item = entry.value;
+                final date = widget.dateValue(item);
+                final dateText = date != null
+                    ? DateFormat('d MMM yyyy').format(date.toLocal())
+                    : 'Hiç';
+
+                return _UserListTile(
+                  name: item.fullName,
+                  subtitle: '${widget.dateLabel}: $dateText',
+                  trailing: _SendButton(
+                    isLoading: _isSending && _sendingUserId == item.userId,
+                    onPressed: _isSending
+                        ? null
+                        : () => _sendToUsers([item.userId]),
+                  ),
+                  showDivider: entry.key < widget.items.length - 1,
+                );
+              }).toList(),
             ),
-          ],
-        ],
-      ),
     );
   }
 }
 
-class _CollapsibleReportSection extends StatefulWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final int count;
-  final List<UserEngagementReportItemModel> items;
-  final Widget Function(UserEngagementReportItemModel item, int index)
-      trailingBuilder;
-
-  const _CollapsibleReportSection({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.count,
-    required this.items,
-    required this.trailingBuilder,
+class _TopEventParticipantsSection extends ConsumerStatefulWidget {
+  const _TopEventParticipantsSection({
+    required this.isDark,
+    required this.selectedEventType,
+    required this.onEventTypeChanged,
   });
 
+  final bool isDark;
+  final String? selectedEventType;
+  final ValueChanged<String?> onEventTypeChanged;
+
   @override
-  State<_CollapsibleReportSection> createState() =>
-      _CollapsibleReportSectionState();
+  ConsumerState<_TopEventParticipantsSection> createState() =>
+      _TopEventParticipantsSectionState();
 }
 
-class _CollapsibleReportSectionState extends State<_CollapsibleReportSection> {
+class _TopEventParticipantsSectionState
+    extends ConsumerState<_TopEventParticipantsSection> {
   bool _isExpanded = false;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: () => setState(() => _isExpanded = !_isExpanded),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  Icon(widget.icon, size: 20, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${widget.title} (${widget.count})',
-                          style: AppTypography.titleSmall.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          widget.subtitle,
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    _isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.neutral500,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_isExpanded) ...[
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (widget.items.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: EmptyStateWidget(
-                        icon: Icons.inbox_outlined,
-                        title: 'Kayıt yok',
-                        description:
-                            'Bu kriterlere uygun kullanıcı bulunamadı.',
-                      ),
-                    )
-                  else
-                    ...widget.items.asMap().entries.map(
-                          (entry) => _UserRow(
-                            item: entry.value,
-                            trailing: widget.trailingBuilder(
-                              entry.value,
-                              entry.key,
-                            ),
-                          ),
-                        ),
-                ],
-              ),
-            ),
-          ],
-        ],
+    final participantsAsync = ref.watch(
+      topEventParticipantsProvider(widget.selectedEventType),
+    );
+    final count = participantsAsync.valueOrNull?.length ?? 0;
+
+    return _SectionShell(
+      isDark: widget.isDark,
+      icon: Icons.event_available_outlined,
+      iconColor: AppColors.tertiary,
+      title: 'En Çok Etkinliğe Katılanlar',
+      subtitle: 'Top 10 · Katılıyorum RSVP',
+      count: count,
+      isExpanded: _isExpanded,
+      onToggle: () => setState(() => _isExpanded = !_isExpanded),
+      headerAction: _EventTypeChips(
+        selectedEventType: widget.selectedEventType,
+        onChanged: widget.onEventTypeChanged,
+      ),
+      child: participantsAsync.when(
+        data: (list) {
+          if (list.isEmpty) return const _SectionEmptyState();
+          return Column(
+            children: list.asMap().entries.map((entry) {
+              return _UserListTile(
+                rank: entry.key + 1,
+                name: entry.value.fullName,
+                trailing: '${entry.value.participationCount ?? 0} etkinlik',
+                showDivider: entry.key < list.length - 1,
+              );
+            }).toList(),
+          );
+        },
+        loading: () => const Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Center(child: LoadingWidget(size: 28)),
+        ),
+        error: (error, _) => Text(
+          'Liste yüklenemedi: $error',
+          style: AppTypography.bodySmall.copyWith(color: AppColors.error),
+        ),
       ),
     );
   }
 }
 
-class _UserRow extends StatelessWidget {
-  final UserEngagementReportItemModel item;
-  final Widget trailing;
-
-  const _UserRow({
-    required this.item,
-    required this.trailing,
+class _EventTypeChips extends StatelessWidget {
+  const _EventTypeChips({
+    required this.selectedEventType,
+    required this.onChanged,
   });
 
+  final String? selectedEventType;
+  final ValueChanged<String?> onChanged;
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          UserAvatar(size: 36, name: item.fullName),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              item.fullName,
-              style: AppTypography.bodyMedium.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+    final options = <({String? value, String label})>[
+      (value: null, label: 'Tümü'),
+      (value: EventType.training.name, label: 'Antrenman'),
+      (value: EventType.race.name, label: 'Yarış'),
+      (value: EventType.social.name, label: 'Sosyal'),
+      (value: EventType.workshop.name, label: 'Atölye'),
+      (value: EventType.other.name, label: 'Diğer'),
+    ];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options.map((option) {
+        final isSelected = selectedEventType == option.value;
+        return FilterChip(
+          label: Text(option.label),
+          selected: isSelected,
+          showCheckmark: false,
+          onSelected: (_) => onChanged(option.value),
+          labelStyle: AppTypography.labelSmall.copyWith(
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
           ),
-          const SizedBox(width: 8),
-          trailing,
-        ],
+          selectedColor: AppColors.primary.withValues(alpha: 0.12),
+          checkmarkColor: AppColors.primary,
+          side: BorderSide(
+            color: isSelected ? AppColors.primary : AppColors.neutral300,
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _UserListTile extends StatelessWidget {
+  const _UserListTile({
+    this.rank,
+    required this.name,
+    this.subtitle,
+    required this.trailing,
+    this.showDivider = false,
+  });
+
+  final int? rank;
+  final String name;
+  final String? subtitle;
+  final dynamic trailing;
+  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              if (rank != null) ...[
+                _RankIndicator(rank: rank!),
+                const SizedBox(width: 10),
+              ],
+              UserAvatar(name: name, size: 40),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: AppTypography.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.neutral500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              trailing is Widget
+                  ? trailing as Widget
+                  : _ValueLabel(text: trailing as String),
+            ],
+          ),
+        ),
+        if (showDivider)
+          Divider(
+            height: 1,
+            color: AppColors.neutral300.withValues(alpha: 0.6),
+          ),
+      ],
+    );
+  }
+}
+
+class _RankIndicator extends StatelessWidget {
+  const _RankIndicator({required this.rank});
+
+  final int rank;
+
+  Color get _color {
+    switch (rank) {
+      case 1:
+        return const Color(0xFFFFB300);
+      case 2:
+        return const Color(0xFF9E9E9E);
+      case 3:
+        return const Color(0xFFCD7F32);
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      child: Text(
+        '#$rank',
+        style: AppTypography.labelSmall.copyWith(
+          color: _color,
+          fontWeight: FontWeight.w700,
+        ),
+        textAlign: TextAlign.center,
       ),
     );
   }
 }
 
-class _RankBadge extends StatelessWidget {
-  final int rank;
-  final String value;
+class _ValueLabel extends StatelessWidget {
+  const _ValueLabel({required this.text});
 
-  const _RankBadge({required this.rank, required this.value});
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            '#$rank',
-            style: AppTypography.labelSmall.copyWith(
-              color: AppColors.primary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: AppTypography.labelSmall.copyWith(
-            color: AppColors.neutral600,
-          ),
-        ),
-      ],
+    return Text(
+      text,
+      style: AppTypography.labelSmall.copyWith(
+        color: AppColors.neutral600,
+        fontWeight: FontWeight.w600,
+      ),
+      textAlign: TextAlign.right,
     );
   }
 }
 
-class _DateLabel extends StatelessWidget {
-  final String label;
-  final DateTime? date;
+class _SendButton extends StatelessWidget {
+  const _SendButton({
+    required this.isLoading,
+    required this.onPressed,
+  });
 
-  const _DateLabel({required this.label, this.date});
+  final bool isLoading;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final text = date != null
-        ? DateFormat('dd.MM.yyyy').format(date!.toLocal())
-        : 'Hiç';
+    return Material(
+      color: AppColors.primary.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(10),
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: isLoading
+              ? const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary,
+                  ),
+                )
+              : const Icon(
+                  Icons.send_outlined,
+                  size: 18,
+                  color: AppColors.primary,
+                ),
+        ),
+      ),
+    );
+  }
+}
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: AppTypography.labelSmall.copyWith(
-            color: AppColors.neutral500,
-          ),
-        ),
-        Text(
-          text,
-          style: AppTypography.labelSmall.copyWith(
-            color: AppColors.neutral700,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
+class _SectionEmptyState extends StatelessWidget {
+  const _SectionEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: EmptyStateWidget(
+        icon: Icons.inbox_outlined,
+        title: 'Kayıt yok',
+        description: 'Bu kriterlere uygun kullanıcı bulunamadı.',
+      ),
     );
   }
 }

@@ -10,9 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
-
 import 'package:quick_actions/quick_actions.dart';
-
 import 'core/app_shortcuts/app_shortcuts_handler.dart';
 import 'core/constants/app_constants.dart';
 import 'core/deep_link/deep_link_handler.dart';
@@ -26,6 +24,7 @@ import 'shared/providers/auth_provider.dart';
 import 'core/services/app_open_tracker.dart';
 import 'core/ui/keyboard_dismisser.dart';
 import 'features/events/presentation/widgets/engagement_excuse_gate.dart';
+import 'features/integrations/presentation/widgets/strava_onboarding_gate.dart';
 
 import 'firebase_options.dart';
 
@@ -289,11 +288,13 @@ class TCRApp extends ConsumerWidget {
         return KeyboardDismisser(
           child: _AuthLinkErrorListener(
             child: EngagementExcuseGate(
-              child: MediaQuery(
-                data: mq.copyWith(
-                  textScaler: TextScaler.linear(textScale),
+              child: StravaOnboardingGate(
+                child: MediaQuery(
+                  data: mq.copyWith(
+                    textScaler: TextScaler.linear(textScale),
+                  ),
+                  child: child ?? const SizedBox.shrink(),
                 ),
-                child: child ?? const SizedBox.shrink(),
               ),
             ),
           ),

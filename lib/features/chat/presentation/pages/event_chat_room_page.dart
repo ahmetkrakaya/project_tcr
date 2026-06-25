@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,6 +9,7 @@ import '../../../../core/errors/exceptions.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
+import '../../../../shared/widgets/linkify_text.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/chat_model.dart';
@@ -365,7 +367,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
       padding: const EdgeInsets.only(bottom: 8),
       child: GestureDetector(
         onLongPress: () {
-          if (onReply != null || onDelete != null || onReport != null || onBlock != null) {
+          if (!message.isMessageDeleted) {
             _showMessageOptions(message, onReply, onDelete, onReport, onBlock);
           }
         },
@@ -407,13 +409,27 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(
-                            message.isMessageDeleted ? 'Bu mesaj silindi' : message.content,
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: isMe ? Colors.white : AppColors.neutral800,
-                              fontStyle: message.isMessageDeleted ? FontStyle.italic : FontStyle.normal,
+                          if (message.isMessageDeleted)
+                            Text(
+                              'Bu mesaj silindi',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: isMe ? Colors.white : AppColors.neutral800,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            )
+                          else
+                            LinkifyText(
+                              text: message.content,
+                              selectable: false,
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: isMe ? Colors.white : AppColors.neutral800,
+                              ),
+                              linkStyle: AppTypography.bodyMedium.copyWith(
+                                color: isMe ? Colors.white : AppColors.primary,
+                                decoration: TextDecoration.underline,
+                                decorationColor: isMe ? Colors.white : AppColors.primary,
+                              ),
                             ),
-                          ),
                           const SizedBox(height: 4),
                           Row(
                             mainAxisSize: MainAxisSize.min,
@@ -651,6 +667,21 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.copy_outlined),
+                title: const Text('Kopyala'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Clipboard.setData(ClipboardData(text: message.content));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Mesaj kopyalandı'),
+                      behavior: SnackBarBehavior.floating,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
               if (onReply != null)
                 ListTile(
                   leading: const Icon(Icons.reply),

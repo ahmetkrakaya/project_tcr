@@ -302,6 +302,55 @@ serve(async (req) => {
       }
     }
 
+    // En az bir gün kaydedildiyse ilgili kullanıcılara push bildirim gönder.
+    // Bildirim hatası program kaydını etkilemesin diye try/catch ile sarmalanır.
+    if (savedDays.length > 0) {
+      try {
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+        if (!serviceKey) {
+          console.warn(
+            "[weekly-program-upsert] SERVICE_ROLE_KEY yok, bildirim atlanıyor",
+          );
+        } else {
+          const admin = createClient(supabaseUrl, serviceKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          });
+
+          let recipientIds: string[] = [];
+          if (scopeType === "member" && memberUserId) {
+            recipientIds = [memberUserId];
+          } else {
+            const { data: members } = await admin
+              .from("group_members")
+              .select("user_id")
+              .eq("group_id", trainingGroupId);
+            recipientIds = (members ?? [])
+              .map((m) => String((m as { user_id: string }).user_id))
+              .filter((id) => id.length > 0);
+          }
+
+          if (recipientIds.length > 0) {
+            const { error: notifyErr } = await admin.rpc("insert_notifications", {
+              p_type: "weekly_program_created",
+              p_title: "Haftalık antrenman programınız oluştu",
+              p_body:
+                "Etkinlikler ekranındaki antrenman görünümünden programını inceleyebilirsin.",
+              p_data: { target: "events_workout" },
+              p_recipient_ids: recipientIds,
+            });
+            if (notifyErr) {
+              console.error(
+                "[weekly-program-upsert] insert_notifications hata:",
+                notifyErr.message,
+              );
+            }
+          }
+        }
+      } catch (notifyError) {
+        console.error("[weekly-program-upsert] bildirim hata:", notifyError);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: errors.length === 0,

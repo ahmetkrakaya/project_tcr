@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/utils/post_image_processor.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../domain/entities/post_block_entity.dart';
@@ -89,9 +90,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+        imageQuality: 100,
       );
 
       if (pickedFile != null) {
@@ -115,7 +114,8 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
     if (_coverImageFile == null) return _coverImageUrl;
     final supabase = Supabase.instance.client;
     final fileName = 'post_cover_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final bytes = await _coverImageFile!.readAsBytes();
+    final rawBytes = await _coverImageFile!.readAsBytes();
+    final bytes = PostImageProcessor.processCoverImage(rawBytes);
     await supabase.storage.from('post-images').uploadBinary(
       fileName,
       bytes,
@@ -151,7 +151,8 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
         if (block.type == 'image' && pendingKey != null && _pendingBlockImages.containsKey(pendingKey)) {
           final xFile = _pendingBlockImages[pendingKey]!;
           final fileName = 'post_block_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
-          final blockBytes = await xFile.readAsBytes();
+          final rawBytes = await xFile.readAsBytes();
+          final blockBytes = PostImageProcessor.processBlockImage(rawBytes);
           await supabase.storage.from('post-images').uploadBinary(
             fileName,
             blockBytes,
@@ -410,8 +411,9 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                     GestureDetector(
                       onTap: _pickCoverImage,
                       child: _coverImageFile != null
-                          ? Container(
-                              height: 200,
+                          ? AspectRatio(
+                              aspectRatio: 16 / 9,
+                              child: Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: AppColors.neutral300),
@@ -448,10 +450,12 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                   ),
                                 ],
                               ),
+                            ),
                             )
                           : _coverImageUrl != null
-                              ? Container(
-                                  height: 200,
+                              ? AspectRatio(
+                                  aspectRatio: 16 / 9,
+                                  child: Container(
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(color: AppColors.neutral300),
@@ -463,7 +467,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                         borderRadius: BorderRadius.circular(12),
                                         child: Image.network(
                                           _coverImageUrl!,
-                                          fit: BoxFit.fill,
+                                          fit: BoxFit.cover,
                                           width: double.infinity,
                                           height: double.infinity,
                                           errorBuilder: (_, __, ___) => const Icon(Icons.image, size: 48),
@@ -489,6 +493,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                       ),
                                     ],
                                   ),
+                                ),
                                 )
                               : AppCard(
                                   child: Padding(
@@ -859,9 +864,7 @@ class _BlockEditorSheetState extends State<_BlockEditorSheet> {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+        imageQuality: 100,
       );
 
       if (pickedFile != null) {

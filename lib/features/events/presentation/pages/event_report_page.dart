@@ -10,7 +10,6 @@ import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import 'user_activity_report_page.dart';
-import 'user_engagement_reports_page.dart';
 import '../../data/models/event_report_model.dart';
 import '../../data/models/user_report_model.dart';
 import '../../domain/entities/event_entity.dart';
@@ -22,7 +21,12 @@ enum GroupReportSortType { distance, duration, pace }
 
 /// Etkinlik Raporu Sayfası
 class EventReportPage extends ConsumerStatefulWidget {
-  const EventReportPage({super.key});
+  const EventReportPage({
+    super.key,
+    this.eventReportDetailRouteName = RouteNames.eventReportDetail,
+  });
+
+  final String eventReportDetailRouteName;
 
   @override
   ConsumerState<EventReportPage> createState() => _EventReportPageState();
@@ -108,20 +112,6 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
     return Scaffold(
       appBar: AppBar(
         title: const Text('Raporlar'),
-        actions: [
-          if (_tabController.index == 2)
-            IconButton(
-              icon: const Icon(Icons.insights_outlined),
-              tooltip: 'Kullanıcı Analizleri',
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const UserEngagementReportsPage(),
-                  ),
-                );
-              },
-            ),
-        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -831,7 +821,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
           return InkWell(
             onTap: () {
               context.pushNamed(
-                RouteNames.eventReportDetail,
+                widget.eventReportDetailRouteName,
                 pathParameters: {'eventId': event.eventId},
               );
             },

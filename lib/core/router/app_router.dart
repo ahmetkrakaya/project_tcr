@@ -31,6 +31,17 @@ import '../../features/profile/presentation/pages/settings_page.dart';
 import '../../features/profile/presentation/pages/statistics_page.dart';
 import '../../features/profile/presentation/pages/user_points_leaderboard_page.dart';
 import '../../features/profile/presentation/pages/admin_app_versions_page.dart';
+import '../../features/admin/presentation/pages/admin_reports_hub_page.dart';
+import '../../features/admin/presentation/pages/admin_reports_dashboard_page.dart';
+import '../../features/admin/presentation/pages/strava_connection_report_page.dart';
+import '../../features/coaching/presentation/pages/athlete_training_load_detail_page.dart';
+import '../../features/coaching/presentation/pages/coach_training_load_page.dart';
+import '../../features/coaching/presentation/pages/event_training_load_page.dart';
+import '../../features/admin/presentation/pages/event_type_trend_page.dart';
+import '../../features/admin/presentation/pages/group_status_dashboard_page.dart';
+import '../../features/admin/presentation/pages/person_360_page.dart';
+import '../../features/events/presentation/pages/participation_report_page.dart';
+import '../../features/events/presentation/pages/user_engagement_reports_page.dart';
 import '../../features/activity/presentation/pages/activity_detail_page.dart';
 import '../../features/activity/presentation/pages/activity_history_page.dart';
 import '../../features/activity/presentation/pages/leaderboard_page.dart';
@@ -237,7 +248,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/events',
             name: RouteNames.events,
             builder: (context, state) {
-              return EventsPage();
+              final initialWorkoutView =
+                  state.uri.queryParameters['view'] == 'workout';
+              return EventsPage(initialWorkoutView: initialWorkoutView);
             },
             routes: [
               GoRoute(
@@ -632,6 +645,92 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/tools/pace-calculator',
         name: RouteNames.paceCalculator,
         builder: (context, state) => const PaceCalculatorPage(),
+      ),
+
+      // Admin (Outside shell)
+      GoRoute(
+        path: '/admin/reports',
+        name: RouteNames.adminReportsHub,
+        builder: (context, state) => const AdminReportsHubPage(),
+      ),
+      GoRoute(
+        path: '/admin/reports-dashboard',
+        name: RouteNames.adminReportsDashboard,
+        builder: (context, state) => const AdminReportsDashboardPage(),
+      ),
+      GoRoute(
+        path: '/admin/user-engagement-reports',
+        name: RouteNames.userEngagementReports,
+        builder: (context, state) => const UserEngagementReportsPage(),
+      ),
+      GoRoute(
+        path: '/admin/vdot-thresholds',
+        name: RouteNames.adminVdotThresholdList,
+        builder: (context, state) => const VdotThresholdListPage(),
+      ),
+      GoRoute(
+        path: '/admin/participation-reports',
+        name: RouteNames.adminParticipationReports,
+        builder: (context, state) => const ParticipationReportPage(
+          eventReportDetailRouteName: RouteNames.adminParticipationReportDetail,
+        ),
+        routes: [
+          GoRoute(
+            path: ':eventId',
+            name: RouteNames.adminParticipationReportDetail,
+            builder: (context, state) {
+              final eventId = state.pathParameters['eventId']!;
+              return EventReportDetailPage(eventId: eventId);
+            },
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/admin/banned-rejected-users',
+        name: RouteNames.adminBannedRejectedUsers,
+        builder: (context, state) => const BannedRejectedUsersPage(),
+      ),
+      GoRoute(
+        path: '/admin/strava-connection-report',
+        name: RouteNames.adminStravaConnectionReport,
+        builder: (context, state) => const StravaConnectionReportPage(),
+      ),
+      GoRoute(
+        path: '/admin/training-load',
+        name: RouteNames.adminTrainingLoad,
+        builder: (context, state) =>
+            CoachTrainingLoadPage(initialGroupId: state.extra as String?),
+        routes: [
+          GoRoute(
+            path: ':userId',
+            name: RouteNames.adminTrainingLoadDetail,
+            builder: (context, state) => AthleteTrainingLoadDetailPage(
+              userId: state.pathParameters['userId']!,
+              athleteName: state.extra as String?,
+            ),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/admin/event-training-load',
+        name: RouteNames.adminEventTrainingLoad,
+        builder: (context, state) =>
+            EventTrainingLoadPage(initialEventId: state.extra as String?),
+      ),
+      GoRoute(
+        path: '/admin/event-type-trend',
+        name: RouteNames.adminEventTypeTrend,
+        builder: (context, state) => const EventTypeTrendPage(),
+      ),
+      GoRoute(
+        path: '/admin/group-status',
+        name: RouteNames.adminGroupStatus,
+        builder: (context, state) => const GroupStatusDashboardPage(),
+      ),
+      GoRoute(
+        path: '/admin/person-360',
+        name: RouteNames.adminPerson360,
+        builder: (context, state) => const Person360Page(),
       ),
 
       // ── Universal Links / App Links yönlendirmeleri ──

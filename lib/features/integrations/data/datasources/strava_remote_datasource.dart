@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../models/integration_model.dart';
+import '../models/strava_connection_report_model.dart';
 import '../models/strava_models.dart';
 
 /// Strava Remote Data Source Interface
@@ -60,6 +61,9 @@ abstract class StravaRemoteDataSource {
 
   /// Entegrasyonu sil
   Future<void> deleteIntegration(String integrationId);
+
+  /// Admin: Strava bağlantı raporu
+  Future<StravaConnectionReportModel> getStravaConnectionReport();
 }
 
 /// Strava Remote Data Source Implementation
@@ -464,6 +468,20 @@ class StravaRemoteDataSourceImpl implements StravaRemoteDataSource {
     } catch (e) {
       // Parse hatası olsa bile boş liste döndür (kritik değil)
       return [];
+    }
+  }
+
+  @override
+  Future<StravaConnectionReportModel> getStravaConnectionReport() async {
+    try {
+      final response = await _supabaseClient.rpc('get_strava_connection_report');
+      return StravaConnectionReportModel.fromJson(
+        Map<String, dynamic>.from(response as Map),
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Strava bağlantı raporu alınamadı: $e');
     }
   }
 }

@@ -3,7 +3,7 @@
 // // Bildirim her zaman notifications tablosuna yazılır (053); push sadece kullanıcı
 // // ayarında ilgili tür açıksa gönderilir (user_notification_settings).
 
-// --- Aktif implementasyon: notifications INSERT -> FCM push (sohbet bazlı gruplama dahil) ---
+// --- Aktif implementasyon: notifications INSERT -> FCM push ---
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -79,23 +79,6 @@ async function getGoogleAccessToken(
   return data.access_token;
 }
 
-type ChatData = {
-  room_id?: unknown;
-  event_id?: unknown;
-  [key: string]: unknown;
-};
-
-function getChatGroupKey(record: NotificationRecord): string | null {
-  if (record.type !== "event_chat_message") return null;
-  if (!record.data || typeof record.data !== "object") return null;
-
-  const d = record.data as ChatData;
-  const eventId = typeof d.event_id === "string" ? d.event_id : null;
-  const roomId = typeof d.room_id === "string" ? d.room_id : null;
-
-  return eventId ?? roomId ?? null;
-}
-
 async function sendFcm(
   accessToken: string,
   projectId: string,
@@ -111,8 +94,6 @@ async function sendFcm(
       if (v != null) dataPayload[k] = String(v);
     }
   }
-
-  const chatKey = getChatGroupKey(record);
 
   const isStravaWatch = record.type === "strava_watch_run";
 
@@ -131,11 +112,8 @@ async function sendFcm(
       channel_id: "strava_watch_channel_v2",
       sound: soundName,
     };
-  } else if (chatKey) {
-    const collapseId = `chat-${chatKey}-${record.user_id}`;
-    android["collapse_key"] = collapseId;
+  } else {
     android["notification"] = {
-      tag: collapseId,
       channel_id: "tcr_notifications",
     };
   }
@@ -150,13 +128,6 @@ async function sendFcm(
       : "strava_alarm_1";
     aps = { sound: `${soundName}.wav` };
   }
-  const apnsHeaders: Record<string, string> = {};
-
-  if (!isStravaWatch && chatKey) {
-    const collapseId = `chat-${chatKey}-${record.user_id}`;
-    apnsHeaders["apns-collapse-id"] = collapseId;
-    aps["thread-id"] = `chat-${chatKey}`;
-  }
 
   const body = {
     message: {
@@ -169,7 +140,6 @@ async function sendFcm(
       android,
       apns: {
         payload: { aps },
-        headers: Object.keys(apnsHeaders).length ? apnsHeaders : undefined,
         fcm_options: {},
       },
     },
@@ -250,7 +220,7 @@ serve(async (req) => {
     const isNotificationsTable = tableName === "notifications" ||
       tableName.endsWith(".notifications");
     const isNotificationsWrite = isNotificationsTable &&
-      (payload.type === "INSERT" || payload.type === "UPDATE");
+      payload.type === "INSERT";
 
     if (!isNotificationsWrite) {
       console.log(
@@ -260,7 +230,7 @@ serve(async (req) => {
         payload.table,
       );
       return new Response(
-        JSON.stringify({ ok: true, skipped: "not notifications INSERT/UPDATE" }),
+        JSON.stringify({ ok: true, skipped: "not notifications INSERT" }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -290,21 +260,7 @@ serve(async (req) => {
       record.user_id,
       "type:",
       record.type,
-      "op:",
-      payload.type,
     );
-
-    // "WhatsApp gibi" gruplama: DB tarafında aynı notification satırı UPDATE ediliyor olabilir.
-    // Bu durumda da push göndermeye devam etmek istiyoruz; ancak UPDATE'lerde sadece sohbet tipi için.
-    if (payload.type === "UPDATE" && record.type !== "event_chat_message") {
-      return new Response(
-        JSON.stringify({ ok: true, skipped: "update non-chat notification" }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??

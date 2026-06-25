@@ -19,7 +19,7 @@
 
 4. **Database Webhook**: Supabase Dashboard → Database → Webhooks → Create hook:
    - Table: `public.notifications`
-   - Events: Insert
+   - Events: **Insert** (yalnızca Insert; sohbet push'ları her mesajda yeni satır oluşturur)
    - Type: Supabase Edge Functions
    - Function: `send-push-on-notification`
    - HTTP Headers: "Add auth header with service key" + Content-Type: application/json

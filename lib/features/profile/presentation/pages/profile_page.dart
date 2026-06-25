@@ -497,7 +497,6 @@ class ProfilePage extends ConsumerWidget {
     final viewingUserIsAdmin = ref.watch(isAdminProvider);
     final currentUserId = ref.watch(userIdProvider);
     final targetUserId = userId ?? currentUserId;
-    final canSeeAdminTools = isOwnProfile && (ref.watch(isAdminOrCoachProvider) || viewingUserIsAdmin);
     
     // Kendi profilinde gösterilecek öğeler
     if (isOwnProfile) {
@@ -592,7 +591,9 @@ class ProfilePage extends ConsumerWidget {
         ),
       );
 
-      if (canSeeAdminTools) {
+      final isCoachOnly = ref.watch(isCoachProvider) && !viewingUserIsAdmin;
+
+      if (isCoachOnly) {
         menuItems.add(const Divider(height: 32));
 
         menuItems.add(
@@ -613,61 +614,16 @@ class ProfilePage extends ConsumerWidget {
           ),
         );
 
-        // Rotalar - Sadece admin ve koçlar görebilir
-        if (ref.watch(isAdminOrCoachProvider)) {
-          menuItems.add(
-            _buildMenuItem(
-              context,
-              icon: Icons.route_outlined,
-              title: 'Rotalar',
-              subtitle: 'GPX rotalarını görüntüle ve yönet',
-              iconColor: AppColors.tertiary,
-              onTap: () => context.pushNamed(RouteNames.routes),
-            ),
-          );
-        }
-
-        // Bildirim Oluştur - Sadece admin
-        if (viewingUserIsAdmin) {
-          menuItems.add(
-            _buildMenuItem(
-              context,
-              icon: Icons.notifications_active_outlined,
-              title: 'Bildirim Oluştur',
-              subtitle: 'Hedef kitle seçip manuel bildirim gönder',
-              iconColor: AppColors.warning,
-              onTap: () => context.pushNamed(RouteNames.adminCreateNotification),
-            ),
-          );
-        }
-
-        // Kullanıcı Puanları - Sadece admin
-        if (viewingUserIsAdmin) {
-          menuItems.add(
-            _buildMenuItem(
-              context,
-              icon: Icons.emoji_events_outlined,
-              title: 'Kullanıcı Puanları',
-              subtitle: 'En yüksek puandan en aza doğru sıralama',
-              iconColor: const Color(0xFFFF8F00),
-              onTap: () => context.pushNamed(RouteNames.userPointsLeaderboard),
-            ),
-          );
-        }
-
-        // App Versiyon - Sadece admin
-        if (viewingUserIsAdmin) {
-          menuItems.add(
-            _buildMenuItem(
-              context,
-              icon: Icons.system_update_alt_outlined,
-              title: 'App Versiyon',
-              subtitle: 'iOS ve Android güncelleme ayarları',
-              iconColor: AppColors.primary,
-              onTap: () => context.pushNamed(RouteNames.adminAppVersions),
-            ),
-          );
-        }
+        menuItems.add(
+          _buildMenuItem(
+            context,
+            icon: Icons.route_outlined,
+            title: 'Rotalar',
+            subtitle: 'GPX rotalarını görüntüle ve yönet',
+            iconColor: AppColors.tertiary,
+            onTap: () => context.pushNamed(RouteNames.routes),
+          ),
+        );
       }
     } else {
       // Başka kullanıcının profilinde - Admin profil bilgilerini görebilir

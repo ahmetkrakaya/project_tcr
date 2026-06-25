@@ -8,6 +8,20 @@ import '../../../../shared/widgets/loading_widget.dart';
 import '../../domain/entities/event_info_block_entity.dart';
 import '../providers/event_provider.dart';
 
+String _normalizeEventInfoLinkUrl(String input) {
+  var url = input.trim();
+  if (url.isEmpty) return url;
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://$url';
+  }
+  return url;
+}
+
+bool _isValidEventInfoLinkUrl(String url) {
+  final uri = Uri.tryParse(url);
+  return uri != null && uri.hasScheme && uri.host.isNotEmpty;
+}
+
 /// Notion benzeri Event Info Blocks Editor
 class EventInfoBlocksEditor extends ConsumerStatefulWidget {
   final String eventId;
@@ -151,7 +165,11 @@ class _EventInfoBlocksEditorState extends ConsumerState<EventInfoBlocksEditor> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                block.content,
+                block.type == EventInfoBlockType.link
+                    ? (block.subContent?.trim().isNotEmpty == true
+                        ? block.subContent!
+                        : block.content)
+                    : block.content,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.bodyMedium,
@@ -225,6 +243,8 @@ class _EventInfoBlocksEditorState extends ConsumerState<EventInfoBlocksEditor> {
         return AppColors.secondary;
       case EventInfoBlockType.divider:
         return AppColors.neutral400;
+      case EventInfoBlockType.link:
+        return AppColors.info;
     }
   }
 
@@ -396,11 +416,18 @@ class _AddBlockSheetState extends State<_AddBlockSheet> {
               TextField(
                 controller: _contentController,
                 onChanged: (_) => setState(() {}),
+                keyboardType: _selectedType == EventInfoBlockType.link
+                    ? TextInputType.url
+                    : TextInputType.text,
+                autocorrect: _selectedType != EventInfoBlockType.link,
                 decoration: InputDecoration(
                   hintText: _getContentHint(),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
+                  prefixIcon: _selectedType == EventInfoBlockType.link
+                      ? const Icon(Icons.link)
+                      : null,
                 ),
                 maxLines: _selectedType == EventInfoBlockType.text ? 3 : 1,
                 textInputAction: _needsSubContent() ? TextInputAction.next : TextInputAction.done,
@@ -514,6 +541,8 @@ class _AddBlockSheetState extends State<_AddBlockSheet> {
         return 'Başlık';
       case EventInfoBlockType.quote:
         return 'Alıntı';
+      case EventInfoBlockType.link:
+        return 'Link adresi';
       default:
         return 'İçerik';
     }
@@ -535,6 +564,8 @@ class _AddBlockSheetState extends State<_AddBlockSheet> {
         return 'Örn: İpucu';
       case EventInfoBlockType.quote:
         return 'Alıntı metni';
+      case EventInfoBlockType.link:
+        return 'https://ornek.com';
       default:
         return 'İçerik yazın...';
     }
@@ -550,6 +581,8 @@ class _AddBlockSheetState extends State<_AddBlockSheet> {
         return 'Detay';
       case EventInfoBlockType.quote:
         return 'Kaynak';
+      case EventInfoBlockType.link:
+        return 'Görünen metin (opsiyonel)';
       default:
         return 'Ek Bilgi';
     }
@@ -563,6 +596,8 @@ class _AddBlockSheetState extends State<_AddBlockSheet> {
         return 'Örn: Gruptan kopmamaya çalışın';
       case EventInfoBlockType.quote:
         return 'Örn: MEHMET TERZİ';
+      case EventInfoBlockType.link:
+        return 'Örn: Kayıt formu';
       default:
         return 'Ek bilgi yazın...';
     }
@@ -575,18 +610,32 @@ class _AddBlockSheetState extends State<_AddBlockSheet> {
       EventInfoBlockType.info,
       EventInfoBlockType.tip,
       EventInfoBlockType.quote,
+      EventInfoBlockType.link,
     ].contains(_selectedType);
   }
 
   bool _canSubmit() {
     if (_selectedType == EventInfoBlockType.divider) return true;
-    return _contentController.text.trim().isNotEmpty;
+    if (_contentController.text.trim().isEmpty) return false;
+    if (_selectedType == EventInfoBlockType.link) {
+      return _isValidEventInfoLinkUrl(
+        _normalizeEventInfoLinkUrl(_contentController.text),
+      );
+    }
+    return true;
   }
 
   void _submit() {
+    var content = _selectedType == EventInfoBlockType.divider
+        ? '---'
+        : _contentController.text.trim();
+    if (_selectedType == EventInfoBlockType.link) {
+      content = _normalizeEventInfoLinkUrl(content);
+    }
+
     widget.notifier.addBlock(
       _selectedType,
-      _selectedType == EventInfoBlockType.divider ? '---' : _contentController.text.trim(),
+      content,
       subContent: _subContentController.text.trim().isNotEmpty ? _subContentController.text.trim() : null,
     );
 
@@ -847,11 +896,26 @@ class _EditBlockSheetState extends State<_EditBlockSheet> {
             const SizedBox(height: 20),
             
             if (widget.block.type != EventInfoBlockType.divider) ...[
-              Text('İçerik', style: AppTypography.labelLarge),
+              Text(
+                widget.block.type == EventInfoBlockType.link
+                    ? 'Link adresi'
+                    : 'İçerik',
+                style: AppTypography.labelLarge,
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _contentController,
+                keyboardType: widget.block.type == EventInfoBlockType.link
+                    ? TextInputType.url
+                    : TextInputType.text,
+                autocorrect: widget.block.type != EventInfoBlockType.link,
                 decoration: InputDecoration(
+                  hintText: widget.block.type == EventInfoBlockType.link
+                      ? 'https://ornek.com'
+                      : null,
+                  prefixIcon: widget.block.type == EventInfoBlockType.link
+                      ? const Icon(Icons.link)
+                      : null,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -860,11 +924,19 @@ class _EditBlockSheetState extends State<_EditBlockSheet> {
               ),
               const SizedBox(height: 16),
               
-              Text('Ek Bilgi (Opsiyonel)', style: AppTypography.labelLarge),
+              Text(
+                widget.block.type == EventInfoBlockType.link
+                    ? 'Görünen metin (opsiyonel)'
+                    : 'Ek Bilgi (Opsiyonel)',
+                style: AppTypography.labelLarge,
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _subContentController,
                 decoration: InputDecoration(
+                  hintText: widget.block.type == EventInfoBlockType.link
+                      ? 'Örn: Kayıt formu'
+                      : null,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -889,11 +961,22 @@ class _EditBlockSheetState extends State<_EditBlockSheet> {
   }
 
   void _save() {
+    var content = _contentController.text.trim();
+    if (widget.block.type == EventInfoBlockType.link) {
+      content = _normalizeEventInfoLinkUrl(content);
+      if (!_isValidEventInfoLinkUrl(content)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Geçerli bir link adresi girin')),
+        );
+        return;
+      }
+    }
+
     final updatedBlock = EventInfoBlockEntity(
       id: widget.block.id,
       eventId: widget.block.eventId,
       type: widget.block.type,
-      content: _contentController.text.trim(),
+      content: content,
       subContent: _subContentController.text.trim().isNotEmpty 
           ? _subContentController.text.trim() 
           : null,

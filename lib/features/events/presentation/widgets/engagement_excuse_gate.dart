@@ -63,18 +63,7 @@ class _EngagementExcuseGateState extends ConsumerState<EngagementExcuseGate>
           ],
         );
       },
-      loading: () => Stack(
-        children: [
-          widget.child,
-          ModalBarrier(
-            dismissible: false,
-            color: Colors.black.withValues(alpha: 0.35),
-          ),
-          const Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          ),
-        ],
-      ),
+      loading: () => widget.child,
       error: (_, __) => widget.child,
     );
   }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../shared/widgets/app_card.dart';
+import '../../../../shared/widgets/app_text_field.dart';
+import '../../../../shared/widgets/loading_widget.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../providers/app_versions_admin_provider.dart';
 
@@ -18,10 +20,8 @@ class AdminAppVersionsPage extends ConsumerStatefulWidget {
 class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
   final _iosVersionController = TextEditingController();
   final _iosStoreUrlController = TextEditingController();
-  final _iosMessageController = TextEditingController();
   final _androidVersionController = TextEditingController();
   final _androidStoreUrlController = TextEditingController();
-  final _androidMessageController = TextEditingController();
 
   bool _iosForceUpdate = false;
   bool _androidForceUpdate = false;
@@ -33,10 +33,8 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
   void dispose() {
     _iosVersionController.dispose();
     _iosStoreUrlController.dispose();
-    _iosMessageController.dispose();
     _androidVersionController.dispose();
     _androidStoreUrlController.dispose();
-    _androidMessageController.dispose();
     super.dispose();
   }
 
@@ -49,14 +47,12 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
     if (ios != null) {
       _iosVersionController.text = ios.minimumVersion;
       _iosStoreUrlController.text = ios.appStoreUrl ?? '';
-      _iosMessageController.text = ios.message ?? '';
       _iosForceUpdate = ios.isForceUpdate;
     }
 
     if (android != null) {
       _androidVersionController.text = android.minimumVersion;
       _androidStoreUrlController.text = android.playStoreUrl ?? '';
-      _androidMessageController.text = android.message ?? '';
       _androidForceUpdate = android.isForceUpdate;
     }
 
@@ -69,7 +65,7 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
   Future<void> _saveIos() async {
     final version = _iosVersionController.text.trim();
     if (!_isValidVersion(version)) {
-      _showError('Geçerli bir iOS sürüm numarası girin (örn. 1.2026.2)');
+      _showError('Geçerli bir sürüm numarası girin (örn. 1.2026.2)');
       return;
     }
 
@@ -78,13 +74,12 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
       await ref.read(appVersionsAdminRepositoryProvider).upsertIos(
             minimumVersion: version,
             isForceUpdate: _iosForceUpdate,
-            message: _iosMessageController.text,
             appStoreUrl: _iosStoreUrlController.text,
           );
       ref.invalidate(appVersionsAdminProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('iOS sürüm bilgileri kaydedildi')),
+          const SnackBar(content: Text('iOS ayarları kaydedildi')),
         );
       }
     } catch (e) {
@@ -97,7 +92,7 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
   Future<void> _saveAndroid() async {
     final version = _androidVersionController.text.trim();
     if (!_isValidVersion(version)) {
-      _showError('Geçerli bir Android sürüm numarası girin (örn. 1.2026.2)');
+      _showError('Geçerli bir sürüm numarası girin (örn. 1.2026.2)');
       return;
     }
 
@@ -106,13 +101,12 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
       await ref.read(appVersionsAdminRepositoryProvider).upsertAndroid(
             minimumVersion: version,
             isForceUpdate: _androidForceUpdate,
-            message: _androidMessageController.text,
             playStoreUrl: _androidStoreUrlController.text,
           );
       ref.invalidate(appVersionsAdminProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Android sürüm bilgileri kaydedildi')),
+          const SnackBar(content: Text('Android ayarları kaydedildi')),
         );
       }
     } catch (e) {
@@ -133,8 +127,12 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(isAdminProvider);
     final versionsAsync = ref.watch(appVersionsAdminProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor =
+        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text('App Versiyon'),
       ),
@@ -152,7 +150,7 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
               ),
             )
           : versionsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const LoadingWidget(),
               error: (e, _) => Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -160,7 +158,7 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Sürüm bilgileri yüklenemedi',
+                        'Ayarlar yüklenemedi',
                         style: AppTypography.titleSmall,
                       ),
                       const SizedBox(height: 8),
@@ -175,7 +173,7 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
                       FilledButton(
                         onPressed: () =>
                             ref.invalidate(appVersionsAdminProvider),
-                        child: const Text('Tekrar dene'),
+                        child: const Text('Tekrar Dene'),
                       ),
                     ],
                   ),
@@ -184,96 +182,130 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
               data: (data) {
                 _initForms(data);
                 return ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
                   children: [
                     Text(
-                      'Kullanıcıların uygulama açılışında gördüğü güncelleme kontrolü bu değerlerle yapılır.',
-                      style: AppTypography.bodySmall.copyWith(
+                      'Minimum sürümün altındaki kullanıcılara güncelleme uyarısı gösterilir.',
+                      style: AppTypography.bodyMedium.copyWith(
                         color: AppColors.neutral500,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    _buildPlatformCard(
+                    const SizedBox(height: 24),
+                    _PlatformSection(
                       title: 'iOS',
-                      icon: Icons.phone_iphone,
+                      icon: Icons.phone_iphone_rounded,
                       iconColor: AppColors.primary,
+                      updatedAt: data['ios']?.updatedAt,
                       versionController: _iosVersionController,
                       storeUrlController: _iosStoreUrlController,
                       storeUrlLabel: 'App Store linki',
                       storeUrlHint: 'https://apps.apple.com/app/id...',
-                      messageController: _iosMessageController,
                       isForceUpdate: _iosForceUpdate,
-                      onForceUpdateChanged: (v) =>
-                          setState(() => _iosForceUpdate = v),
+                      onForceUpdateChanged: (value) =>
+                          setState(() => _iosForceUpdate = value),
                       isSaving: _iosSaving,
                       onSave: _saveIos,
-                      updatedAt: data['ios']?.updatedAt,
+                      isDark: isDark,
                     ),
                     const SizedBox(height: 16),
-                    _buildPlatformCard(
+                    _PlatformSection(
                       title: 'Android',
-                      icon: Icons.android,
+                      icon: Icons.android_rounded,
                       iconColor: const Color(0xFF3DDC84),
+                      updatedAt: data['android']?.updatedAt,
                       versionController: _androidVersionController,
                       storeUrlController: _androidStoreUrlController,
                       storeUrlLabel: 'Play Store linki',
                       storeUrlHint:
                           'https://play.google.com/store/apps/details?id=...',
-                      messageController: _androidMessageController,
                       isForceUpdate: _androidForceUpdate,
-                      onForceUpdateChanged: (v) =>
-                          setState(() => _androidForceUpdate = v),
+                      onForceUpdateChanged: (value) =>
+                          setState(() => _androidForceUpdate = value),
                       isSaving: _androidSaving,
                       onSave: _saveAndroid,
-                      updatedAt: data['android']?.updatedAt,
+                      isDark: isDark,
                     ),
-                    const SizedBox(height: 24),
                   ],
                 );
               },
             ),
     );
   }
+}
 
-  Widget _buildPlatformCard({
-    required String title,
-    required IconData icon,
-    required Color iconColor,
-    required TextEditingController versionController,
-    required TextEditingController storeUrlController,
-    required String storeUrlLabel,
-    required String storeUrlHint,
-    required TextEditingController messageController,
-    required bool isForceUpdate,
-    required ValueChanged<bool> onForceUpdateChanged,
-    required bool isSaving,
-    required VoidCallback onSave,
-    required DateTime? updatedAt,
-  }) {
-    return AppCard(
+class _PlatformSection extends StatelessWidget {
+  const _PlatformSection({
+    required this.title,
+    required this.icon,
+    required this.iconColor,
+    required this.updatedAt,
+    required this.versionController,
+    required this.storeUrlController,
+    required this.storeUrlLabel,
+    required this.storeUrlHint,
+    required this.isForceUpdate,
+    required this.onForceUpdateChanged,
+    required this.isSaving,
+    required this.onSave,
+    required this.isDark,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color iconColor;
+  final DateTime? updatedAt;
+  final TextEditingController versionController;
+  final TextEditingController storeUrlController;
+  final String storeUrlLabel;
+  final String storeUrlHint;
+  final bool isForceUpdate;
+  final ValueChanged<bool> onForceUpdateChanged;
+  final bool isSaving;
+  final VoidCallback onSave;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? AppColors.surfaceVariantDark : AppColors.neutral300,
+        ),
+      ),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: iconColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: iconColor, size: 22),
+                child: Icon(icon, color: iconColor, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: AppTypography.titleMedium),
+                    Text(
+                      title,
+                      style: AppTypography.titleMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     if (updatedAt != null)
                       Text(
-                        'Son güncelleme: ${_formatDate(updatedAt)}',
+                        'Son kayıt: ${DateFormat('d MMM yyyy, HH:mm').format(updatedAt!.toLocal())}',
                         style: AppTypography.bodySmall.copyWith(
                           color: AppColors.neutral500,
                         ),
@@ -281,82 +313,82 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              _SaveIconButton(
+                isSaving: isSaving,
+                onPressed: onSave,
+              ),
             ],
           ),
           const SizedBox(height: 20),
-          TextField(
+          AppTextField(
             controller: versionController,
-            decoration: const InputDecoration(
-              labelText: 'Güncel minimum sürüm',
-              hintText: 'Örn: 1.2026.2',
-              helperText:
-                  'Bu sürümün altındaki kullanıcılara güncelleme uyarısı gösterilir',
-            ),
+            label: 'Minimum sürüm',
+            hint: '1.2026.2',
             keyboardType: TextInputType.text,
           ),
           const SizedBox(height: 12),
+          AppTextField(
+            controller: storeUrlController,
+            label: storeUrlLabel,
+            hint: storeUrlHint,
+            keyboardType: TextInputType.url,
+          ),
+          const SizedBox(height: 8),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: Text('Zorunlu güncelleme', style: AppTypography.titleSmall),
-            subtitle: Text(
-              isForceUpdate
-                  ? 'Kullanıcı güncellemeden uygulamayı kullanamaz'
-                  : 'Kullanıcı uyarıyı kapatabilir',
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
-              ),
+            title: Text(
+              'Zorunlu güncelleme',
+              style: AppTypography.titleSmall,
             ),
             value: isForceUpdate,
             onChanged: onForceUpdateChanged,
             activeColor: AppColors.primary,
           ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: storeUrlController,
-            decoration: InputDecoration(
-              labelText: storeUrlLabel,
-              hintText: storeUrlHint,
-            ),
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: messageController,
-            decoration: const InputDecoration(
-              labelText: 'Güncelleme mesajı (isteğe bağlı)',
-              hintText: 'Yeni sürümde neler var?',
-            ),
-            maxLines: 2,
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: isSaving ? null : onSave,
-              child: isSaving
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text('$title kaydet'),
-            ),
-          ),
         ],
       ),
     );
   }
+}
 
-  String _formatDate(DateTime date) {
-    final local = date.toLocal();
-    final d = local.day.toString().padLeft(2, '0');
-    final m = local.month.toString().padLeft(2, '0');
-    final h = local.hour.toString().padLeft(2, '0');
-    final min = local.minute.toString().padLeft(2, '0');
-    return '$d.$m.${local.year} $h:$min';
+class _SaveIconButton extends StatelessWidget {
+  const _SaveIconButton({
+    required this.isSaving,
+    required this.onPressed,
+  });
+
+  final bool isSaving;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Kaydet',
+      child: Material(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: isSaving ? null : onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: isSaving
+                ? const Padding(
+                    padding: EdgeInsets.all(10),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
+                    ),
+                  )
+                : const Icon(
+                    Icons.check_rounded,
+                    color: AppColors.primary,
+                    size: 22,
+                  ),
+          ),
+        ),
+      ),
+    );
   }
 }

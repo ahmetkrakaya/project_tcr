@@ -21,6 +21,7 @@ class NotificationTypes {
   static const String birthdayReminder = 'birthday_reminder';
   static const String adminManual = 'admin_manual';
   static const String engagementExcuseRequest = 'engagement_excuse_request';
+  static const String weeklyProgramCreated = 'weekly_program_created';
 
   static const List<String> all = [
     eventCreated,
@@ -40,6 +41,7 @@ class NotificationTypes {
     birthdayReminder,
     adminManual,
     engagementExcuseRequest,
+    weeklyProgramCreated,
   ];
 
   static String label(String type) {
@@ -78,6 +80,8 @@ class NotificationTypes {
         return 'Yönetici bildirimi';
       case engagementExcuseRequest:
         return 'Mazaret bildirimi';
+      case weeklyProgramCreated:
+        return 'Haftalık antrenman programı';
       default:
         return type;
     }
