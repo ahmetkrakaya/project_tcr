@@ -100,17 +100,20 @@ a {
 }
 
 .guide-backdrop {
-  padding: 12px;
+  padding: 8px;
 }
 
 @media (min-width: 900px) {
   .guide-backdrop {
-    padding: 24px;
+    padding: 16px;
   }
 }
 
-.guide-panel {
-  max-width: min(1080px, 96vw);
+/* .modal-panel max-width (720px) ile çakışmaması için birleşik seçici */
+.modal-panel.guide-panel {
+  width: min(1400px, 96vw);
+  max-width: min(1400px, 96vw);
+  height: min(920px, 92vh);
   max-height: 92vh;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -208,8 +211,10 @@ a {
 
 .guide-body {
   gap: 0;
-  padding: 20px 24px 24px;
+  padding: 20px 28px 28px;
   background: var(--bg);
+  flex: 1;
+  min-height: 0;
 }
 
 .guide-grid {
@@ -221,6 +226,16 @@ a {
 @media (min-width: 780px) {
   .guide-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  .guide-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .guide-card-wide {
+    grid-column: 1 / -1;
   }
 }
 
@@ -788,6 +803,10 @@ textarea {
 @media (min-width: 700px) {
   .modal-panel {
     border-radius: 16px;
+  }
+
+  .modal-panel.guide-panel {
+    border-radius: 14px;
   }
 }
 
