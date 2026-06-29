@@ -25,7 +25,6 @@ class EventTemplateModel {
   final String createdBy;
   final DateTime createdAt;
   final List<EventTemplateGroupProgramModel> groupPrograms;
-  final String participationType;
   final LaneConfigEntity? laneConfig;
 
   const EventTemplateModel({
@@ -48,7 +47,6 @@ class EventTemplateModel {
     required this.createdBy,
     required this.createdAt,
     this.groupPrograms = const [],
-    this.participationType = 'team',
     this.laneConfig,
   });
 
@@ -79,7 +77,6 @@ class EventTemplateModel {
       isActive: json['is_active'] as bool? ?? true,
       createdBy: json['created_by'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
-      participationType: json['participation_type'] as String? ?? 'team',
       laneConfig: LaneConfigEntity.fromJson(
         json['lane_config'] as Map<String, dynamic>?,
       ),
@@ -106,7 +103,6 @@ class EventTemplateModel {
       'duration_minutes': durationMinutes,
       'is_active': isActive,
       'created_by': createdBy,
-      'participation_type': participationType,
       'lane_config': (laneConfig != null && !laneConfig!.isEmpty) ? laneConfig!.toJson() : null,
     };
   }
@@ -143,7 +139,6 @@ class EventTemplateModel {
       createdBy: createdBy,
       createdAt: createdAt,
       groupPrograms: groupPrograms.map((p) => p.toEntity()).toList(),
-      participationType: participationType,
       laneConfig: laneConfig,
     );
   }

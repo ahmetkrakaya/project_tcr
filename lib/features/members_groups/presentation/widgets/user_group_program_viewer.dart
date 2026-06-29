@@ -47,12 +47,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
 
     return eventAsync.when(
       data: (event) {
-        final now = DateTime.now();
-        // Ekip antrenmanı: eskisi gibi, geçmişse gizle.
-        // Bireysel: başlangıçtan 2 gün sonra artık gösterme.
-        final shouldHidePrograms = event.participationType == 'individual'
-            ? event.startTime.add(const Duration(days: 2)).isBefore(now)
-            : event.isPast;
+        final shouldHidePrograms = event.isPast;
         if (shouldHidePrograms) return const SizedBox.shrink();
 
         return programsAsync.when(

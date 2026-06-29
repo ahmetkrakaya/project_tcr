@@ -24,7 +24,6 @@ class EventTemplateEntity {
   final String createdBy;
   final DateTime createdAt;
   final List<EventTemplateGroupProgramEntity> groupPrograms;
-  final String participationType;
   final LaneConfigEntity? laneConfig;
 
   const EventTemplateEntity({
@@ -47,7 +46,6 @@ class EventTemplateEntity {
     required this.createdBy,
     required this.createdAt,
     this.groupPrograms = const [],
-    this.participationType = 'team',
     this.laneConfig,
   });
 

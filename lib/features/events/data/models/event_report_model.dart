@@ -5,7 +5,6 @@ class EventReportModel {
   final DateTime eventDate;
   final int participantCount;
   final String eventType;
-  final String? participationType;
 
   const EventReportModel({
     required this.eventId,
@@ -13,7 +12,6 @@ class EventReportModel {
     required this.eventDate,
     required this.participantCount,
     required this.eventType,
-    this.participationType,
   });
 
   factory EventReportModel.fromJson(Map<String, dynamic> json) {
@@ -23,7 +21,6 @@ class EventReportModel {
       eventDate: DateTime.parse(json['event_date'] as String),
       participantCount: json['participant_count'] as int,
       eventType: json['event_type'] as String,
-      participationType: json['participation_type'] as String?,
     );
   }
 }

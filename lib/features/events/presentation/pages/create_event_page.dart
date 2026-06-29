@@ -8,7 +8,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../core/utils/vdot_calculator.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../members_groups/domain/entities/group_entity.dart' as group_entities;
 import '../../../members_groups/presentation/providers/group_provider.dart';
@@ -54,7 +53,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   final _startTimeFocusNode = FocusNode();
   final _endDateFocusNode = FocusNode();
   final _endTimeFocusNode = FocusNode();
-  final _trackLengthFocusNode = FocusNode();
   final _startDateDisplayController = TextEditingController();
   final _startTimeDisplayController = TextEditingController();
   final _endDateDisplayController = TextEditingController();
@@ -75,11 +73,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   String? _pickedLocationAddress;
   bool _isLoading = false;
   bool _isEditing = false;
-  /// Antrenman için: team = toplu (Katılıyorum var), individual = isteğe bağlı bireysel
-  String _participationType = 'team';
-  /// Pist rotada pace bazlı kulvar: lanes + isteğe bağlı pist uzunluğu (km)
-  List<LaneEntity> _laneConfigLanes = [];
-  double? _trackLengthKmOverride;
 
   /// Özel etkinlik (sadece seçili kullanıcılar görebilir)
   bool _isRestrictedEvent = false;
@@ -102,20 +95,11 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   /// Tekrar ayarları: yeni oluşturma veya seri düzenleme
   bool get _showRecurrenceSection => !_isEditing || _isSeriesEdit;
 
-  /// Sadece antrenman türünde Katılım türü (Ekip/Bireysel) seçimi gösterilir
-  bool get _showParticipationTypeSelector => _selectedEventType == EventType.training;
-
-  /// Bireysel antrenmanda rota/saat/bitiş yok; sadece tarih ve grup programları
-  bool get _isIndividualParticipationForm =>
-      _selectedEventType == EventType.training && _participationType == 'individual';
-
-  /// Antrenman veya yarış ise rota seçimi (bireysel antrenmanda rota yok); değilse haritadan konum seçimi
+  /// Antrenman veya yarış ise rota seçimi; değilse haritadan konum seçimi
   bool get _showRouteSelector =>
-      (_selectedEventType == EventType.training ||
-          _selectedEventType == EventType.race) &&
-      _participationType != 'individual';
-  bool get _showLocationPicker => !_showRouteSelector &&
-      _selectedEventType != EventType.training; // training'de bireysel de olsa konum yok
+      _selectedEventType == EventType.training ||
+      _selectedEventType == EventType.race;
+  bool get _showLocationPicker => !_showRouteSelector;
 
   @override
   void initState() {
@@ -126,9 +110,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         '${_startTime.hour.toString().padLeft(2, '0')}:${_startTime.minute.toString().padLeft(2, '0')}';
     _endDateDisplayController.text = 'Seçin';
     _endTimeDisplayController.text = 'Seçin';
-    _trackLengthFocusNode.addListener(() {
-      setState(() {}); // Klavye kapatma butonunu göstermek/gizlemek için
-    });
     if (widget.eventId != null) {
       _isEditing = true;
       _loadEventData();
@@ -194,9 +175,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           _pickedLocationName = null;
           _pickedLocationAddress = null;
         }
-        _participationType = event.participationType ?? 'team';
-        _laneConfigLanes = event.laneConfig?.lanes.toList() ?? [];
-        _trackLengthKmOverride = event.laneConfig?.trackLengthKm;
         _isRecurring = event.isRecurring;
         _recurrenceEndDate = event.recurrenceEndDate;
         if (event.recurrenceRule != null && event.recurrenceRule!.isNotEmpty) {
@@ -211,24 +189,54 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
 
       // Antrenman etkinliklerinde mevcut rota seçeneklerini yükle
       if (event.eventType == EventType.training) {
-        try {
-          final options = await ref.read(
-            eventRouteOptionsProvider(widget.eventId!).future,
-          );
-          if (mounted && options.isNotEmpty) {
-            setState(() {
-              _selectedTrainingRoutes = options
-                  .map((o) => (routeId: o.routeId, label: o.label))
-                  .toList();
-            });
-          }
-        } catch (_) {}
+        await _loadTrainingRoutesForEdit(event);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Etkinlik yüklenemedi: $e')),
         );
+      }
+    }
+  }
+
+  Future<void> _loadTrainingRoutesForEdit(EventEntity event) async {
+    try {
+      var options = await ref.read(
+        eventRouteOptionsProvider(widget.eventId!).future,
+      );
+
+      // Seri düzenlemede son etkinlikte rotalar eksik olabilir; kök etkinlikten dene
+      if (options.isEmpty &&
+          _isSeriesEdit &&
+          widget.seriesRootEventId != null &&
+          widget.seriesRootEventId != widget.eventId) {
+        options = await ref.read(
+          eventRouteOptionsProvider(widget.seriesRootEventId!).future,
+        );
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        if (options.isNotEmpty) {
+          _selectedTrainingRoutes = options
+              .map((o) => (routeId: o.routeId, label: o.label))
+              .toList();
+        } else if (event.routeId != null) {
+          // Eski kayıtlar: yalnızca events.route_id varsa forma yansıt
+          _selectedTrainingRoutes = [
+            (routeId: event.routeId!, label: null),
+          ];
+        }
+      });
+    } catch (_) {
+      if (mounted && event.routeId != null) {
+        setState(() {
+          _selectedTrainingRoutes = [
+            (routeId: event.routeId!, label: null),
+          ];
+        });
       }
     }
   }
@@ -272,9 +280,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         _pickedLocationLng = null;
         _pickedLocationName = null;
         _pickedLocationAddress = null;
-        _participationType = template.participationType;
-        _laneConfigLanes = template.laneConfig?.lanes.toList() ?? [];
-        _trackLengthKmOverride = template.laneConfig?.trackLengthKm;
         _updateDateTimeDisplayControllers();
       });
 
@@ -317,7 +322,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
     _startTimeFocusNode.dispose();
     _endDateFocusNode.dispose();
     _endTimeFocusNode.dispose();
-    _trackLengthFocusNode.dispose();
     _startDateDisplayController.dispose();
     _startTimeDisplayController.dispose();
     _endDateDisplayController.dispose();
@@ -354,52 +358,17 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 ),
         ],
       ),
-      body: Stack(
-        children: [
-          Form(
-            key: _formKey,
-            child: SingleChildScrollView(
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Etkinlik Türü + Katılım türü (antrenmanda) aynı satırda
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Etkinlik Türü', style: AppTypography.labelLarge),
-                        const SizedBox(height: 8),
-                        _buildEventTypeSelector(),
-                      ],
-                    ),
-                  ),
-                  if (_showParticipationTypeSelector) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Katılım türü', style: AppTypography.labelLarge),
-                          const SizedBox(height: 8),
-                          _buildParticipationTypeSelector(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              if (_showParticipationTypeSelector) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Ekip: toplu antrenman, katılım kaydı alınır. Bireysel: isteğe bağlı antrenman, katılım kaydı yok.',
-                  style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
-                ),
-                const SizedBox(height: 24),
-              ] else const SizedBox(height: 24),
+              Text('Etkinlik Türü', style: AppTypography.labelLarge),
+              const SizedBox(height: 8),
+              _buildEventTypeSelector(),
+              const SizedBox(height: 24),
 
               // Etkinlik adı (başlık yok)
               AppTextField(
@@ -428,7 +397,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
               ),
               const SizedBox(height: 24),
 
-              // Date & Time (Bireysel antrenmanda sadece tarih; toplu etkinlikte tarih + saat + bitiş)
               Row(
                 children: [
                   Expanded(
@@ -437,62 +405,53 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                       value: _startDate,
                       onTap: () => _selectDate(isStart: true),
                       focusNode: _startDateFocusNode,
-                      textInputAction: _isIndividualParticipationForm
-                          ? TextInputAction.done
-                          : TextInputAction.next,
-                      onSubmitted: _isIndividualParticipationForm
-                          ? (_) => _submitForm()
-                          : (_) => _startTimeFocusNode.requestFocus(),
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) => _startTimeFocusNode.requestFocus(),
                       displayController: _startDateDisplayController,
                     ),
                   ),
-                  if (!_isIndividualParticipationForm) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildTimeField(
-                        label: 'Saat',
-                        value: _startTime,
-                        onTap: () => _selectTime(isStart: true),
-                        focusNode: _startTimeFocusNode,
-                        textInputAction: TextInputAction.next,
-                        onSubmitted: (_) => _endDateFocusNode.requestFocus(),
-                        displayController: _startTimeDisplayController,
-                      ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildTimeField(
+                      label: 'Saat',
+                      value: _startTime,
+                      onTap: () => _selectTime(isStart: true),
+                      focusNode: _startTimeFocusNode,
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) => _endDateFocusNode.requestFocus(),
+                      displayController: _startTimeDisplayController,
                     ),
-                  ],
+                  ),
                 ],
               ),
-              if (!_isIndividualParticipationForm) const SizedBox(height: 16),
-              // End Date & Time (Optional) - Bireysel antrenmanda yok
-              if (!_isIndividualParticipationForm)
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildDateField(
-                        label: 'Bitiş Tarihi (Opsiyonel)',
-                        value: _endDate,
-                        onTap: () => _selectDate(isStart: false),
-                        focusNode: _endDateFocusNode,
-                        textInputAction: TextInputAction.next,
-                        onSubmitted: (_) => _endTimeFocusNode.requestFocus(),
-                        displayController: _endDateDisplayController,
-                      ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDateField(
+                      label: 'Bitiş Tarihi (Opsiyonel)',
+                      value: _endDate,
+                      onTap: () => _selectDate(isStart: false),
+                      focusNode: _endDateFocusNode,
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) => _endTimeFocusNode.requestFocus(),
+                      displayController: _endDateDisplayController,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildTimeField(
-                        label: 'Bitiş Saati',
-                        value: _endTime,
-                        onTap: () => _selectTime(isStart: false),
-                        focusNode: _endTimeFocusNode,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => _submitForm(),
-                        displayController: _endTimeDisplayController,
-                      ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildTimeField(
+                      label: 'Bitiş Saati',
+                      value: _endTime,
+                      onTap: () => _selectTime(isStart: false),
+                      focusNode: _endTimeFocusNode,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _submitForm(),
+                      displayController: _endTimeDisplayController,
                     ),
-                  ],
-                ),
-              if (!_isIndividualParticipationForm) const SizedBox(height: 24),
+                  ),
+                ],
+              ),
               const SizedBox(height: 24),
 
               if (_isEditing && _isPartOfRecurringSeries && !_isSeriesEdit)
@@ -595,50 +554,12 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
               ],
               const SizedBox(height: 24),
 
-              // Pist kulvarları (sadece antrenman + rota pist ise)
-              if (_selectedEventType == EventType.training &&
-                  (_selectedRouteId != null ||
-                      _selectedTrainingRoutes.isNotEmpty)) ...[
-                _buildLaneConfigSection(),
-                const SizedBox(height: 24),
-              ],
-
               // Özel etkinlik görünürlüğü (sadece Admin / Coach kullanıcılar için)
               const SizedBox(height: 8),
               _buildVisibilitySection(),
             ],
           ),
         ),
-      ),
-          // Klavye açıkken sağ üstte kapatma butonu (klavye üzerinde)
-          if (_trackLengthFocusNode.hasFocus)
-            Positioned(
-              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-              right: 20,
-              child: Material(
-                color: AppColors.tertiary,
-                borderRadius: BorderRadius.circular(20),
-                elevation: 8,
-                shadowColor: AppColors.tertiary.withValues(alpha: 0.5),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () {
-                    _trackLengthFocusNode.unfocus();
-                  },
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.keyboard_hide,
-                      size: 24,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -658,7 +579,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         _pickedLocationName = null;
         _pickedLocationAddress = null;
       }
-      if (type != EventType.training) _participationType = 'team';
     });
   }
 
@@ -1074,90 +994,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
     );
   }
 
-  Widget _buildParticipationTypeSelector() {
-    return DropdownButtonFormField<String>(
-      value: _participationType,
-      isExpanded: true,
-      decoration: InputDecoration(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        filled: true,
-        fillColor: Theme.of(context).colorScheme.surface,
-      ),
-      icon: Icon(
-        Icons.keyboard_arrow_down_rounded,
-        color: _participationType == 'team' ? AppColors.tertiary : AppColors.primary,
-      ),
-      dropdownColor: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(12),
-      selectedItemBuilder: (context) => [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.groups, size: 22, color: AppColors.tertiary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Ekip',
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.person_outline, size: 22, color: AppColors.primary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Bireysel',
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ],
-      items: const [
-        DropdownMenuItem(
-          value: 'team',
-          child: Row(
-            children: [
-              Icon(Icons.groups, size: 22, color: AppColors.tertiary),
-              SizedBox(width: 12),
-              Text('Ekip'),
-            ],
-          ),
-        ),
-        DropdownMenuItem(
-          value: 'individual',
-          child: Row(
-            children: [
-              Icon(Icons.person_outline, size: 22, color: AppColors.primary),
-              SizedBox(width: 12),
-              Text('Bireysel'),
-            ],
-          ),
-        ),
-      ],
-      onChanged: (String? value) {
-        if (value == null) return;
-        setState(() {
-          _participationType = value;
-          if (value == 'individual') {
-            _selectedRouteId = null;
-            _endDate = null;
-            _endTime = null;
-          }
-        });
-      },
-    );
-  }
-
   Widget _buildDateField({
     required String label,
     required DateTime? value,
@@ -1391,21 +1227,16 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
     try {
       final dataSource = ref.read(eventDataSourceProvider);
 
-      // Bireysel antrenmanda sadece tarih; saat 00:00, bitiş yok
-      final startDateTime = _isIndividualParticipationForm
-          ? DateTime(_startDate.year, _startDate.month, _startDate.day, 0, 0)
-          : DateTime(
-              _startDate.year,
-              _startDate.month,
-              _startDate.day,
-              _startTime.hour,
-              _startTime.minute,
-            );
+      final startDateTime = DateTime(
+        _startDate.year,
+        _startDate.month,
+        _startDate.day,
+        _startTime.hour,
+        _startTime.minute,
+      );
 
       DateTime? endDateTime;
-      if (!_isIndividualParticipationForm &&
-          _endDate != null &&
-          _endTime != null) {
+      if (_endDate != null && _endTime != null) {
         endDateTime = DateTime(
           _endDate!.year,
           _endDate!.month,
@@ -1425,15 +1256,14 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         throw Exception('Tekrarlama için en az bir gün veya geçerli tarih seçin');
       }
 
-      // Konum: antrenman/yarışta rotadan (bireysel antrenmanda yok), diğer türlerde haritadan seçilen konum
+      // Konum: antrenman/yarışta rotadan, diğer türlerde haritadan seçilen konum
       String? locationName;
       String? locationAddress;
       double? locationLat;
       double? locationLng;
       String? routeId;
 
-      RouteEntity? selectedRouteForLane;
-      if (!_isIndividualParticipationForm && _showRouteSelector) {
+      if (_showRouteSelector) {
         final routes = await ref.read(allRoutesProvider.future);
 
         // Antrenman: birincil rota _selectedTrainingRoutes'un ilki
@@ -1448,7 +1278,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
             final selectedRoute = _selectedEventType == EventType.race
                 ? routes.firstWhere((r) => r.id == primaryRouteId && r.isRace)
                 : routes.firstWhere((r) => r.id == primaryRouteId);
-            selectedRouteForLane = selectedRoute;
             locationName = selectedRoute.name;
             locationAddress = selectedRoute.locationName;
             locationLat = selectedRoute.locationLat;
@@ -1517,16 +1346,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         coachNotes: null,
         createdBy: userId,
         createdAt: existingEvent?.createdAt ?? DateTime.now(),
-        participationType: _selectedEventType == EventType.training
-            ? _participationType
-            : 'team',
-        laneConfig: (selectedRouteForLane?.terrainType == TerrainType.track &&
-                _laneConfigLanes.isNotEmpty)
-            ? LaneConfigEntity(
-                trackLengthKm: _trackLengthKmOverride,
-                lanes: _laneConfigLanes,
-              )
-            : null,
+        laneConfig: null,
         // Güncelleme durumunda mevcut değerleri koru
         bannerImageUrl: existingEvent?.bannerImageUrl,
         isPinned: existingEvent?.isPinned ?? false,
@@ -1555,11 +1375,9 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       
       if (_isEditing) {
         if (_isSeriesEdit) {
-          final seriesTargetId = widget.seriesRootEventId ??
-              existingEvent?.parentEventId ??
-              widget.eventId!;
+          // Son etkinlikten itibaren güncelle; cron da en son etkinliği şablon alır
           await dataSource.updateRecurringSeriesFromEvent(
-            seriesTargetId,
+            widget.eventId!,
             eventModel.toJson(),
           );
           createdEventId = widget.eventId!;
@@ -1590,15 +1408,24 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       }
 
       // Antrenman rota seçeneklerini kaydet
-      if (_selectedEventType == EventType.training &&
-          _selectedTrainingRoutes.isNotEmpty) {
-        await dataSource.setEventRouteOptions(
-          createdEventId,
-          _selectedTrainingRoutes,
-        );
-      } else if (_selectedEventType == EventType.training) {
-        // Seçilen rota kalmadıysa temizle
-        await dataSource.setEventRouteOptions(createdEventId, []);
+      if (_selectedEventType == EventType.training) {
+        if (_isSeriesEdit) {
+          final seriesTargetId = widget.seriesRootEventId ??
+              existingEvent?.parentEventId ??
+              widget.eventId!;
+          await dataSource.setEventRouteOptionsForSeries(
+            rootEventId: seriesTargetId,
+            fromStartTime: existingEvent?.startTime ?? startDateTime,
+            options: _selectedTrainingRoutes,
+          );
+        } else if (_selectedTrainingRoutes.isNotEmpty) {
+          await dataSource.setEventRouteOptions(
+            createdEventId,
+            _selectedTrainingRoutes,
+          );
+        } else {
+          await dataSource.setEventRouteOptions(createdEventId, []);
+        }
       }
 
       // Refresh providers
@@ -1654,429 +1481,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       case EventType.other:
         return Icons.event;
     }
-  }
-
-  /// "4:30" -> 270; geçersizse null
-  /// Pace seçici: dk:sn/km (bottom sheet ile CupertinoPicker)
-  Future<void> _showPacePicker(BuildContext context, int? currentSeconds, void Function(int) onSelected) async {
-    final totalSeconds = currentSeconds ?? 300;
-    final minutes = (totalSeconds ~/ 60).clamp(0, 20);
-    final seconds = (totalSeconds % 60).clamp(0, 59);
-    int selectedMinutes = minutes;
-    int selectedSeconds = seconds;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        height: 260,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('İptal'),
-                  ),
-                  Text('Pace seç (dk:sn/km)', style: AppTypography.titleMedium),
-                  TextButton(
-                    onPressed: () {
-                      final total = selectedMinutes * 60 + selectedSeconds;
-                      onSelected(total);
-                      Navigator.pop(ctx);
-                    },
-                    child: Text('Tamam', style: AppTypography.labelMedium.copyWith(color: AppColors.primary)),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: CupertinoPicker(
-                      itemExtent: 40,
-                      scrollController: FixedExtentScrollController(initialItem: selectedMinutes),
-                      onSelectedItemChanged: (v) => selectedMinutes = v,
-                      children: List.generate(21, (i) => Center(child: Text('$i dk'))),
-                    ),
-                  ),
-                  Expanded(
-                    child: CupertinoPicker(
-                      itemExtent: 40,
-                      scrollController: FixedExtentScrollController(initialItem: selectedSeconds),
-                      onSelectedItemChanged: (v) => selectedSeconds = v,
-                      children: List.generate(60, (i) => Center(child: Text('$i sn'))),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLaneConfigSection() {
-    final routesAsync = ref.watch(allRoutesProvider);
-    return routesAsync.when(
-      data: (routes) {
-        final idx = routes.indexWhere((r) => r.id == _selectedRouteId);
-        if (idx < 0) return const SizedBox.shrink();
-        final selectedRoute = routes[idx];
-        if (selectedRoute.terrainType != TerrainType.track) {
-          return const SizedBox.shrink();
-        }
-        final defaultTrackKm = selectedRoute.totalDistance ?? 0.4;
-        return _buildLaneConfigCard(defaultTrackKm);
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-    );
-  }
-
-  /// Standart 8 kulvar: 4:00-4:30, 4:30-5:00, ..., 7:30-8:00 (dakika:sn/km)
-  void _addStandardEightLanes() {
-    setState(() {
-      _laneConfigLanes.clear();
-      for (int i = 0; i < 8; i++) {
-        final minSec = 240 + (i * 30); // 4:00 = 240, 4:30 = 270, ...
-        final maxSec = minSec + 30;
-        _laneConfigLanes.add(LaneEntity(
-          laneNumber: i + 1,
-          paceMinSecPerKm: minSec,
-          paceMaxSecPerKm: maxSec,
-          label: null,
-        ));
-      }
-    });
-  }
-
-  Widget _buildLaneConfigCard(double defaultTrackKm) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.tertiary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.tertiary.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.track_changes, size: 20, color: AppColors.tertiary),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Pist kulvarları (pace bazlı)',
-                  style: AppTypography.titleSmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Kulvar numarası ve pace aralığını (dk:sn/km, örn. 4:30) girin. Aynı pace\'taki koşucular aynı kulvara düşer.',
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral600,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 14),
-          // Pist uzunluğu (klavye kapatma butonu ile)
-          Builder(
-            builder: (context) {
-              final isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
-              final hasFocus = _trackLengthFocusNode.hasFocus;
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.neutral200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.straighten, size: 18, color: AppColors.neutral600),
-                        const SizedBox(width: 8),
-                        Text('Pist uzunluğu:', style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w500)),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 72,
-                          child: TextFormField(
-                            focusNode: _trackLengthFocusNode,
-                            initialValue: _trackLengthKmOverride != null
-                                ? _trackLengthKmOverride!.toStringAsFixed(2)
-                                : defaultTrackKm.toStringAsFixed(2),
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              hintText: '0.4',
-                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            onChanged: (v) {
-                              final n = double.tryParse(v.replaceAll(',', '.'));
-                              setState(() => _trackLengthKmOverride = n);
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'km',
-                          style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Klavye açıkken sağ üstte kapatma butonu
-                  if (hasFocus && isKeyboardVisible)
-                    Positioned(
-                      top: -12,
-                      right: -12,
-                      child: GestureDetector(
-                        onTap: () {
-                          _trackLengthFocusNode.unfocus();
-                        },
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.tertiary,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.tertiary.withValues(alpha: 0.4),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.keyboard_hide,
-                            size: 22,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          // Kulvar listesi veya boş durum
-          if (_laneConfigLanes.isEmpty) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-              decoration: BoxDecoration(
-                color: AppColors.neutral200,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.neutral300),
-              ),
-              child: Column(
-                children: [
-                  Icon(Icons.track_changes, size: 40, color: AppColors.neutral400),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Henüz kulvar tanımlanmadı',
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Tek tek ekleyin veya standart 8 kulvarı kullanın.',
-                    style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            final basePace = 270;
-                            setState(() {
-                              _laneConfigLanes.add(LaneEntity(
-                                laneNumber: 1,
-                                paceMinSecPerKm: basePace,
-                                paceMaxSecPerKm: basePace + 30,
-                                label: null,
-                              ));
-                            });
-                          },
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Kulvar'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _addStandardEightLanes,
-                          icon: const Icon(Icons.format_list_numbered, size: 18),
-                          label: const Text('8 kulvar'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ] else ...[
-            ...List.generate(_laneConfigLanes.length, (i) {
-              final lane = _laneConfigLanes[i];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _buildLaneRow(i, lane),
-              );
-            }),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                TextButton.icon(
-                  onPressed: () {
-                    final nextNum = _laneConfigLanes.isEmpty
-                        ? 1
-                        : (_laneConfigLanes.map((e) => e.laneNumber).reduce((a, b) => a > b ? a : b) + 1);
-                    final basePace = 270 + (_laneConfigLanes.length * 30);
-                    setState(() {
-                      _laneConfigLanes.add(LaneEntity(
-                        laneNumber: nextNum.clamp(1, 99),
-                        paceMinSecPerKm: basePace,
-                        paceMaxSecPerKm: basePace + 30,
-                        label: null,
-                      ));
-                    });
-                  },
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Kulvar ekle'),
-                ),
-                if (_laneConfigLanes.length < 8)
-                  TextButton.icon(
-                    onPressed: _addStandardEightLanes,
-                    icon: const Icon(Icons.format_list_numbered, size: 16),
-                    label: const Text('8 kulvar'),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLaneRow(int index, LaneEntity lane) {
-    final keySeed = '${index}_${lane.paceMinSecPerKm}_${lane.paceMaxSecPerKm}_${lane.label}';
-    final invalidRange = lane.paceMinSecPerKm > lane.paceMaxSecPerKm;
-    return Container(
-      key: ValueKey('row_$keySeed'),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: invalidRange ? AppColors.error.withValues(alpha: 0.5) : AppColors.neutral200,
-          width: invalidRange ? 1.5 : 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.tertiary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${lane.laneNumber}',
-                  style: AppTypography.labelLarge.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.tertiary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _PaceSelectorChip(
-                        label: 'Min pace',
-                        valueSeconds: lane.paceMinSecPerKm,
-                        hasError: invalidRange,
-                        onTap: () async {
-                          await _showPacePicker(context, lane.paceMinSecPerKm, (sec) {
-                            setState(() {
-                              _laneConfigLanes = List.from(_laneConfigLanes);
-                              _laneConfigLanes[index] = LaneEntity(
-                                laneNumber: lane.laneNumber,
-                                paceMinSecPerKm: sec,
-                                paceMaxSecPerKm: lane.paceMaxSecPerKm,
-                                label: lane.label,
-                              );
-                            });
-                          });
-                        },
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 6),
-                      child: Text('–', style: TextStyle(color: AppColors.neutral500)),
-                    ),
-                    Expanded(
-                      child: _PaceSelectorChip(
-                        label: 'Max pace',
-                        valueSeconds: lane.paceMaxSecPerKm,
-                        onTap: () async {
-                          await _showPacePicker(context, lane.paceMaxSecPerKm, (sec) {
-                            setState(() {
-                              _laneConfigLanes = List.from(_laneConfigLanes);
-                              _laneConfigLanes[index] = LaneEntity(
-                                laneNumber: lane.laneNumber,
-                                paceMinSecPerKm: lane.paceMinSecPerKm,
-                                paceMaxSecPerKm: sec,
-                                label: lane.label,
-                              );
-                            });
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 22),
-                onPressed: () {
-                  setState(() => _laneConfigLanes.removeAt(index));
-                },
-                color: AppColors.error,
-                tooltip: 'Kulvarı kaldır',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildRecurrenceSection() {
@@ -2885,57 +2289,6 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                     );
                   },
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Tıklanınca pace picker açan chip (pist kulvarı min/max pace)
-class _PaceSelectorChip extends StatelessWidget {
-  final String label;
-  final int valueSeconds;
-  final bool hasError;
-  final VoidCallback onTap;
-
-  const _PaceSelectorChip({
-    required this.label,
-    required this.valueSeconds,
-    this.hasError = false,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final text = VdotCalculator.formatPace(valueSeconds);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: hasError ? AppColors.error : AppColors.neutral300,
-            ),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label, style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600)),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Text(text, style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
-                  const SizedBox(width: 4),
-                  Icon(Icons.arrow_drop_down, size: 20, color: AppColors.neutral500),
-                ],
               ),
             ],
           ),

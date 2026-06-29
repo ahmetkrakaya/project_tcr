@@ -30,7 +30,6 @@ class EventModel {
   final int participantCount;
   final bool isUserParticipating;
   final String? currentUserRsvpStatus;
-  final String participationType;
   final LaneConfigEntity? laneConfig;
   final bool isPinned;
   final DateTime? pinnedAt;
@@ -72,7 +71,6 @@ class EventModel {
     this.participantCount = 0,
     this.isUserParticipating = false,
     this.currentUserRsvpStatus,
-    this.participationType = 'team',
     this.laneConfig,
     this.isPinned = false,
     this.pinnedAt,
@@ -127,7 +125,6 @@ class EventModel {
       participantCount: json['participant_count'] as int? ?? 0,
       isUserParticipating: isParticipating ?? false,
       currentUserRsvpStatus: currentUserRsvpStatus,
-      participationType: json['participation_type'] as String? ?? 'team',
       laneConfig: LaneConfigEntity.fromJson(
         json['lane_config'] as Map<String, dynamic>?,
       ),
@@ -167,7 +164,6 @@ class EventModel {
       'coach_notes': coachNotes,
       'banner_image_url': bannerImageUrl,
       'created_by': createdBy,
-      'participation_type': participationType,
       'lane_config': (laneConfig != null && !laneConfig!.isEmpty) ? laneConfig!.toJson() : null,
       'is_pinned': isPinned,
       'pinned_at': pinnedAt?.toIso8601String(),
@@ -213,7 +209,6 @@ class EventModel {
       currentUserRsvpStatus: currentUserRsvpStatus != null
           ? RsvpStatus.fromString(currentUserRsvpStatus!)
           : null,
-      participationType: participationType,
       laneConfig: laneConfig,
       isPinned: isPinned,
       pinnedAt: pinnedAt,

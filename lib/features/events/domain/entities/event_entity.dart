@@ -120,8 +120,6 @@ class EventEntity {
   final bool isUserParticipating;
   /// Mevcut kullanıcının RSVP durumu (going/not_going/maybe), yoksa null.
   final RsvpStatus? currentUserRsvpStatus;
-  /// team: toplu antrenman (Katılıyorum/RSVP); individual: isteğe bağlı bireysel (katılım kaydı yok). null = team sayılır.
-  final String? participationType;
   /// Pist rotada pace bazlı kulvar ataması (track ise dolu olabilir)
   final LaneConfigEntity? laneConfig;
   /// Etkinlik pinlenmiş mi (ana sayfada en üstte gösterilir)
@@ -170,7 +168,6 @@ class EventEntity {
     this.participantCount = 0,
     this.isUserParticipating = false,
     this.currentUserRsvpStatus,
-    this.participationType,
     this.laneConfig,
     this.isPinned = false,
     this.pinnedAt,

@@ -3,6 +3,8 @@
  * Dart: lib/features/events/utils/coach_text_parser.dart
  */
 
+import { normalizeCoachInput } from "./coach_text_normalizer";
+
 export type SegmentKind = "warmup" | "main" | "recovery" | "cooldown";
 
 export type PaceSpec =
@@ -39,6 +41,12 @@ export type ParseFailure = {
 
 export type ParseResult = ParseSuccess | ParseRest | ParseFailure;
 
+type RecoverySpec = {
+  distanceM?: number;
+  durationSec?: number;
+  pace?: PaceSpec | null;
+};
+
 export function parsePaceSeconds(raw: string): number | null {
   const s = raw.trim().replace(",", ".");
   if (!s) return null;
@@ -55,12 +63,18 @@ function normalizePaceRaw(raw: string): string {
   if (t.startsWith("(") && t.endsWith(")")) {
     t = t.slice(1, -1).trim();
   }
-  return t.replace(/\s*p\s*$/i, "");
+  return t
+    .replace(/\s+pace\s*$/i, "")
+    .replace(/\s*p\s*$/i, "")
+    .replace(/^@\s*/, "");
 }
 
 export function parsePaceSpec(raw: string | null | undefined): PaceSpec | null {
   if (!raw) return null;
-  const t = normalizePaceRaw(raw).toLowerCase();
+  let t = normalizePaceRaw(raw).toLowerCase();
+  // Npace güvenlik (normalizer'dan kaçan durumlar)
+  const npace = t.match(/^([1-9])pace$/);
+  if (npace) t = `${npace[1]}:00`;
   if (t === "vdot") return { mode: "vdot" };
   const rangeMatch = t.match(/^(\d{1,2}:\d{2})\s*[\/\-]\s*(\d{1,2}:\d{2})$/);
   if (rangeMatch) {
@@ -105,7 +119,10 @@ function paceToSegmentFields(pace: PaceSpec | null): Record<string, unknown> {
 function performanceTargetFromRepTarget(target: RepTarget | null): string {
   if (!target) return "none";
   const hasPace = target.pace != null;
-  const hasSplit = target.splitSec != null || target.splitSecMin != null || target.splitSecMax != null;
+  const hasSplit =
+    target.splitSec != null ||
+    target.splitSecMin != null ||
+    target.splitSecMax != null;
   if (hasPace) return "pace";
   if (hasSplit) return "time";
   return "none";
@@ -137,11 +154,15 @@ function repTargetToSegmentFields(
   return out;
 }
 
-function isLikelySplitPlusPace(splitSec: number, paceSecPerKm: number, distM: number): boolean {
+function isLikelySplitPlusPace(
+  splitSec: number,
+  paceSecPerKm: number,
+  distM: number,
+): boolean {
   if (distM <= 0) return false;
   if (paceSecPerKm < 120 || paceSecPerKm > 480) return false;
   if (splitSec < 30 || splitSec > 1800) return false;
-  const expected = Math.round(paceSecPerKm * distM / 1000);
+  const expected = Math.round((paceSecPerKm * distM) / 1000);
   if (Math.abs(splitSec - expected) <= 20) return true;
   return splitSec <= 600 && paceSecPerKm >= 150;
 }
@@ -171,9 +192,16 @@ function parseBareTimeTarget(sec: number, distM: number): RepTarget {
 function parseRepTarget(parenRaw: string | undefined, distM: number): RepTarget | null {
   const raw = parenRaw?.trim() ?? "";
   if (!raw) return null;
-  if (/vdot/i.test(raw)) return { pace: { mode: "vdot" } };
+  return parseBareTarget(raw, distM);
+}
 
-  const comboP = raw.match(/^(\d{1,2}:\d{2})\s*(?:dk)?\s*-\s*(\d{1,2}:\d{2})\s*p\s*$/i);
+/** Parantezsiz veya parantezli hedef ifadesi */
+function parseBareTarget(raw: string, distM: number): RepTarget | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (/^vdot$/i.test(trimmed)) return { pace: { mode: "vdot" } };
+
+  const comboP = trimmed.match(/^(\d{1,2}:\d{2})\s*(?:dk)?\s*-\s*(\d{1,2}:\d{2})\s*p?\s*$/i);
   if (comboP) {
     const split = parsePaceSeconds(comboP[1]);
     const paceSec = parsePaceSeconds(comboP[2]);
@@ -182,7 +210,7 @@ function parseRepTarget(parenRaw: string | undefined, distM: number): RepTarget 
     }
   }
 
-  const paceRangeP = raw.match(/^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*p\s*$/i);
+  const paceRangeP = trimmed.match(/^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*p?\s*$/i);
   if (paceRangeP) {
     const a = parsePaceSeconds(paceRangeP[1]);
     const b = parsePaceSeconds(paceRangeP[2]);
@@ -191,7 +219,7 @@ function parseRepTarget(parenRaw: string | undefined, distM: number): RepTarget 
     }
   }
 
-  const timeRangeDk = raw.match(/^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*dk\s*$/i);
+  const timeRangeDk = trimmed.match(/^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*dk\s*$/i);
   if (timeRangeDk) {
     const a = parsePaceSeconds(timeRangeDk[1]);
     const b = parsePaceSeconds(timeRangeDk[2]);
@@ -200,23 +228,19 @@ function parseRepTarget(parenRaw: string | undefined, distM: number): RepTarget 
     }
   }
 
-  const paceSingleP = raw.match(/^(\d{1,2}:\d{2})\s*p\s*$/i);
-  if (paceSingleP) {
-    const pace = parsePaceSpec(paceSingleP[1]);
-    if (pace != null) return { pace };
+  if (trimmed.includes("/") && !/dk\s*$/i.test(trimmed)) {
+    const p = parsePaceSpec(trimmed);
+    if (p != null) return { pace: p };
   }
 
-  if (raw.includes("/") && !/dk\s*$/i.test(raw)) {
-    const pace = parsePaceSpec(raw.replace(/\s*p\s*$/i, ""));
-    if (pace != null) return { pace };
-  }
-
-  const hyphenPair = raw.match(/^(\d{1,2}:\d{2})\s*(?:dk)?\s*-\s*(\d{1,2}:\d{2})\s*(?:dk|p)?\s*$/i);
+  const hyphenPair = trimmed.match(
+    /^(\d{1,2}:\d{2})\s*(?:dk)?\s*-\s*(\d{1,2}:\d{2})\s*(?:dk|p)?\s*$/i,
+  );
   if (hyphenPair) {
     const a = parsePaceSeconds(hyphenPair[1]);
     const b = parsePaceSeconds(hyphenPair[2]);
     if (a != null && b != null) {
-      if (/dk\s*$/i.test(raw)) {
+      if (/dk\s*$/i.test(trimmed)) {
         return { splitSecMin: Math.min(a, b), splitSecMax: Math.max(a, b) };
       }
       if (isLikelySplitPlusPace(a, b, distM) || (distM >= 200 && distM <= 5000)) {
@@ -228,29 +252,106 @@ function parseRepTarget(parenRaw: string | undefined, distM: number): RepTarget 
     }
   }
 
-  const splitSingle = raw.match(/^(\d{1,2}:\d{2})(?:dk)?\s*$/i);
+  const splitSingle = trimmed.match(/^(\d{1,2}:\d{2})(?:dk)?\s*$/i);
   if (splitSingle) {
     const sec = parsePaceSeconds(splitSingle[1]);
     if (sec != null) {
-      if (/dk\s*$/i.test(raw)) {
-        return { splitSec: sec };
-      }
+      if (/dk\s*$/i.test(trimmed)) return { splitSec: sec };
       return parseBareTimeTarget(sec, distM);
     }
   }
 
-  if (raw.includes("-")) {
-    const pace = parsePaceSpec(raw.replace(/\s*p\s*$/i, ""));
-    if (pace != null) return { pace };
+  if (trimmed.includes("-")) {
+    const p = parsePaceSpec(trimmed);
+    if (p != null) return { pace: p };
   }
 
-  const cleaned = normalizePaceRaw(raw);
+  const cleaned = normalizePaceRaw(trimmed);
   const single = parsePaceSeconds(cleaned);
-  if (single != null) {
-    return parseBareTimeTarget(single, distM);
-  }
+  if (single != null) return parseBareTimeTarget(single, distM);
+
+  const paceOnly = parsePaceSpec(trimmed);
+  if (paceOnly != null) return { pace: paceOnly };
 
   return null;
+}
+
+/** R sonrası toparlanma ifadesi */
+function parseRecoveryClause(raw: string): RecoverySpec | null {
+  let remaining = raw.trim();
+  if (!remaining) return null;
+
+  const spec: RecoverySpec = {};
+
+  const distMatch = remaining.match(
+    /^(\d+(?:\.\d+)?)\s*(m|k|km)?(?:\s+|$)/i,
+  );
+  if (distMatch) {
+    const val = Number(distMatch[1]);
+    const unitRaw = distMatch[2]?.toLowerCase();
+    const unit = unitRaw ?? "m";
+    spec.distanceM = parseDistanceMeters(
+      val,
+      unit === "k" || unit === "km" ? "k" : unit,
+    );
+    remaining = remaining.slice(distMatch[0].length).trim();
+  }
+
+  const dkMatch = remaining.match(/^(\d+(?:\.\d+)?)\s*dk(?:\s+|$)/i);
+  if (dkMatch) {
+    spec.durationSec = Math.round(Number(dkMatch[1]) * 60);
+    remaining = remaining.slice(dkMatch[0].length).trim();
+  }
+
+  if (remaining) {
+    const timeOnly = remaining.match(/^(\d{1,2}):(\d{2})\s*$/);
+    if (timeOnly) {
+      const sec = parsePaceSeconds(`${timeOnly[1]}:${timeOnly[2]}`);
+      if (sec != null) {
+        const mm = Number(timeOnly[1]);
+        const ss = Number(timeOnly[2]);
+        const looksLikePace =
+          (ss === 0 && mm >= 2 && mm <= 8) ||
+          (sec >= 150 && sec <= 480 && !(mm <= 2 && ss > 0));
+        if (spec.distanceM != null && looksLikePace) {
+          spec.pace = { mode: "single", secPerKm: sec };
+        } else {
+          spec.durationSec = sec;
+        }
+        remaining = "";
+      }
+    }
+  }
+
+  if (remaining) {
+    spec.pace = parsePaceSpec(remaining);
+  }
+
+  if (
+    spec.distanceM == null &&
+    spec.durationSec == null &&
+    spec.pace == null
+  ) {
+    return null;
+  }
+  return spec;
+}
+
+function splitOnRecovery(block: string): { work: string; recovery: RecoverySpec | null } {
+  const idx = block.search(/\s+R(?:\s|\d)/i);
+  if (idx < 0) return { work: block, recovery: null };
+  const work = block.slice(0, idx).trim();
+  const recRaw = block.slice(idx).replace(/^\s+R\s*/i, "");
+  return { work, recovery: parseRecoveryClause(recRaw) };
+}
+
+function hasRecovery(spec: RecoverySpec | null): boolean {
+  if (!spec) return false;
+  return (
+    (spec.distanceM != null && spec.distanceM > 0) ||
+    (spec.durationSec != null && spec.durationSec > 0) ||
+    spec.pace != null
+  );
 }
 
 export function buildDurationSegment(
@@ -263,7 +364,7 @@ export function buildDurationSegment(
     segment: {
       segment_type: kind,
       target_type: "duration",
-      target: "pace",
+      target: pace ? "pace" : "none",
       duration_seconds: durationSeconds,
       ...paceToSegmentFields(pace),
     },
@@ -287,8 +388,33 @@ export function buildDistanceSegment(
   };
 }
 
+function buildRecoveryStep(spec: RecoverySpec): Record<string, unknown> {
+  const pace = spec.pace ?? null;
+  if (spec.durationSec != null && spec.durationSec > 0) {
+    return buildDurationSegment("recovery", spec.durationSec, pace);
+  }
+  if (spec.distanceM != null && spec.distanceM > 0) {
+    return buildDistanceSegment(
+      "recovery",
+      spec.distanceM,
+      pace ? { pace } : null,
+    );
+  }
+  if (pace) {
+    return buildDurationSegment("recovery", 0, pace);
+  }
+  return buildDurationSegment("recovery", 60, null);
+}
+
 type ParsedBlock =
-  | { type: "interval"; repeat: number; distanceM: number | null; durationMinutes: number | null; target: RepTarget | null; recoveryM: number | null; recoverySec: number | null }
+  | {
+      type: "interval";
+      repeat: number;
+      distanceM: number | null;
+      durationMinutes: number | null;
+      target: RepTarget | null;
+      recovery: RecoverySpec | null;
+    }
   | { type: "duration"; minutes: number; pace: PaceSpec | null }
   | { type: "distance"; distanceM: number; target: RepTarget | null };
 
@@ -308,61 +434,96 @@ function distanceMetersFromValue(distVal: number, unitRaw: string | undefined): 
   return parseDistanceMeters(distVal, "k");
 }
 
+function parseWorkTarget(
+  targetRaw: string | undefined,
+  parenRaw: string | undefined,
+  bareTimeRaw: string | undefined,
+  distM: number,
+): RepTarget | null {
+  if (parenRaw) return parseRepTarget(parenRaw, distM);
+  if (targetRaw?.trim()) return parseBareTarget(targetRaw.trim(), distM);
+  if (bareTimeRaw) return parseBareTarget(bareTimeRaw, distM);
+  return null;
+}
+
 function parseIntervalBlock(block: string): ParsedBlock | null {
   const normalized = normalizeBlock(block);
-  const m = normalized.match(
-    /^(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(dk|m|k|km)?(?:\s*(?:\(([^)]+)\)|(\d{1,2}:\d{2})p?))?(?:\s+R\s*(\d+(?:\.\d+)?)\s*(m|k|km)?)?(?:\s+(\d{1,2}:\d{2}))?/i,
+  const { work, recovery } = splitOnRecovery(normalized);
+
+  const m = work.match(
+    /^(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(dk|min|m|k|km)?(?:\s*(?:\(([^)]+)\)|(\d{1,2}:\d{2})p?))?(?:\s+(.+))?$/i,
   );
   if (!m) return null;
+
   const repeat = Number(m[1]);
   const value = Number(m[2]);
   const unit = m[3]?.toLowerCase();
   let distanceM: number | null = null;
   let durationMinutes: number | null = null;
-  if (unit === "dk") {
+
+  if (unit === "dk" || unit === "min") {
     durationMinutes = value;
   } else {
     distanceM = distanceMetersFromValue(value, unit);
   }
-  const target = parseRepTarget(m[4] ?? m[5], distanceM ?? 0);
-  let recoveryM: number | null = null;
-  let recoverySec: number | null = null;
-  if (m[6]) {
-    const rv = Number(m[6]);
-    const ru = (m[7] ?? "m").toLowerCase();
-    recoveryM = parseDistanceMeters(rv, ru === "k" || ru === "km" ? "k" : ru);
-  }
-  if (m[8]) {
-    recoverySec = parsePaceSeconds(m[8]);
-  }
-  return { type: "interval", repeat, distanceM, durationMinutes, target, recoveryM, recoverySec };
+
+  const target = parseWorkTarget(m[6], m[4], m[5], distanceM ?? 0);
+
+  return { type: "interval", repeat, distanceM, durationMinutes, target, recovery };
 }
 
 function parseStandaloneRepBlock(block: string): ParsedBlock | null {
   const normalized = normalizeBlock(block);
   if (/^\d+\s*x\s*/i.test(normalized)) return null;
-  const m = normalized.match(
-    /^(\d+(?:\.\d+)?)\s*(m|k|km)?\s*\(([^)]+)\)(?:\s+R\s*(\d+(?:\.\d+)?)\s*(m|k|km)?)?(?:\s+(\d{1,2}:\d{2}))?/i,
+
+  const { work, recovery } = splitOnRecovery(normalized);
+
+  const parenMatch = work.match(
+    /^(\d+(?:\.\d+)?)\s*(m|k|km)?\s*\(([^)]+)\)$/i,
   );
+  if (parenMatch) {
+    const distM = distanceMetersFromValue(Number(parenMatch[1]), parenMatch[2]);
+    const target = parseRepTarget(parenMatch[3], distM);
+    return {
+      type: "interval",
+      repeat: 1,
+      distanceM: distM,
+      durationMinutes: null,
+      target,
+      recovery,
+    };
+  }
+
+  return null;
+}
+
+/** Mesafe + parantezsiz hedef + opsiyonel R: 400m vdot R 1dk */
+function parseDistanceRepBlock(block: string): ParsedBlock | null {
+  const normalized = normalizeBlock(block);
+  if (/^\d+\s*x\s*/i.test(normalized)) return null;
+
+  const { work, recovery } = splitOnRecovery(normalized);
+  if (!hasRecovery(recovery)) return null;
+
+  const m = work.match(/^(\d+(?:\.\d+)?)\s*(m|k|km)(?:\s+(.+))?$/i);
   if (!m) return null;
-  const distVal = Number(m[1]);
-  const distM = distanceMetersFromValue(distVal, m[2]);
-  const target = parseRepTarget(m[3], distM);
-  let recoveryM: number | null = null;
-  let recoverySec: number | null = null;
-  if (m[4]) {
-    const rv = Number(m[4]);
-    const ru = (m[5] ?? "m").toLowerCase();
-    recoveryM = parseDistanceMeters(rv, ru === "k" || ru === "km" ? "k" : ru);
-  }
-  if (m[6]) {
-    recoverySec = parsePaceSeconds(m[6]);
-  }
-  return { type: "interval", repeat: 1, distanceM: distM, durationMinutes: null, target, recoveryM, recoverySec };
+
+  const distM = parseDistanceMeters(Number(m[1]), m[2]);
+  const targetRaw = m[3]?.trim();
+  const target = targetRaw ? parseBareTarget(targetRaw, distM) : null;
+
+  return {
+    type: "interval",
+    repeat: 1,
+    distanceM: distM,
+    durationMinutes: null,
+    target,
+    recovery,
+  };
 }
 
 function parseDurationBlock(block: string): ParsedBlock | null {
-  const m = block.trim().match(/^(\d+)\s*dk(?:\s+(.+))?$/i);
+  const m = block.trim().match(/^(\d+(?:\.\d+)?)\s*dk(?:\s+(.+))?$/i);
   if (!m) return null;
   const minutes = Number(m[1]);
   const paceRaw = m[2]?.trim();
@@ -371,13 +532,14 @@ function parseDurationBlock(block: string): ParsedBlock | null {
 }
 
 function parseDistanceBlock(block: string): ParsedBlock | null {
-  const m = normalizeBlock(block).match(
-    /^(\d+(?:\.\d+)?)\s*(k|km|m)(?:\s+(.+))?$/i,
-  );
+  const normalized = normalizeBlock(block);
+  if (/\s+R(?:\s|\d)/i.test(normalized)) return null;
+
+  const m = normalized.match(/^(\d+(?:\.\d+)?)\s*(k|km|m)(?:\s+(.+))?$/i);
   if (!m) return null;
   const distM = parseDistanceMeters(Number(m[1]), m[2]);
-  const paceRaw = m[3]?.trim();
-  const target = paceRaw ? { pace: parsePaceSpec(paceRaw) } : null;
+  const tail = m[3]?.trim();
+  const target = tail ? parseBareTarget(tail, distM) : null;
   return { type: "distance", distanceM: distM, target };
 }
 
@@ -431,6 +593,7 @@ function blockToSteps(
   if (block.type === "distance") {
     return [buildDistanceSegment(kind, block.distanceM, block.target)];
   }
+
   const main =
     block.distanceM != null
       ? buildDistanceSegment("main", block.distanceM, block.target)
@@ -439,24 +602,21 @@ function blockToSteps(
           (block.durationMinutes ?? 0) * 60,
           block.target?.pace ?? null,
         );
+
   const inner: Array<Record<string, unknown>> = [main];
-  if (block.recoveryM != null && block.recoveryM > 0) {
-    inner.push(
-      block.recoverySec != null
-        ? buildDurationSegment("recovery", block.recoverySec, null)
-        : buildDistanceSegment("recovery", block.recoveryM, null),
-    );
-  } else if (block.recoverySec != null && block.recoverySec > 0) {
-    inner.push(buildDurationSegment("recovery", block.recoverySec, null));
+  if (hasRecovery(block.recovery)) {
+    inner.push(buildRecoveryStep(block.recovery!));
   }
+
   if (inner.length === 1 && block.repeat > 1) {
     return [{ type: "repeat", repeat_count: block.repeat, steps: [main] }];
   }
   return [{ type: "repeat", repeat_count: block.repeat, steps: inner }];
 }
 
-const WARMUP_LABEL = "(ısınma|isinma|warmup|warm-up|warm\\s+up)";
-const COOLDOWN_LABEL = "(soğuma|soguma|cooldown|cool-down|cool\\s+down)";
+const WARMUP_LABEL =
+  "(ısınma|isinma|warmup|warm-up|warm\\s+up|warm\\s+ısınma|warm|wu)";
+const COOLDOWN_LABEL = "(soğuma|soguma|cooldown|cool-down|cool\\s+down|cool|cd)";
 
 function splitExplicitSegmentLabel(part: string): {
   kind: SegmentKind | null;
@@ -567,7 +727,8 @@ export function parseCoachText(rawInput: string): ParseResult {
     return { ok: true, isRest: true, programContent };
   }
 
-  const chainParts = splitChain(programContent);
+  const normalized = normalizeCoachInput(programContent);
+  const chainParts = splitChain(normalized);
   const allSteps: Array<Record<string, unknown>> = [];
 
   for (let i = 0; i < chainParts.length; i++) {
@@ -575,6 +736,7 @@ export function parseCoachText(rawInput: string): ParseResult {
     const part = labeled.body;
     let block: ParsedBlock | null = parseIntervalBlock(part);
     if (!block) block = parseStandaloneRepBlock(part);
+    if (!block) block = parseDistanceRepBlock(part);
     if (!block) block = parseDurationBlock(part);
     if (!block) block = parseDistanceBlock(part);
     if (!block) {
@@ -585,7 +747,7 @@ export function parseCoachText(rawInput: string): ParseResult {
       };
     }
     if (block.type === "interval") {
-      if (block.repeat > 1 && block.recoveryM == null && block.recoverySec == null) {
+      if (block.repeat > 1 && !hasRecovery(block.recovery)) {
         return {
           ok: false,
           error: `${block.repeat}x tekrar için toparlanma (R) belirtilmeli`,

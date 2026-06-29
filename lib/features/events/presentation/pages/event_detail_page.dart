@@ -21,6 +21,7 @@ import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/flip_countdown_widget.dart';
+import '../../../../shared/widgets/full_screen_image_viewer.dart';
 import '../../../../shared/widgets/linkify_text.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
@@ -129,6 +130,8 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
 
     final screenHeight = MediaQuery.sizeOf(context).height;
     final appBarHeight = (screenHeight * 0.24).clamp(180.0, 260.0);
+    final hasBanner =
+        event.bannerImageUrl != null && event.bannerImageUrl!.isNotEmpty;
 
     return Scaffold(
       body: CustomScrollView(
@@ -150,9 +153,28 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                 onPressed: () => context.pop(),
               ),
             ),
-            flexibleSpace: FlexibleSpaceBar(
-              background: _buildBannerBackground(context, event, isAdminOrCoach, ref),
-            ),
+            flexibleSpace: hasBanner
+                ? GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: () =>
+                        showFullScreenImage(context, event.bannerImageUrl!),
+                    child: FlexibleSpaceBar(
+                      background: _buildBannerBackground(
+                        context,
+                        event,
+                        isAdminOrCoach,
+                        ref,
+                      ),
+                    ),
+                  )
+                : FlexibleSpaceBar(
+                    background: _buildBannerBackground(
+                      context,
+                      event,
+                      isAdminOrCoach,
+                      ref,
+                    ),
+                  ),
             actions: [
               Container(
                 margin: const EdgeInsets.all(8),
@@ -304,27 +326,6 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                               ),
                             ),
                           ),
-                          if (event.eventType == EventType.training)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _isIndividualParticipation(event)
-                                    ? AppColors.primary.withValues(alpha: 0.2)
-                                    : AppColors.tertiary.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                _isIndividualParticipation(event) ? 'Bireysel' : 'Ekip',
-                                style: AppTypography.labelMedium.copyWith(
-                                  color: _isIndividualParticipation(event)
-                                      ? AppColors.primary
-                                      : AppColors.tertiary,
-                                ),
-                              ),
-                            ),
                           // TODO: EventEntity visibility alanı eklendiğinde burada
                           // kilit ikonlu \"Özel Etkinlik\" etiketi gösterilebilir.
                         ],
@@ -391,8 +392,8 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   ),
                   const SizedBox(height: 8),
 
-                  // Ortak yolculuk (sadece Ekip / toplu antrenmanda; geçmiş etkinliklerde gösterilmez)
-                  if (!_isIndividualParticipation(event) && !event.isPast) ...[
+                  // Ortak yolculuk (geçmiş etkinliklerde gösterilmez)
+                  if (!event.isPast) ...[
                     EventCarpoolSection(
                       key: _carpoolSectionKey,
                       eventId: widget.eventId,
@@ -403,23 +404,19 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   // Chat Section
                   // Normal kullanıcılar: sadece katılımcıysa görür
                   // Admin: katılımcı olmasa da görebilir (sorumlu olduğu içerikleri denetleyebilsin)
-                  if (!_isIndividualParticipation(event) &&
-                      (event.isUserParticipating || isAdminOrCoach))
+                  if (event.isUserParticipating || isAdminOrCoach)
                     _buildChatSection(context, widget.eventId, event),
-                  if (!_isIndividualParticipation(event) &&
-                      (event.isUserParticipating || isAdminOrCoach))
+                  if (event.isUserParticipating || isAdminOrCoach)
                     const SizedBox(height: 24),
 
-                  // Participants Section (sadece Ekip / toplu antrenmanda)
-                  if (!_isIndividualParticipation(event)) ...[
-                    _buildSectionHeader(
-                      'Katılımcılar (${event.participantCount})',
-                      actionText: event.participantCount > 0 ? 'Tümünü Gör' : null,
-                      onAction: () => _showParticipantsSheet(context, event, participantsAsync),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildParticipantsSection(participantsAsync),
-                  ],
+                  // Participants Section
+                  _buildSectionHeader(
+                    'Katılımcılar (${event.participantCount})',
+                    actionText: event.participantCount > 0 ? 'Tümünü Gör' : null,
+                    onAction: () => _showParticipantsSheet(context, event, participantsAsync),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildParticipantsSection(participantsAsync),
                   const SizedBox(height: 24),
 
                   // Yarış Sonuçları (sadece yarış tipi etkinliklerde göster)
@@ -449,11 +446,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     );
   }
 
-  bool _isIndividualParticipation(EventEntity event) =>
-      event.participationType == 'individual';
-
   bool _shouldShowParticipationBottomBar(EventEntity event) {
-    if (_isIndividualParticipation(event)) return false;
     final isEventFinished = event.startTime
         .add(const Duration(hours: 2))
         .isBefore(DateTime.now());
@@ -1070,7 +1063,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     BuildContext context,
     EventEntity event,
   ) async {
-    if (_isIndividualParticipation(event) || event.isPast) return;
+    if (event.isPast) return;
     await EventCarpoolActions.showIntroAfterJoin(
       context,
       _carpoolSectionKey,
@@ -1441,31 +1434,34 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     bool isAdminOrCoach,
     WidgetRef ref,
   ) {
-    final hasBanner = event.bannerImageUrl != null && event.bannerImageUrl!.isNotEmpty;
+    final hasBanner =
+        event.bannerImageUrl != null && event.bannerImageUrl!.isNotEmpty;
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Banner fotoğrafı veya gradient arka plan
         if (hasBanner)
           Image.network(
             event.bannerImageUrl!,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _buildDefaultBanner(event),
+            errorBuilder: (context, error, stackTrace) =>
+                _buildDefaultBanner(event),
           )
         else
           _buildDefaultBanner(event),
 
-        // Gradient overlay (yazıların okunabilirliği için)
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.transparent,
-                Colors.black.withValues(alpha: 0.5),
-              ],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+        // Gradient yalnızca görsel; dokunuşları engellemesin
+        IgnorePointer(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: 0.5),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
             ),
           ),
         ),
@@ -1486,17 +1482,20 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
           Positioned(
             top: 100,
             left: 20,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.secondary,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                'BUGÜN',
-                style: AppTypography.labelMedium.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+            child: IgnorePointer(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.secondary,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'BUGÜN',
+                  style: AppTypography.labelMedium.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -1508,9 +1507,11 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             bottom: 16,
             right: 16,
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => _showBannerOptions(context, ref, event),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(20),
@@ -2196,19 +2197,17 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             ),
           ],
         ),
-        // Saat (bireysel antrenmanda yok)
-        if (!_isIndividualParticipation(event))
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.access_time, size: 16, color: AppColors.neutral500),
-              const SizedBox(width: 6),
-              Text(
-                event.formattedTime,
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral700),
-              ),
-            ],
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.access_time, size: 16, color: AppColors.neutral500),
+            const SizedBox(width: 6),
+            Text(
+              event.formattedTime,
+              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral700),
+            ),
+          ],
+        ),
         // Konum / Rota — tıklanınca harita, yol tarifi ve rota seçenekleri
         if (locationRouteLabel != null && locationRouteLabel.isNotEmpty)
           ConstrainedBox(

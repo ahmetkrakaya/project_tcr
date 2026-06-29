@@ -81,6 +81,13 @@ abstract class EventRemoteDataSource {
     List<({String routeId, String? label})> options,
   );
 
+  /// Tekrarlayan seride belirli tarihten itibaren tüm etkinliklerin rota seçeneklerini güncelle
+  Future<void> setEventRouteOptionsForSeries({
+    required String rootEventId,
+    required DateTime fromStartTime,
+    required List<({String routeId, String? label})> options,
+  });
+
   /// Kullanıcının katıldığı etkinlikleri getir
   Future<List<EventModel>> getUserEvents(String userId);
 
@@ -1063,6 +1070,33 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
   }
 
   @override
+  Future<void> setEventRouteOptionsForSeries({
+    required String rootEventId,
+    required DateTime fromStartTime,
+    required List<({String routeId, String? label})> options,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('events')
+          .select('id')
+          .or('parent_event_id.eq.$rootEventId,id.eq.$rootEventId')
+          .gte('start_time', fromStartTime.toUtc().toIso8601String());
+
+      final eventIds = (response as List<dynamic>)
+          .map((row) => (row as Map<String, dynamic>)['id'] as String)
+          .toList();
+
+      for (final eventId in eventIds) {
+        await setEventRouteOptions(eventId, options);
+      }
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Seri rota seçenekleri kaydedilemedi: $e');
+    }
+  }
+
+  @override
   Future<List<EventParticipantModel>> getEventParticipants(String eventId) async {
     try {
       final response = await _supabase
@@ -1628,7 +1662,6 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
             'duration_minutes':
                 event.endTime?.difference(event.startTime).inMinutes,
             'created_by': userId,
-            'participation_type': event.participationType,
             'lane_config': (event.laneConfig != null && !event.laneConfig!.isEmpty)
                 ? event.laneConfig!.toJson()
                 : null,
@@ -1749,7 +1782,7 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       // Tarih aralığına göre etkinlikleri çek
       var query = _supabase
           .from('events')
-          .select('id, title, start_time, event_type, participation_type')
+          .select('id, title, start_time, event_type')
           .eq('status', 'published')
           .gte('start_time', startDate.toIso8601String())
           .lte('start_time', endDate.toIso8601String());
@@ -1852,7 +1885,6 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           'event_date': event['start_time'] as String,
           'participant_count': participantCount,
           'event_type': event['event_type'] as String,
-          'participation_type': event['participation_type'] as String?,
         });
       }
 

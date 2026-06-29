@@ -414,7 +414,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                 createdAt: event.createdAt,
                 participantCount: event.participantCount,
                 isUserParticipating: event.isUserParticipating,
-                participationType: event.participationType,
                 laneConfig: event.laneConfig,
                 isPinned: pinnedState.isPinned,
                 pinnedAt: pinnedState.pinnedAt,
@@ -949,7 +948,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             createdAt: event.createdAt,
             participantCount: event.participantCount,
             isUserParticipating: event.isUserParticipating,
-            participationType: event.participationType,
             laneConfig: event.laneConfig,
             isPinned: _pinnedStates[event.id]!.isPinned,
             pinnedAt: _pinnedStates[event.id]!.pinnedAt,
@@ -1039,32 +1037,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                         ),
                       ),
                     ),
-                    if (effectiveEvent.eventType == EventType.training) ...[
-                      const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _isIndividualParticipation(effectiveEvent)
-                              ? AppColors.primary.withValues(alpha: 0.2)
-                              : AppColors.tertiary.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          _isIndividualParticipation(effectiveEvent)
-                              ? 'Bireysel'
-                              : 'Ekip',
-                          style: AppTypography.labelSmall.copyWith(
-                            color: _isIndividualParticipation(effectiveEvent)
-                                ? AppColors.primary
-                                : AppColors.tertiary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    ],
                     const Spacer(),
                     if (effectiveEvent.isUserParticipating)
                       const Icon(
@@ -1153,9 +1125,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (!_isIndividualParticipation(effectiveEvent)) ...[
-                  const SizedBox(height: 3),
-                  Row(
+                const SizedBox(height: 3),
+                Row(
                     children: [
                       const Icon(
                         Icons.access_time,
@@ -1189,24 +1160,23 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.people_outline,
-                        size: 14,
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.people_outline,
+                      size: 14,
+                      color: AppColors.neutral500,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${effectiveEvent.participantCount} katılımcı',
+                      style: AppTypography.bodySmall.copyWith(
                         color: AppColors.neutral500,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${effectiveEvent.participantCount} katılımcı',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -1229,9 +1199,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
         return AppColors.neutral600;
     }
   }
-
-  bool _isIndividualParticipation(EventEntity event) =>
-      event.participationType == 'individual';
 
   // Türkçe gün isimlerini döndürür
   String _getDayName(DateTime date) {

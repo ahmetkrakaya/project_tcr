@@ -313,7 +313,19 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton.icon(
+                if (series.isActive)
+                  IconButton(
+                    onPressed: _isStopping || _isDeleting ? null : _stopRecurrence,
+                    tooltip: 'Tekrarlamayı durdur',
+                    icon: _isStopping
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.stop_circle_outlined),
+                  ),
+                IconButton(
                   onPressed: _isStopping || _isDeleting
                       ? null
                       : () {
@@ -326,21 +338,9 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
                             },
                           );
                         },
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text('Düzenle'),
+                  tooltip: 'Düzenle',
+                  icon: const Icon(Icons.edit_outlined),
                 ),
-                if (series.isActive)
-                  TextButton.icon(
-                    onPressed: _isStopping || _isDeleting ? null : _stopRecurrence,
-                    icon: _isStopping
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.stop_circle_outlined, size: 18),
-                    label: const Text('Tekrarlamayı durdur'),
-                  ),
                 IconButton(
                   onPressed: _isStopping || _isDeleting ? null : _deleteSeries,
                   tooltip: 'Seriyi kaldır',

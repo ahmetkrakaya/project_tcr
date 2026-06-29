@@ -426,45 +426,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ],
           ),
 
-          // Routes (GPX rotaları) - Shell içinde, profil sayfasından erişilebilir
-          GoRoute(
-            path: '/routes',
-            name: RouteNames.routes,
-            builder: (context, state) => const RoutesPage(),
-            routes: [
-              GoRoute(
-                path: 'create',
-                name: RouteNames.routeCreate,
-                builder: (context, state) => const CreateRoutePage(),
-              ),
-              GoRoute(
-                path: ':routeId',
-                name: RouteNames.routeDetail,
-                builder: (context, state) {
-                  final routeId = state.pathParameters['routeId']!;
-                  final extra = state.extra;
-                  final variantIndex = extra is Map<String, dynamic>
-                      ? (extra['variantIndex'] as int?)
-                      : null;
-                  return route_pages.RouteDetailPage(
-                    routeId: routeId,
-                    variantIndex: variantIndex,
-                  );
-                },
-                routes: [
-                  GoRoute(
-                    path: 'edit',
-                    name: RouteNames.routeEdit,
-                    builder: (context, state) {
-                      final routeId = state.pathParameters['routeId']!;
-                      return CreateRoutePage(routeId: routeId);
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-          
           // Groups (Antrenman Grupları) - Shell içinde bottom nav ile
           GoRoute(
             path: '/groups',
@@ -518,6 +479,45 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     },
                   ),
                 ],
+              ),
+            ],
+          ),
+        ],
+      ),
+
+      // Routes (GPX rotaları) - Shell dışında; profil/yönetim sayfalarından push ile erişilir
+      GoRoute(
+        path: '/routes',
+        name: RouteNames.routes,
+        builder: (context, state) => const RoutesPage(),
+        routes: [
+          GoRoute(
+            path: 'create',
+            name: RouteNames.routeCreate,
+            builder: (context, state) => const CreateRoutePage(),
+          ),
+          GoRoute(
+            path: ':routeId',
+            name: RouteNames.routeDetail,
+            builder: (context, state) {
+              final routeId = state.pathParameters['routeId']!;
+              final extra = state.extra;
+              final variantIndex = extra is Map<String, dynamic>
+                  ? (extra['variantIndex'] as int?)
+                  : null;
+              return route_pages.RouteDetailPage(
+                routeId: routeId,
+                variantIndex: variantIndex,
+              );
+            },
+            routes: [
+              GoRoute(
+                path: 'edit',
+                name: RouteNames.routeEdit,
+                builder: (context, state) {
+                  final routeId = state.pathParameters['routeId']!;
+                  return CreateRoutePage(routeId: routeId);
+                },
               ),
             ],
           ),

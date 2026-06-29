@@ -621,27 +621,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ),
                     if (event.eventType == EventType.training) ...[
                       const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getParticipationTypeColor(event).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          _isIndividualParticipation(event) ? 'Bireysel' : 'Ekip',
-                          style: AppTypography.labelSmall.copyWith(
-                            color: _getParticipationTypeColor(event),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    ],
-                    if (!_isIndividualParticipation(event)) ...[
-                      const SizedBox(width: 6),
                       Text(
                         event.formattedTime,
                         style: AppTypography.labelSmall.copyWith(
@@ -666,46 +645,44 @@ class _HomePageState extends ConsumerState<HomePage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (!_isIndividualParticipation(event)) ...[
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.people_outline,
+                      size: 12,
+                      color: AppColors.neutral500,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${event.participantCount} katılımcı',
+                      style: AppTypography.labelSmall.copyWith(
+                        color: AppColors.neutral500,
+                        fontSize: 11,
+                      ),
+                    ),
+                    if (locationText != null) ...[
+                      const SizedBox(width: 8),
                       const Icon(
-                        Icons.people_outline,
+                        Icons.location_on_outlined,
                         size: 12,
                         color: AppColors.neutral500,
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        '${event.participantCount} katılımcı',
-                        style: AppTypography.labelSmall.copyWith(
-                          color: AppColors.neutral500,
-                          fontSize: 11,
+                      Expanded(
+                        child: Text(
+                          locationText,
+                          style: AppTypography.labelSmall.copyWith(
+                            color: AppColors.neutral500,
+                            fontSize: 11,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (locationText != null) ...[
-                        const SizedBox(width: 8),
-                        const Icon(
-                          Icons.location_on_outlined,
-                          size: 12,
-                          color: AppColors.neutral500,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            locationText,
-                            style: AppTypography.labelSmall.copyWith(
-                              color: AppColors.neutral500,
-                              fontSize: 11,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
                     ],
-                  ),
-                ],
+                  ],
+                ),
               ],
             ),
           ),
@@ -743,13 +720,6 @@ class _HomePageState extends ConsumerState<HomePage> {
         return AppColors.neutral600;
     }
   }
-
-  bool _isIndividualParticipation(EventEntity event) =>
-      event.participationType == 'individual';
-
-  /// Bireysel/Ekip rozeti rengi (anasayfa, liste ve detayda aynı)
-  Color _getParticipationTypeColor(EventEntity event) =>
-      _isIndividualParticipation(event) ? AppColors.primary : AppColors.tertiary;
 
   /// Ana sayfa feed'i: sadece duyurular/postlar
   Widget _buildPostsFeed(BuildContext context, PostsState postsState) {

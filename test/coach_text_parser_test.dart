@@ -230,6 +230,88 @@ soğuma 1k 5:50/6:00''';
         expect(seg['pace_seconds_per_km_max'], 270, reason: input);
       }
     });
+
+    test('user warmup interval cooldown multiline', () {
+      const s = '''15dk ısınma
+4x8dk vdot R 1dk
+10dk soğuma''';
+      final r = parseCoachText(s);
+      expect(r.ok, isTrue, reason: r.error);
+      final steps = r.workoutDefinition!['steps'] as List;
+      expect(steps.length, 3);
+      final warmup = (steps[0] as Map)['segment'] as Map;
+      expect(warmup['segment_type'], 'warmup');
+      expect(warmup['duration_seconds'], 900);
+      final cooldown = (steps[2] as Map)['segment'] as Map;
+      expect(cooldown['segment_type'], 'cooldown');
+    });
+
+    test('warmup with pace keyword', () {
+      final r = parseCoachText('15dk 7:00 pace ısınma');
+      expect(r.ok, isTrue, reason: r.error);
+      final seg = ((r.workoutDefinition!['steps'] as List).first as Map)['segment'] as Map;
+      expect(seg['segment_type'], 'warmup');
+      expect(seg['pace_seconds_per_km_min'], 420);
+    });
+
+    test('warmup with pace range keyword', () {
+      final r = parseCoachText('15dk 9:00-10:00 pace ısınma');
+      expect(r.ok, isTrue, reason: r.error);
+      final seg = ((r.workoutDefinition!['steps'] as List).first as Map)['segment'] as Map;
+      expect(seg['pace_seconds_per_km_min'], 540);
+      expect(seg['pace_seconds_per_km_max'], 600);
+    });
+
+    test('distance warmup', () {
+      final r = parseCoachText('500m ısınma');
+      expect(r.ok, isTrue, reason: r.error);
+      final seg = ((r.workoutDefinition!['steps'] as List).first as Map)['segment'] as Map;
+      expect(seg['segment_type'], 'warmup');
+      expect(seg['distance_meters'], 500);
+    });
+
+    test('bare vdot distance rep with dk recovery', () {
+      final r = parseCoachText('400m vdot R 1dk');
+      expect(r.ok, isTrue, reason: r.error);
+      final repeat = (r.workoutDefinition!['steps'] as List).first as Map;
+      final inner = repeat['steps'] as List;
+      final main = (inner[0] as Map)['segment'] as Map;
+      expect(main['use_vdot_for_pace'], isTrue);
+      final recovery = (inner[1] as Map)['segment'] as Map;
+      expect(recovery['duration_seconds'], 60);
+    });
+
+    test('long distance rep with recovery', () {
+      final r = parseCoachText('10km vdot R 1dk');
+      expect(r.ok, isTrue, reason: r.error);
+      final main = _firstMainSegment(r.workoutDefinition!);
+      expect(main['distance_meters'], 10000);
+      expect(main['use_vdot_for_pace'], isTrue);
+    });
+
+    test('5pace shorthand target', () {
+      final r = parseCoachText('400m 5pace R 1dk');
+      expect(r.ok, isTrue, reason: r.error);
+      final main = _firstMainSegment(r.workoutDefinition!);
+      expect(main['pace_seconds_per_km_min'], 300);
+    });
+
+    test('recovery with pace shorthand', () {
+      final r = parseCoachText('400m vdot R 200 3pace');
+      expect(r.ok, isTrue, reason: r.error);
+      final repeat = (r.workoutDefinition!['steps'] as List).first as Map;
+      final inner = repeat['steps'] as List;
+      final recovery = (inner[1] as Map)['segment'] as Map;
+      expect(recovery['distance_meters'], 200);
+      expect(recovery['pace_seconds_per_km_min'], 180);
+    });
+
+    test('15min warmup alias', () {
+      final r = parseCoachText('15min ısınma');
+      expect(r.ok, isTrue, reason: r.error);
+      final seg = ((r.workoutDefinition!['steps'] as List).first as Map)['segment'] as Map;
+      expect(seg['duration_seconds'], 900);
+    });
   });
 }
 

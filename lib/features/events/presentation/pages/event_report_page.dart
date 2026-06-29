@@ -812,10 +812,8 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
             typeColor = AppColors.error;
             typeLabel = 'Yarış';
           } else {
-            // training
-            final isIndividual = event.participationType == 'individual';
-            typeColor = isIndividual ? AppColors.primary : AppColors.success;
-            typeLabel = isIndividual ? 'Bireysel Antrenman' : 'Grup Antrenman';
+            typeColor = AppColors.success;
+            typeLabel = 'Grup Antrenman';
           }
 
           return InkWell(
@@ -1049,20 +1047,13 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
             final index = entry.key;
             final event = entry.value;
 
-            // Renk belirleme: etkinlik türüne ve participation_type'a göre
+            // Renk belirleme: etkinlik türüne göre
             Color barColor;
             if (event.eventType == 'race') {
               // Yarışlar: kırmızı
               barColor = AppColors.error;
             } else if (event.eventType == 'training') {
-              // Antrenmanlar: participation_type'a göre
-              if (event.participationType == 'individual') {
-                // Bireysel antrenmanlar: lacivert (primary)
-                barColor = AppColors.primary;
-              } else {
-                // Grup antrenmanları: yeşil
-                barColor = AppColors.success;
-              }
+              barColor = AppColors.success;
             } else {
               // Diğer türler (teorik olarak filtreye girmemeli): varsayılan renk
               barColor = AppColors.neutral400;
