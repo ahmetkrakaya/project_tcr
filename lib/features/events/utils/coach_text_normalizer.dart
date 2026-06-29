@@ -1,6 +1,16 @@
 // Koç metnini parse öncesi kanonik forma getirir.
 // TS: tools/program-admin/src/lib/coach_text_normalizer.ts
 
+const kDurationUnitPattern = r'(?:dk|dakika|dak|min(?:ute)?s?)';
+
+String get durationUnitPattern => kDurationUnitPattern;
+
+bool isDurationUnit(String? unit) {
+  if (unit == null) return false;
+  final u = unit.toLowerCase();
+  return u == 'dk' || u == 'dakika' || u == 'dak' || u.startsWith('min');
+}
+
 String _expandNpaceShorthand(String text) {
   return text
       .replaceAllMapped(
@@ -9,6 +19,14 @@ String _expandNpaceShorthand(String text) {
       )
       .replaceAllMapped(
         RegExp(r'\b([1-9])pace\b', caseSensitive: false),
+        (m) => '${m.group(1)}:00',
+      )
+      .replaceAllMapped(
+        RegExp(r'\b([1-9])\s+p\b', caseSensitive: false),
+        (m) => '${m.group(1)}:00',
+      )
+      .replaceAllMapped(
+        RegExp(r'\b([1-9])p\b', caseSensitive: false),
         (m) => '${m.group(1)}:00',
       );
 }
@@ -20,15 +38,15 @@ String _normalizeDecimals(String text) {
   );
 }
 
-String _normalizeDurationUnits(String text) {
+String _normalizeHourUnits(String text) {
   var t = text;
 
   t = t.replaceAllMapped(
     RegExp(
-      r'\b(\d+)\s*(?:h|hr|hours?|sa|saat)\s*(\d+)\s*(?:dk|dakika|min(?:ute)?s?)\b',
+      r'(\d+(?:\.\d+)?)(?:\s*)?(?:h|hr|hours?|sa|saat)(?:\s*)?(\d+(?:\.\d+)?)(?:\s*)?(?:dk|dakika|min(?:ute)?s?)\b',
       caseSensitive: false,
     ),
-    (m) => '${int.parse(m.group(1)!) * 60 + int.parse(m.group(2)!)}dk',
+    (m) => '${(double.parse(m.group(1)!) * 60 + double.parse(m.group(2)!)).round()}dk',
   );
 
   t = t.replaceAllMapped(
@@ -37,13 +55,8 @@ String _normalizeDurationUnits(String text) {
   );
 
   t = t.replaceAllMapped(
-    RegExp(r'\b(\d+(?:\.\d+)?)\s*(?:h|hr|hours?|sa(?:at)?)\b', caseSensitive: false),
+    RegExp(r'(\d+(?:\.\d+)?)(?:\s*)?(?:h|hr|hours?|sa(?:at)?)\b', caseSensitive: false),
     (m) => '${(double.parse(m.group(1)!) * 60).round()}dk',
-  );
-
-  t = t.replaceAllMapped(
-    RegExp(r'\b(\d+(?:\.\d+)?)\s*(?:dakika|minutes?|mins?)\b', caseSensitive: false),
-    (m) => '${m.group(1)}dk',
   );
 
   t = t.replaceAllMapped(
@@ -54,36 +67,34 @@ String _normalizeDurationUnits(String text) {
   return t;
 }
 
-String _normalizeDistanceUnits(String text) {
-  return text
-      .replaceAllMapped(
-        RegExp(r'\b(\d+(?:\.\d+)?)\s*(?:metre|meter|meters|metres)\b', caseSensitive: false),
-        (m) => '${m.group(1)}m',
-      )
-      .replaceAllMapped(
-        RegExp(r'\b(\d+(?:\.\d+)?)\s*(?:kilometre|kilometer|kilometers|kilometres)\b', caseSensitive: false),
-        (m) => '${m.group(1)}km',
-      );
-}
-
-String _normalizeUnitTokens(String text) {
+String _normalizeWordUnits(String text) {
   var t = text;
 
   t = t.replaceAllMapped(
-    RegExp(r'(\d+(?:\.\d+)?)(dakika|minutes?|mins?)\b', caseSensitive: false),
+    RegExp(r'(\d+(?:\.\d+)?)(?:\s*)?(?:dakika|minutes?|mins?)\b', caseSensitive: false),
     (m) => '${m.group(1)}dk',
   );
   t = t.replaceAllMapped(
-    RegExp(r'(\d+(?:\.\d+)?)(metres?|meters?)\b', caseSensitive: false),
+    RegExp(r'(\d+(?:\.\d+)?)(?:\s*)?dak\b', caseSensitive: false),
+    (m) => '${m.group(1)}dk',
+  );
+  t = t.replaceAllMapped(
+    RegExp(r'(\d+(?:\.\d+)?)\s*dk\b', caseSensitive: false),
+    (m) => '${m.group(1)}dk',
+  );
+
+  t = t.replaceAllMapped(
+    RegExp(r'(\d+(?:\.\d+)?)(?:\s*)?(?:metres?|meters?)\b', caseSensitive: false),
     (m) => '${m.group(1)}m',
   );
   t = t.replaceAllMapped(
-    RegExp(r'(\d+(?:\.\d+)?)(kilometres?|kilometers?)\b', caseSensitive: false),
+    RegExp(r'(\d+(?:\.\d+)?)(?:\s*)?(?:kilometres?|kilometers?)\b', caseSensitive: false),
     (m) => '${m.group(1)}km',
   );
-
-  t = t.replaceAllMapped(RegExp(r'(\d+(?:\.\d+)?)\s*dk\b', caseSensitive: false), (m) => '${m.group(1)}dk');
-  t = t.replaceAllMapped(RegExp(r'(\d+(?:\.\d+)?)\s*km\b', caseSensitive: false), (m) => '${m.group(1)}km');
+  t = t.replaceAllMapped(
+    RegExp(r'(\d+(?:\.\d+)?)\s*km\b', caseSensitive: false),
+    (m) => '${m.group(1)}km',
+  );
   t = t.replaceAllMapped(
     RegExp(r'(\d+(?:\.\d+)?)\s*k\b(?![m\/a-z])', caseSensitive: false),
     (m) => '${m.group(1)}k',
@@ -93,6 +104,41 @@ String _normalizeUnitTokens(String text) {
     (m) => '${m.group(1)}m',
   );
 
+  return t;
+}
+
+String _normalizePaceSuffixes(String text) {
+  var t = text;
+  const timePat = r'\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?';
+
+  t = t.replaceAllMapped(
+    RegExp(r'(\d{1,2}:\d{2})\s*/\s*km\b', caseSensitive: false),
+    (m) => m.group(1)!,
+  );
+  t = t.replaceAllMapped(RegExp(r'@\s*(\d{1,2}:\d{2})'), (m) => m.group(1)!);
+  t = t.replaceAllMapped(
+    RegExp(r'\btempo\s+(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)', caseSensitive: false),
+    (m) => m.group(1)!,
+  );
+
+  t = t.replaceAllMapped(
+    RegExp('($timePat)\\s*pace\\b', caseSensitive: false),
+    (m) => m.group(1)!,
+  );
+  t = t.replaceAllMapped(
+    RegExp('($timePat)pace\\b', caseSensitive: false),
+    (m) => m.group(1)!,
+  );
+  t = t.replaceAllMapped(
+    RegExp('($timePat)\\s*p\\b', caseSensitive: false),
+    (m) => m.group(1)!,
+  );
+  t = t.replaceAllMapped(
+    RegExp('($timePat)p\\b', caseSensitive: false),
+    (m) => m.group(1)!,
+  );
+
+  t = t.replaceAll(RegExp(r'\s+pace\b', caseSensitive: false), '');
   return t;
 }
 
@@ -145,33 +191,6 @@ String _normalizeRecoveryLabels(String text) {
   );
 }
 
-String _normalizePaceKeywords(String text) {
-  var t = text;
-  t = t.replaceAllMapped(
-    RegExp(r'(\d{1,2}:\d{2})\s*/\s*km\b', caseSensitive: false),
-    (m) => m.group(1)!,
-  );
-  t = t.replaceAllMapped(RegExp(r'@\s*(\d{1,2}:\d{2})'), (m) => m.group(1)!);
-  t = t.replaceAllMapped(
-    RegExp(r'\btempo\s+(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)', caseSensitive: false),
-    (m) => m.group(1)!,
-  );
-  t = t.replaceAllMapped(
-    RegExp(r'(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)pace\b', caseSensitive: false),
-    (m) => m.group(1)!,
-  );
-  t = t.replaceAllMapped(
-    RegExp(r'(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)\s+pace\b', caseSensitive: false),
-    (m) => m.group(1)!,
-  );
-  t = t.replaceAllMapped(
-    RegExp(r'(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)\s*p\b', caseSensitive: false),
-    (m) => m.group(1)!,
-  );
-  t = t.replaceAll(RegExp(r'\s+pace\b', caseSensitive: false), '');
-  return t;
-}
-
 String _tightenSpacing(String text) {
   return text.replaceAll(RegExp(r'\s{2,}'), ' ').trim();
 }
@@ -182,13 +201,12 @@ String normalizeCoachInput(String raw) {
 
   t = _normalizeDecimals(t);
   t = _expandNpaceShorthand(t);
-  t = _normalizeDurationUnits(t);
-  t = _normalizeDistanceUnits(t);
-  t = _normalizeUnitTokens(t);
+  t = _normalizeHourUnits(t);
+  t = _normalizeWordUnits(t);
   t = _insertBoundarySpaces(t);
   t = _normalizeRepeatSyntax(t);
   t = _normalizeRecoveryLabels(t);
-  t = _normalizePaceKeywords(t);
+  t = _normalizePaceSuffixes(t);
   t = _tightenSpacing(t);
 
   return t;

@@ -338,10 +338,17 @@ soğuma 1k 5:50/6:00''';
       const pairs = [
         ('15 dk ısınma', '15dk ısınma'),
         ('15dakika ısınma', '15dk ısınma'),
+        ('15 dakika ısınma', '15dk ısınma'),
         ('500 m ısınma', '500m ısınma'),
         ('500metre ısınma', '500m ısınma'),
+        ('500 metre ısınma', '500m ısınma'),
         ('6 x 5 dk 3:00 pace R 1 dk 3:00 pace', '6x5dk 3:00pace R1dk 3:00pace'),
+        ('6 x 5 dakika 3:00 p R 1 dakika 3:00 p', '6x5dk 3:00 R 1dk 3:00'),
         ('4 x 400 m vdot R 200 m 3 pace', '4x400m vdot R200m 3pace'),
+        ('4 x 400 m vdot R 200 m 3p', '4x400m vdot R200m 3p'),
+        ('45 min ısınma', '45min ısınma'),
+        ('1 saat ısınma', '1saat ısınma'),
+        ('2 kilometre soğuma', '2km soğuma'),
       ];
       for (final (spaced, glued) in pairs) {
         final a = parseCoachText(spaced);
@@ -350,6 +357,15 @@ soğuma 1k 5:50/6:00''';
         expect(b.ok, isTrue, reason: '$glued: ${b.error}');
         expect(a.workoutDefinition, b.workoutDefinition, reason: '$spaced vs $glued');
       }
+    });
+
+    test('6x5 dakika with p pace suffix parses interval', () {
+      final r = parseCoachText('6x5 dakika 3:00p R 1 dakika 3:00 p');
+      expect(r.ok, isTrue, reason: r.error);
+      final repeat = (r.workoutDefinition!['steps'] as List).first as Map;
+      final main = ((repeat['steps'] as List)[0] as Map)['segment'] as Map;
+      expect(main['duration_seconds'], 300);
+      expect(main['pace_seconds_per_km_min'], 180);
     });
   });
 }

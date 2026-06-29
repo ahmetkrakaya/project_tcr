@@ -79,21 +79,25 @@ String _normalizePaceRaw(String raw) {
   if (t.startsWith('(') && t.endsWith(')')) {
     t = t.substring(1, t.length - 1).trim();
   }
+  const timePat = r'\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?';
   return t
       .replaceAllMapped(
-        RegExp(r'(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)pace\s*$', caseSensitive: false),
+        RegExp('($timePat)\\s*pace\\s*\$', caseSensitive: false),
         (m) => m.group(1)!,
       )
       .replaceAllMapped(
-        RegExp(r'(\d{1,2}:\d{2})pace\s*$', caseSensitive: false),
+        RegExp('($timePat)pace\\s*\$', caseSensitive: false),
         (m) => m.group(1)!,
       )
       .replaceAll(RegExp(r'\s+pace\s*$', caseSensitive: false), '')
       .replaceAllMapped(
-        RegExp(r'(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)\s*p\s*$', caseSensitive: false),
+        RegExp('($timePat)\\s*p\\s*\$', caseSensitive: false),
         (m) => m.group(1)!,
       )
-      .replaceAll(RegExp(r'\s*p\s*$', caseSensitive: false), '')
+      .replaceAllMapped(
+        RegExp('($timePat)p\\s*\$', caseSensitive: false),
+        (m) => m.group(1)!,
+      )
       .replaceAll(RegExp(r'^@\s*'), '');
 }
 
@@ -346,7 +350,7 @@ _RecoverySpec? _parseRecoveryClause(String raw) {
   }
 
   final dkMatch = RegExp(
-    r'^(\d+(?:\.\d+)?)\s*dk(?:\s+|$)',
+    '^(\\d+(?:\\.\\d+)?)\\s*${durationUnitPattern}(?:\\s+|\$)',
     caseSensitive: false,
   ).firstMatch(remaining);
   if (dkMatch != null) {
@@ -355,8 +359,10 @@ _RecoverySpec? _parseRecoveryClause(String raw) {
   }
 
   if (remaining.isNotEmpty) {
-    final timeOnly = RegExp(r'^(\d{1,2}):(\d{2})(?:\s+pace)?\s*$', caseSensitive: false)
-        .firstMatch(remaining);
+    final timeOnly = RegExp(
+      r'^(\d{1,2}):(\d{2})(?:\s+pace|\s+p|p)?\s*$',
+      caseSensitive: false,
+    ).firstMatch(remaining);
     if (timeOnly != null) {
       final sec = parsePaceSeconds('${timeOnly.group(1)}:${timeOnly.group(2)}');
       if (sec != null) {
@@ -538,7 +544,7 @@ _IntervalBlock? _parseIntervalBlock(String block) {
   final work = split.work;
 
   final m = RegExp(
-    r'^(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(dk|min|m|k|km)?(?:\s*(?:\(([^)]+)\)|(\d{1,2}:\d{2})p?))?(?:\s+(.+))?$',
+    '^(\\d+)\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*(${durationUnitPattern}|m|k|km)?(?:\\s*(?:\\(([^)]+)\\)|(\\d{1,2}:\\d{2})p?))?(?:\\s+(.+))?\$',
     caseSensitive: false,
   ).firstMatch(work);
   if (m == null) return null;
@@ -548,7 +554,7 @@ _IntervalBlock? _parseIntervalBlock(String block) {
   final unit = m.group(3)?.toLowerCase();
   int? distanceM;
   int? durationMinutes;
-  if (unit == 'dk' || unit == 'min') {
+  if (isDurationUnit(unit)) {
     durationMinutes = value.round();
   } else {
     distanceM = _distanceMetersFromValue(value, unit);
@@ -624,7 +630,7 @@ _IntervalBlock? _parseDistanceRepBlock(String block) {
 
 _DurationBlock? _parseDurationBlock(String block) {
   final m = RegExp(
-    r'^(\d+(?:\.\d+)?)\s*dk(?:\s+(.+))?$',
+    '^(\\d+(?:\\.\\d+)?)\\s*${durationUnitPattern}(?:\\s+(.+))?\$',
     caseSensitive: false,
   ).firstMatch(block.trim());
   if (m == null) return null;

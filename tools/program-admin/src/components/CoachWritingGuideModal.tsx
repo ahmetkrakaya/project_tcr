@@ -144,7 +144,8 @@ export function CoachWritingGuideModal({ open, onClose }: Props) {
                 <code>vdot</code> — sporcu VDOT değerinden tempo
               </li>
               <li>
-                <code>5pace</code> — kısaltma: <code>5:00</code>/km
+                <code>5pace</code>, <code>5p</code> — kısaltma: <code>5:00</code>/km
+                (boşluklu veya bitişik)
               </li>
             </ul>
           </section>

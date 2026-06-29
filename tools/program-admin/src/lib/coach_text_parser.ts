@@ -3,7 +3,7 @@
  * Dart: lib/features/events/utils/coach_text_parser.dart
  */
 
-import { normalizeCoachInput } from "./coach_text_normalizer";
+import { normalizeCoachInput, DURATION_UNIT_PATTERN } from "./coach_text_normalizer";
 
 export type SegmentKind = "warmup" | "main" | "recovery" | "cooldown";
 
@@ -63,12 +63,13 @@ function normalizePaceRaw(raw: string): string {
   if (t.startsWith("(") && t.endsWith(")")) {
     t = t.slice(1, -1).trim();
   }
+  const timePat = String.raw`\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?`;
   return t
-    .replace(/(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)pace\s*$/i, "$1")
-    .replace(/(\d{1,2}:\d{2})pace\s*$/i, "$1")
+    .replace(new RegExp(`(${timePat})\\s*pace\\s*$`, "i"), "$1")
+    .replace(new RegExp(`(${timePat})pace\\s*$`, "i"), "$1")
     .replace(/\s+pace\s*$/i, "")
-    .replace(/(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)\s*p\s*$/i, "$1")
-    .replace(/\s*p\s*$/i, "")
+    .replace(new RegExp(`(${timePat})\\s*p\\s*$`, "i"), "$1")
+    .replace(new RegExp(`(${timePat})p\\s*$`, "i"), "$1")
     .replace(/^@\s*/, "");
 }
 
@@ -300,14 +301,18 @@ function parseRecoveryClause(raw: string): RecoverySpec | null {
     remaining = remaining.slice(distMatch[0].length).trim();
   }
 
-  const dkMatch = remaining.match(/^(\d+(?:\.\d+)?)\s*dk(?:\s+|$)/i);
+  const dkMatch = remaining.match(
+    new RegExp(`^(\\d+(?:\\.\\d+)?)\\s*${DURATION_UNIT_PATTERN}(?:\\s+|$)`, "i"),
+  );
   if (dkMatch) {
     spec.durationSec = Math.round(Number(dkMatch[1]) * 60);
     remaining = remaining.slice(dkMatch[0].length).trim();
   }
 
   if (remaining) {
-    const timeOnly = remaining.match(/^(\d{1,2}):(\d{2})(?:\s+pace)?\s*$/i);
+    const timeOnly = remaining.match(
+      /^(\d{1,2}):(\d{2})(?:\s+pace|\s+p|p)?\s*$/i,
+    );
     if (timeOnly) {
       const sec = parsePaceSeconds(`${timeOnly[1]}:${timeOnly[2]}`);
       if (sec != null) {
@@ -463,7 +468,10 @@ function parseIntervalBlock(block: string): ParsedBlock | null {
   const { work, recovery } = splitOnRecovery(normalized);
 
   const m = work.match(
-    /^(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(dk|min|m|k|km)?(?:\s*(?:\(([^)]+)\)|(\d{1,2}:\d{2})p?))?(?:\s+(.+))?$/i,
+    new RegExp(
+      `^(\\d+)\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*(${DURATION_UNIT_PATTERN}|m|k|km)?(?:\\s*(?:\\(([^)]+)\\)|(\\d{1,2}:\\d{2})p?))?(?:\\s+(.+))?$`,
+      "i",
+    ),
   );
   if (!m) return null;
 
@@ -473,7 +481,7 @@ function parseIntervalBlock(block: string): ParsedBlock | null {
   let distanceM: number | null = null;
   let durationMinutes: number | null = null;
 
-  if (unit === "dk" || unit === "min") {
+  if (unit === "dk" || unit === "dakika" || unit === "dak" || unit === "min" || unit?.startsWith("min")) {
     durationMinutes = value;
   } else {
     distanceM = distanceMetersFromValue(value, unit);
@@ -535,7 +543,9 @@ function parseDistanceRepBlock(block: string): ParsedBlock | null {
 }
 
 function parseDurationBlock(block: string): ParsedBlock | null {
-  const m = block.trim().match(/^(\d+(?:\.\d+)?)\s*dk(?:\s+(.+))?$/i);
+  const m = block.trim().match(
+    new RegExp(`^(\\d+(?:\\.\\d+)?)\\s*${DURATION_UNIT_PATTERN}(?:\\s+(.+))?$`, "i"),
+  );
   if (!m) return null;
   const minutes = Number(m[1]);
   const paceRaw = m[2]?.trim();
