@@ -15,9 +15,9 @@ export function Layout() {
             type="button"
             className="btn btn-ghost"
             onClick={() => setGuideOpen(true)}
-            aria-label="Yazım kılavuzu"
+            aria-label="Program kılavuzu"
           >
-            ⓘ Yazım kılavuzu
+            ⓘ Kılavuz
           </button>
           <button type="button" className="btn btn-ghost" onClick={() => signOut()}>
             Çıkış

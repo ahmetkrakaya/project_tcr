@@ -1,50 +1,46 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 type Props = {
   open: boolean;
   onClose: () => void;
 };
 
-function GuideCard({
-  icon,
-  title,
-  children,
-  className = "",
-}: {
-  icon: string;
-  title: string;
-  children: ReactNode;
-  className?: string;
-}) {
+type TabId = "start" | "settings" | "writing" | "examples";
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: "start", label: "Başlarken" },
+  { id: "settings", label: "Grup & ayarlar" },
+  { id: "writing", label: "Metin yazımı" },
+  { id: "examples", label: "Örnekler" },
+];
+
+function GuideBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className={`guide-card ${className}`.trim()}>
-      <div className="guide-card-head">
-        <span className="guide-card-icon" aria-hidden="true">
-          {icon}
-        </span>
-        <h3>{title}</h3>
-      </div>
-      <div className="guide-card-body">{children}</div>
+    <section className="guide-block">
+      <h3>{title}</h3>
+      {children}
     </section>
   );
 }
 
-function ExampleTable({ rows }: { rows: [string, string][] }) {
+function GuideSteps({ steps }: { steps: string[] }) {
+  return (
+    <ol className="guide-steps">
+      {steps.map((step) => (
+        <li key={step}>{step}</li>
+      ))}
+    </ol>
+  );
+}
+
+function GuideTable({ rows }: { rows: [string, string][] }) {
   return (
     <table className="guide-table">
-      <thead>
-        <tr>
-          <th>Yazım</th>
-          <th>Anlam</th>
-        </tr>
-      </thead>
       <tbody>
-        {rows.map(([code, meaning]) => (
-          <tr key={code}>
-            <td>
-              <code>{code}</code>
-            </td>
-            <td>{meaning}</td>
+        {rows.map(([a, b]) => (
+          <tr key={a}>
+            <td>{a}</td>
+            <td>{b}</td>
           </tr>
         ))}
       </tbody>
@@ -52,7 +48,315 @@ function ExampleTable({ rows }: { rows: [string, string][] }) {
   );
 }
 
+function GuideCallout({
+  type,
+  title,
+  children,
+}: {
+  type: "tip" | "warn" | "info";
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`guide-callout guide-callout-${type}`}>
+      <strong>{title}</strong>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function GuideCode({ children }: { children: string }) {
+  return <pre className="guide-code">{children}</pre>;
+}
+
+function StartTab() {
+  return (
+    <>
+      <GuideBlock title="Bu panel ne işe yarar?">
+        <p>
+          Haftalık antrenman programını <strong>Pazartesi–Pazar</strong> için
+          hazırlarsınız. Her gün bir kart; metin yazıp kaydettiğinizde sporcular
+          mobil uygulamada programı görür.
+        </p>
+      </GuideBlock>
+
+      <GuideBlock title="Önerilen iş akışı">
+        <GuideSteps
+          steps={[
+            "Üstten antrenman grubunu seçin (performansta sporcu da seçin).",
+            "Her gün için antrenman metnini yazın; gerekirse tür ve pist ayarlayın.",
+            "Kart altındaki önizlemeyi veya üstteki Önizleme butonunu kontrol edin.",
+            "Kaydet — en az bir gün kaydedildiğinde sporculara bildirim gider.",
+          ]}
+        />
+      </GuideBlock>
+
+      <GuideBlock title="Önizleme">
+        <p>
+          Metin yazdıkça her gün kartının altında <strong>satır içi önizleme</strong>{" "}
+          açılır: ısınma / ana / toparlanma / soğuma adımları, tempo veya{" "}
+          <em>VDOT pace</em> etiketi görünür.
+        </p>
+        <p>
+          Üst araç çubuğundaki <strong>Önizleme</strong> butonu tüm haftayı tek
+          pencerede gösterir. Parse hatası varsa kırmızı uyarı çıkar — kaydetmeden
+          önce düzeltin.
+        </p>
+      </GuideBlock>
+
+      <GuideBlock title="Koç notu">
+        <p>
+          Sporcuya gösterilen serbest metindir; antrenmanın üstünde görünür.
+        </p>
+        <GuideCallout type="warn" title="Önemli">
+          Antrenman metni boşken sadece koç notu kaydedilmez. Notun kalıcı olması
+          için o gün geçerli bir antrenman metni yazmalısınız.
+        </GuideCallout>
+      </GuideBlock>
+
+      <GuideBlock title="Dinlenme günü">
+        <p>
+          Alanı boş bırakmak, <code>REST</code> veya <code>dinlenme</code> yazmak
+          dinlenme günü demektir. Kayıtta o gün veritabanından silinir; önizlemede
+          &ldquo;Dinlenme günü&rdquo; yazar.
+        </p>
+      </GuideBlock>
+
+      <GuideBlock title="Diğer araçlar">
+        <GuideTable
+          rows={[
+            ["Geçen haftadan kopyala", "Aynı grup/sporcu için önceki haftayı getirir."],
+            ["Gruptan kopyala", "Başka normal gruptan bu haftayı kopyalar (kaydetmek gerekir)."],
+            ["Tümünü kaydet", "Birden fazla grubun kaydedilmemiş taslağı varsa hepsini kaydeder."],
+          ]}
+        />
+      </GuideBlock>
+    </>
+  );
+}
+
+function SettingsTab() {
+  return (
+    <>
+      <GuideBlock title="Antrenman grubu">
+        <p>
+          Program hangi gruba (veya performansta hangi sporcuya) yazılacağını
+          belirler. Grup seçilmeden gün kartları kilitlidir.
+        </p>
+        <GuideTable
+          rows={[
+            [
+              "Normal grup",
+              "Program gruba atanır; gruptaki tüm üyeler aynı programı görür.",
+            ],
+            [
+              "Performans grubu",
+              "Program sporcu bazında kaydedilir. Önce en az bir sporcu seçmelisiniz.",
+            ],
+          ]}
+        />
+        <GuideCallout type="info" title="Performans — çoklu sporcu">
+          Birden fazla sporcu seçerseniz aynı program hepsine yazılır; mevcut hafta
+          yüklenmez. Tek sporcu seçiliyken o sporcunun haftası otomatik gelir.
+        </GuideCallout>
+      </GuideBlock>
+
+      <GuideBlock title="Antrenman türü">
+        <p>
+          Her gün kartında <strong>Antrenman türü</strong> alanı vardır. Varsayılan{" "}
+          <strong>Otomatik (metinden)</strong> — sistem metne bakarak türü tahmin eder.
+        </p>
+        <p>Otomatik tahmin kuralları (özet):</p>
+        <GuideTable
+          rows={[
+            ["Tekrar + mesafe ≤ 600 m", "Repetition (tekrar)"],
+            ["Tekrar + mesafe > 600 m", "Interval"],
+            ["Uzun mesafe formatı veya ≥ 15 km", "Long Run"],
+            ["Metinde threshold / eşik", "Threshold"],
+            ["Diğer", "Easy Run"],
+          ]}
+        />
+        <GuideCallout type="tip" title="Ne zaman manuel seçmeli?">
+          Önizlemede tür yanlış görünüyorsa listeden doğru türü seçin. Tür; mobil
+          uygulamada renk/ikon, VDOT tempo offset&apos;i ve antrenman kategorisini
+          etkiler.
+        </GuideCallout>
+      </GuideBlock>
+
+      <GuideBlock title="VDOT — metinde ne anlama gelir?">
+        <p>
+          Metne <code>vdot</code> yazdığınızda o adım için <strong>sabit tempo
+          yazmazsınız</strong>; sporcu profilindeki VDOT değerinden tempo hesaplanır.
+        </p>
+        <GuideTable
+          rows={[
+            ["10km vdot", "10 km, kişisel VDOT temposunda"],
+            ["4x8dk vdot R 1dk", "4×8 dk @ VDOT, 1 dk toparlanma"],
+            ["400m vdot R 1dk", "400 m tekrarı @ VDOT"],
+          ]}
+        />
+        <GuideCallout type="info" title="Panel vs mobil uygulama">
+          <p style={{ margin: "0 0 8px" }}>
+            <strong>Burada (önizleme):</strong> &ldquo;VDOT pace&rdquo; yazar — sayısal
+            tempo hesaplanmaz; sporcu profili panelde yoktur.
+          </p>
+          <p style={{ margin: 0 }}>
+            <strong>Mobil uygulamada:</strong> Sporcunun profil VDOT&apos;undan gerçek
+            tempo (ör. 4:30/km) gösterilir. VDOT girilmemişse uyarı çıkar. Metne
+            sayısal VDOT yazmayın — profildeki değer kullanılır.
+          </p>
+        </GuideCallout>
+        <p className="guide-muted">
+          Isınma, soğuma ve toparlanmada VDOT kullanıldığında tempo, ana segmentten
+          daha kolay offset ile hesaplanır.
+        </p>
+      </GuideBlock>
+
+      <GuideBlock title="Pist (kulvar) seçimi">
+        <p>
+          Pist antrenmanları için gün kartındaki <strong>Pist</strong> alanından
+          referans kulvarı (1–8) seçin. Yol koşusu veya koşu bandı için{" "}
+          <strong>Pistte değil</strong> bırakın.
+        </p>
+        <GuideTable
+          rows={[
+            ["Pistte değil", "Mesafe/süre yazdığınız gibi kullanılır."],
+            ["Kulvar 1–8", "Referans kulvar kaydedilir; önizlemede Kulvar N chip'i görünür."],
+          ]}
+        />
+        <GuideCallout type="info" title="Mobilde ne olur?">
+          Dış kulvarlar daha uzun tur mesafesine sahiptir (IAAF formülü). Sporcu
+          mobil uygulamada kendi kulvarını seçebilir; mesafe ve tur süreleri referans
+          kulvara göre dönüştürülür. Panel önizlemesinde bu dönüşüm tam simüle
+          edilmez — detay mobilde görülür.
+        </GuideCallout>
+      </GuideBlock>
+    </>
+  );
+}
+
+function WritingTab() {
+  return (
+    <>
+      <GuideBlock title="Temel kural">
+        <p>
+          Her satır bir adım. Tipik sıra: <strong>ısınma</strong> →{" "}
+          <strong>ana antrenman</strong> → <strong>soğuma</strong>. Birden fazla bloğu{" "}
+          <code>+</code> ile aynı satırda birleştirebilirsiniz.
+        </p>
+        <p className="guide-muted">
+          Boşluklu ve bitişik yazım aynı sonucu verir: <code>15dk</code> ={" "}
+          <code>15 dk</code> = <code>15dakika</code>
+        </p>
+      </GuideBlock>
+
+      <GuideBlock title="Etiketler">
+        <GuideTable
+          rows={[
+            ["ısınma, warmup", "Isınma adımı (başta veya sonda)"],
+            ["ana, main", "Ana antrenman"],
+            ["soğuma, cooldown", "Soğuma"],
+            ["R, toparlanma, recovery", "Toparlanma — tekrarlarda zorunlu"],
+          ]}
+        />
+      </GuideBlock>
+
+      <GuideBlock title="Tempo yazımı">
+        <GuideTable
+          rows={[
+            ["7:00", "Tek tempo (dk:sn / km)"],
+            ["7:00 pace veya 7:00p", "pace / p kelimesi opsiyonel"],
+            ["9:00-10:00 veya 6:00/5:50", "Tempo aralığı"],
+            ["5pace, 5p", "Kısaltma → 5:00/km"],
+            ["vdot", "Sporcu VDOT temposu (sabit dk/km yazılmaz)"],
+          ]}
+        />
+      </GuideBlock>
+
+      <GuideBlock title="Tekrarlı koşular">
+        <p>
+          Format: <code>tekrar × mesafe veya süre + hedef + R + toparlanma</code>
+        </p>
+        <GuideCode>{`4x8dk vdot R 1dk
+5x400 (1:51) R200m
+6x5 dakika 3:00p R 1 dakika 3:00 p
+400m vdot R 1dk`}</GuideCode>
+        <GuideCallout type="warn" title="Toparlanma zorunlu">
+          Tekrarlı intervalde <code>R …</code> olmadan parse edilmez. R sonrası süre,
+          mesafe ve/veya tempo yazılabilir: <code>R 1dk 3:00</code>,{" "}
+          <code>R 200 3p</code>
+        </GuideCallout>
+      </GuideBlock>
+
+      <GuideBlock title="Birim eşdeğerleri">
+        <div className="guide-unit-list">
+          <div>
+            <strong>Süre:</strong> dk, dakika, dak, min, saat, h, 1h30dk
+          </div>
+          <div>
+            <strong>Mesafe:</strong> m, metre, km, k, kilometre
+          </div>
+          <div>
+            <strong>Tekrar:</strong> x, *, ×, tekrar, rep
+          </div>
+          <div>
+            <strong>Tempo:</strong> pace, p, /km, @, tempo
+          </div>
+        </div>
+      </GuideBlock>
+
+      <GuideBlock title="Zincirleme ve uzun koşu">
+        <GuideCode>{`3k 6:10/6:00 + 5x1200(5:10/5:00) R400m + 1k 6:00
+
+18k: 3k 5:40 / 12k 5:30 / 3k 5:20`}</GuideCode>
+      </GuideBlock>
+    </>
+  );
+}
+
+function ExamplesTab() {
+  return (
+    <>
+      <GuideBlock title="Interval günü">
+        <GuideCode>{`15dk ısınma
+6x5dk 3:00 R 1dk 3:00
+10dk soğuma`}</GuideCode>
+      </GuideBlock>
+
+      <GuideBlock title="Pist tekrarları (kulvar seçili)">
+        <GuideCode>{`15dk ısınma
+5x400 (1:51) R200m
+2km soğuma`}</GuideCode>
+        <p className="guide-muted">Pist alanından referans kulvarını seçmeyi unutmayın.</p>
+      </GuideBlock>
+
+      <GuideBlock title="VDOT tempo günü">
+        <GuideCode>{`10dk ısınma
+4x8dk vdot R 1dk
+400m vdot R 200 3p
+10dk soğuma`}</GuideCode>
+        <p className="guide-muted">
+          Tür: Otomatik → Interval. VDOT temposu sporcunun profilindeki değerden gelir.
+        </p>
+      </GuideBlock>
+
+      <GuideBlock title="Tempo koşusu">
+        <GuideCode>{`15dk 7:00 pace ısınma
+45dk 6:00/5:50
+10dk soğuma`}</GuideCode>
+      </GuideBlock>
+
+      <GuideBlock title="Dinlenme">
+        <GuideCode>{`REST`}</GuideCode>
+        <p className="guide-muted">veya gün kartını boş bırakın.</p>
+      </GuideBlock>
+    </>
+  );
+}
+
 export function CoachWritingGuideModal({ open, onClose }: Props) {
+  const [tab, setTab] = useState<TabId>("start");
+
   if (!open) return null;
 
   return (
@@ -64,14 +368,11 @@ export function CoachWritingGuideModal({ open, onClose }: Props) {
         aria-modal="true"
         aria-labelledby="guide-title"
       >
-        <div className="guide-header">
-          <div className="guide-header-text">
-            <p className="guide-eyebrow">Koç metni parser</p>
-            <h2 id="guide-title">Antrenman yazım kılavuzu</h2>
-            <p className="guide-lead">
-              Her satır bir adım. Boşluklu veya bitişik yazım aynı sonucu verir —{" "}
-              <code>15dk</code> ile <code>15 dk</code> eşdeğerdir. Yazdıktan sonra{" "}
-              <strong>Önizleme</strong> ile kontrol edin.
+        <header className="guide-header">
+          <div>
+            <h2 id="guide-title">Program kılavuzu</h2>
+            <p className="guide-subtitle">
+              Haftalık program girişi, grup ayarları, VDOT, pist ve metin yazımı
             </p>
           </div>
           <button
@@ -82,230 +383,26 @@ export function CoachWritingGuideModal({ open, onClose }: Props) {
           >
             ✕
           </button>
-        </div>
+        </header>
 
-        <div className="guide-pills" aria-label="Hızlı özet">
-          <span className="guide-pill">Isınma → Ana → Soğuma</span>
-          <span className="guide-pill">Boşluk fark etmez</span>
-          <span className="guide-pill">R = toparlanma</span>
-          <span className="guide-pill">+ ile zincirle</span>
-        </div>
+        <nav className="guide-tabs" aria-label="Kılavuz bölümleri">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`guide-tab${tab === t.id ? " guide-tab-active" : ""}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
 
         <div className="modal-body guide-body">
-          <div className="guide-grid">
-            <GuideCard icon="📋" title="Genel yapı">
-              <p>
-                Antrenmanı satır satır yazın. Tipik sıra:{" "}
-                <strong>ısınma</strong> → <strong>ana antrenman</strong> →{" "}
-                <strong>soğuma</strong>. Birden fazla bloğu <code>+</code> ile aynı
-                satırda birleştirebilirsiniz.
-              </p>
-              <pre className="guide-example">{`15dk ısınma
-4x8dk vdot R 1dk
-10dk soğuma`}</pre>
-              <p className="guide-note">
-                Etiketler başta veya sonda olabilir: <code>ısınma 15dk</code>,{" "}
-                <code>ana 6x5dk 3:00 R 1dk</code>, <code>soğuma 2km</code>
-              </p>
-            </GuideCard>
-
-            <GuideCard icon="🏷️" title="Etiketler">
-              <ExampleTable
-                rows={[
-                  ["ısınma, isinma, warmup", "Isınma adımı"],
-                  ["ana, main", "Ana antrenman"],
-                  ["soğuma, soguma, cooldown", "Soğuma adımı"],
-                  ["toparlanma, recovery, rec, float", "R ile aynı (toparlanma)"],
-                  ["REST, dinlenme", "Dinlenme günü — adım yok"],
-                ]}
-              />
-            </GuideCard>
-
-            <GuideCard icon="🔥" title="Isınma ve soğuma">
-              <p>Süre, mesafe veya tempo belirtebilirsiniz.</p>
-              <ExampleTable
-                rows={[
-                  ["15dk ısınma", "15 dk kolay ısınma"],
-                  ["15dakika ısınma", "Boşluksuz dakika da geçerli"],
-                  ["15dk 7:00 pace ısınma", "15 dk @ 7:00/km"],
-                  ["500m ısınma", "500 m koşu"],
-                  ["500metre ısınma", "Uzun birim adı da geçerli"],
-                  ["2km soğuma", "2 km soğuma"],
-                  ["45min soğuma", "min / minute / minutes"],
-                ]}
-              />
-            </GuideCard>
-
-            <GuideCard icon="⚡" title="Ana antrenman">
-              <p>Süre koşusu, mesafe koşusu veya tekrarlı interval.</p>
-              <ExampleTable
-                rows={[
-                  ["45dk 6:00", "45 dk @ 6:00/km"],
-                  ["60dk 6:00/5:50", "60 dk tempo aralığı"],
-                  ["10km vdot", "10 km @ VDOT temposu"],
-                  ["4x8dk vdot R 1dk", "4×8 dk @ VDOT, 1 dk R"],
-                  ["6x5 dakika 3:00p R 1 dakika 3:00 p", "Süre interval + p kısaltması"],
-                  ["5x400 (1:51) R200m", "5×400 m hedef 1:51, 200 m R"],
-                  ["400m vdot R 1dk", "Tek tekrar, parantezsiz"],
-                  ["5x1200(5:10/5:00) R400m 2:20", "Split hedef + mesafe R"],
-                ]}
-              />
-            </GuideCard>
-
-            <GuideCard icon="⏱️" title="Tempo, pace ve VDOT">
-              <ExampleTable
-                rows={[
-                  ["7:00", "Tek tempo (dk:sn / km)"],
-                  ["7:00 pace", "pace kelimesi opsiyonel"],
-                  ["7:00p", "p kısaltması = pace"],
-                  ["7:00pace", "Bitişik yazım"],
-                  ["9:00-10:00", "Tempo aralığı (tire)"],
-                  ["6:00/5:50", "Tempo aralığı (slash)"],
-                  ["5pace, 5p", "Kısaltma → 5:00/km"],
-                  ["3 pace, 3p", "Tek haneli kısaltma → 3:00/km"],
-                  ["vdot", "Sporcu VDOT değerinden tempo"],
-                  ["(5:10/5:00)", "Parantez içi split veya tempo"],
-                ]}
-              />
-            </GuideCard>
-
-            <GuideCard icon="💤" title="Toparlanma (R)">
-              <p>
-                <code>R</code> sonrasındaki tüm ifade toparlanmadır — mesafe, süre
-                ve/veya tempo birlikte kullanılabilir.
-              </p>
-              <ExampleTable
-                rows={[
-                  ["R 1dk", "1 dk toparlanma"],
-                  ["R1dk", "Bitişik yazım"],
-                  ["R200m", "200 m toparlanma"],
-                  ["R 200", "200 m (m birimi opsiyonel)"],
-                  ["R 200 3pace", "200 m @ 3:00/km"],
-                  ["R 200 3p", "p kısaltması ile tempo"],
-                  ["R 1dk 3:00 pace", "Süre + tempo birlikte"],
-                  ["R400m 2:20", "400 m, en fazla 2:20/km"],
-                ]}
-              />
-            </GuideCard>
-
-            <GuideCard icon="📏" title="Birimler ve eşdeğerler" className="guide-card-wide">
-              <p className="guide-note">
-                Tüm birimler <strong>boşluklu</strong> veya <strong>bitişik</strong>{" "}
-                yazılabilir. Aşağıdaki sütunlar birbirinin yerine geçer.
-              </p>
-              <div className="guide-unit-grid">
-                <div className="guide-unit-block">
-                  <h4>Süre</h4>
-                  <div className="guide-chips">
-                    <code>dk</code>
-                    <code>dakika</code>
-                    <code>dak</code>
-                    <code>min</code>
-                    <code>minute</code>
-                    <code>saat</code>
-                    <code>h</code>
-                    <code>1h30dk</code>
-                    <code>1:30:00</code>
-                  </div>
-                  <p className="guide-mini">
-                    Örn: <code>15dk</code> = <code>15 dk</code> = <code>15dakika</code>
-                  </p>
-                </div>
-                <div className="guide-unit-block">
-                  <h4>Mesafe</h4>
-                  <div className="guide-chips">
-                    <code>m</code>
-                    <code>metre</code>
-                    <code>km</code>
-                    <code>k</code>
-                    <code>kilometre</code>
-                  </div>
-                  <p className="guide-mini">
-                    Örn: <code>400m</code> = <code>400 m</code> = <code>400metre</code>
-                  </p>
-                </div>
-                <div className="guide-unit-block">
-                  <h4>Tekrar</h4>
-                  <div className="guide-chips">
-                    <code>x</code>
-                    <code>*</code>
-                    <code>×</code>
-                    <code>tekrar</code>
-                    <code>rep</code>
-                  </div>
-                  <p className="guide-mini">
-                    Örn: <code>4x400</code> = <code>4 x 400</code> = <code>4 tekrar 400m</code>
-                  </p>
-                </div>
-                <div className="guide-unit-block">
-                  <h4>Tempo</h4>
-                  <div className="guide-chips">
-                    <code>pace</code>
-                    <code>p</code>
-                    <code>/km</code>
-                    <code>@</code>
-                    <code>tempo</code>
-                  </div>
-                  <p className="guide-mini">
-                    Örn: <code>3:00pace</code> = <code>3:00 p</code> = <code>3:00/km</code>
-                  </p>
-                </div>
-              </div>
-            </GuideCard>
-
-            <GuideCard icon="🔗" title="Zincirleme ve uzun koşu">
-              <p>
-                <code>+</code> ile adımları birleştirin. Uzun koşuda segmentleri{" "}
-                <code>/</code> veya <code>:</code> ile ayırabilirsiniz.
-              </p>
-              <pre className="guide-example">{`3k 6:10/6:00 + 5x1200(5:10/5:00) R400m + 1k 6:00/6:10
-
-18k: 3k 5:40 / 12k 5:30 / 3k 5:20
-
-15dk 6:00 + 30dk 5:20/5:25 + 15dk 5:14`}</pre>
-            </GuideCard>
-
-            <GuideCard icon="📝" title="Tam antrenman örnekleri" className="guide-card-wide">
-              <div className="guide-examples-row">
-                <div className="guide-example-block">
-                  <span className="guide-example-label">Interval günü</span>
-                  <pre className="guide-example">{`15dk ısınma
-6x5dk 3:00 R 1dk 3:00
-10dk soğuma`}</pre>
-                </div>
-                <div className="guide-example-block">
-                  <span className="guide-example-label">Mesafe tekrarları</span>
-                  <pre className="guide-example">{`15dk 7:00 pace ısınma
-5x400 (1:51) R200m
-2km soğuma`}</pre>
-                </div>
-                <div className="guide-example-block">
-                  <span className="guide-example-label">VDOT tempo</span>
-                  <pre className="guide-example">{`10dk ısınma
-4x8dk vdot R 1dk
-400m vdot R 200 3p
-10dk soğuma`}</pre>
-                </div>
-              </div>
-            </GuideCard>
-          </div>
-
-          <div className="guide-footer">
-            <div className="guide-footer-item guide-footer-success">
-              <strong>İpucu</strong>
-              <span>
-                Metni yazdıktan sonra <strong>Önizleme</strong> ile adımların doğru
-                ayrıştığını kontrol edin.
-              </span>
-            </div>
-            <div className="guide-footer-item guide-footer-warn">
-              <strong>Dikkat</strong>
-              <span>
-                Tekrarlı koşularda toparlanma (<code>R …</code>) zorunludur. Interval
-                bloğu R olmadan parse edilmez.
-              </span>
-            </div>
-          </div>
+          {tab === "start" && <StartTab />}
+          {tab === "settings" && <SettingsTab />}
+          {tab === "writing" && <WritingTab />}
+          {tab === "examples" && <ExamplesTab />}
         </div>
       </div>
     </div>
