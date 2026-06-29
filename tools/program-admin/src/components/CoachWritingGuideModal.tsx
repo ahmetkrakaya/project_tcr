@@ -176,9 +176,15 @@ export function CoachWritingGuideModal({ open, onClose }: Props) {
                 </tr>
                 <tr>
                   <td>
-                    <code>R 200 3pace</code>
+                    <code>R 1dk 3:00 pace</code>
                   </td>
-                  <td>200 m @ 3:00/km tempo</td>
+                  <td>1 dk @ 3:00/km tempo</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>6x5dk 3:00pace</code>
+                  </td>
+                  <td>Boşluksuz pace de geçerli</td>
                 </tr>
                 <tr>
                   <td>

@@ -80,12 +80,16 @@ function normalizePaceKeywords(text: string): string {
   t = t.replace(/@\s*(\d{1,2}:\d{2})/g, "$1");
   // tempo 5:20 → 5:20
   t = t.replace(/\btempo\s+(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)/gi, "$1");
-  // 7:00 pace, 9:00-10:00 pace → strip pace kelimesi
+  // 3:00pace, 7:00 pace, 9:00-10:00pace → strip pace
+  t = t.replace(
+    /(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)pace\b/gi,
+    "$1",
+  );
   t = t.replace(
     /(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)\s+pace\b/gi,
     "$1",
   );
-  // Sondaki pace/p (kelime sınırı)
+  // Sondaki pace (ayrı kelime)
   t = t.replace(/\s+pace\b/gi, "");
   return t;
 }

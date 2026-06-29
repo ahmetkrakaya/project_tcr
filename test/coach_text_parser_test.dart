@@ -312,6 +312,27 @@ soğuma 1k 5:50/6:00''';
       final seg = ((r.workoutDefinition!['steps'] as List).first as Map)['segment'] as Map;
       expect(seg['duration_seconds'], 900);
     });
+
+    test('glued pace without space on main interval', () {
+      final r = parseCoachText('6x5dk 3:00pace R 1dk 3:00 pace');
+      expect(r.ok, isTrue, reason: r.error);
+      final repeat = (r.workoutDefinition!['steps'] as List).first as Map;
+      final main = ((repeat['steps'] as List)[0] as Map)['segment'] as Map;
+      expect(main['duration_seconds'], 300);
+      expect(main['pace_seconds_per_km_min'], 180);
+      final recovery = ((repeat['steps'] as List)[1] as Map)['segment'] as Map;
+      expect(recovery['duration_seconds'], 60);
+      expect(recovery['pace_seconds_per_km_min'], 180);
+    });
+
+    test('recovery duration plus pace', () {
+      final r = parseCoachText('4x8dk vdot R 1dk 3:00 pace');
+      expect(r.ok, isTrue, reason: r.error);
+      final recovery = (((r.workoutDefinition!['steps'] as List).first as Map)['steps'] as List)[1] as Map;
+      final seg = recovery['segment'] as Map;
+      expect(seg['duration_seconds'], 60);
+      expect(seg['pace_seconds_per_km_min'], 180);
+    });
   });
 }
 

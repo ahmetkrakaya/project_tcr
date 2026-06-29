@@ -80,6 +80,10 @@ String _normalizePaceRaw(String raw) {
     t = t.substring(1, t.length - 1).trim();
   }
   return t
+      .replaceAllMapped(
+        RegExp(r'(\d{1,2}:\d{2})pace\s*$', caseSensitive: false),
+        (m) => m.group(1)!,
+      )
       .replaceAll(RegExp(r'\s+pace\s*$', caseSensitive: false), '')
       .replaceAll(RegExp(r'\s*p\s*$', caseSensitive: false), '')
       .replaceAll(RegExp(r'^@\s*'), '');
@@ -343,7 +347,8 @@ _RecoverySpec? _parseRecoveryClause(String raw) {
   }
 
   if (remaining.isNotEmpty) {
-    final timeOnly = RegExp(r'^(\d{1,2}):(\d{2})\s*$').firstMatch(remaining);
+    final timeOnly = RegExp(r'^(\d{1,2}):(\d{2})(?:\s+pace)?\s*$', caseSensitive: false)
+        .firstMatch(remaining);
     if (timeOnly != null) {
       final sec = parsePaceSeconds('${timeOnly.group(1)}:${timeOnly.group(2)}');
       if (sec != null) {
@@ -352,7 +357,14 @@ _RecoverySpec? _parseRecoveryClause(String raw) {
         final looksLikePace =
             (ss == 0 && mm >= 2 && mm <= 8) ||
             (sec >= 150 && sec <= 480 && !(mm <= 2 && ss > 0));
-        if (distanceM != null && looksLikePace) {
+
+        if (durationSec != null) {
+          pace = CoachPaceSingle(sec);
+        } else if (distanceM != null && looksLikePace) {
+          pace = CoachPaceSingle(sec);
+        } else if (distanceM != null && !looksLikePace) {
+          durationSec = sec;
+        } else if (looksLikePace) {
           pace = CoachPaceSingle(sec);
         } else {
           durationSec = sec;

@@ -97,6 +97,11 @@ String _normalizePaceKeywords(String text) {
     RegExp(r'\btempo\s+(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)', caseSensitive: false),
     (m) => m.group(1)!,
   );
+  // 3:00pace, 7:00 pace
+  t = t.replaceAllMapped(
+    RegExp(r'(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)pace\b', caseSensitive: false),
+    (m) => m.group(1)!,
+  );
   t = t.replaceAllMapped(
     RegExp(r'(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)\s+pace\b', caseSensitive: false),
     (m) => m.group(1)!,

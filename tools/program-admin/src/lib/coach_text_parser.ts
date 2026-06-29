@@ -64,6 +64,7 @@ function normalizePaceRaw(raw: string): string {
     t = t.slice(1, -1).trim();
   }
   return t
+    .replace(/(\d{1,2}:\d{2})pace\s*$/i, "$1")
     .replace(/\s+pace\s*$/i, "")
     .replace(/\s*p\s*$/i, "")
     .replace(/^@\s*/, "");
@@ -304,7 +305,7 @@ function parseRecoveryClause(raw: string): RecoverySpec | null {
   }
 
   if (remaining) {
-    const timeOnly = remaining.match(/^(\d{1,2}):(\d{2})\s*$/);
+    const timeOnly = remaining.match(/^(\d{1,2}):(\d{2})(?:\s+pace)?\s*$/i);
     if (timeOnly) {
       const sec = parsePaceSeconds(`${timeOnly[1]}:${timeOnly[2]}`);
       if (sec != null) {
@@ -313,7 +314,16 @@ function parseRecoveryClause(raw: string): RecoverySpec | null {
         const looksLikePace =
           (ss === 0 && mm >= 2 && mm <= 8) ||
           (sec >= 150 && sec <= 480 && !(mm <= 2 && ss > 0));
-        if (spec.distanceM != null && looksLikePace) {
+
+        if (spec.durationSec != null) {
+          // R 1dk 3:00 → süre + pace
+          spec.pace = { mode: "single", secPerKm: sec };
+        } else if (spec.distanceM != null && looksLikePace) {
+          spec.pace = { mode: "single", secPerKm: sec };
+        } else if (spec.distanceM != null && !looksLikePace) {
+          // legacy R400m 2:20
+          spec.durationSec = sec;
+        } else if (looksLikePace) {
           spec.pace = { mode: "single", secPerKm: sec };
         } else {
           spec.durationSec = sec;
