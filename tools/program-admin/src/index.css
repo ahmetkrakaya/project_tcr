@@ -99,14 +99,380 @@ a {
   flex-shrink: 0;
 }
 
+.guide-backdrop {
+  padding: 12px;
+}
+
+@media (min-width: 900px) {
+  .guide-backdrop {
+    padding: 24px;
+  }
+}
+
 .guide-panel {
-  max-width: 640px;
+  max-width: min(1080px, 96vw);
+  max-height: 92vh;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.guide-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 16px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: #fff;
+  border-bottom: none;
+}
+
+.guide-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.guide-eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.guide-header h2 {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.guide-lead {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  opacity: 0.92;
+  max-width: 62ch;
+}
+
+.guide-lead code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.84em;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.guide-close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  font-size: 1rem;
+}
+
+.guide-close:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.guide-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--primary-container);
+  border-bottom: 1px solid var(--border);
+}
+
+.guide-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--surface);
+  border: 1px solid rgba(30, 58, 95, 0.12);
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 .guide-body {
   gap: 0;
+  padding: 20px 24px 24px;
+  background: var(--bg);
 }
 
+.guide-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 780px) {
+  .guide-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.guide-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(13, 27, 42, 0.06);
+}
+
+.guide-card-wide {
+  grid-column: 1 / -1;
+}
+
+.guide-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--surface-variant);
+  border-bottom: 1px solid var(--border);
+}
+
+.guide-card-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.guide-card-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.01em;
+}
+
+.guide-card-body {
+  padding: 14px 16px 16px;
+}
+
+.guide-card-body > p {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.guide-note,
+.guide-mini {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.guide-note code,
+.guide-mini code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--surface-variant);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.guide-example {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--primary-dark);
+  color: #e8f0f8;
+  border: none;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.guide-examples-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 700px) {
+  .guide-examples-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.guide-example-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guide-example-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.guide-unit-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 600px) {
+  .guide-unit-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .guide-unit-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.guide-unit-block {
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.guide-unit-block h4 {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+}
+
+.guide-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.guide-chips code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.76rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 3px 7px;
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.guide-table th,
+.guide-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.guide-table tr:last-child td,
+.guide-table tr:last-child th {
+  border-bottom: none;
+}
+
+.guide-table th {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-bottom: 6px;
+}
+
+.guide-table td:first-child {
+  width: 42%;
+}
+
+.guide-table code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  background: var(--surface-variant);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.guide-footer {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (min-width: 700px) {
+  .guide-footer {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.guide-footer-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.guide-footer-item strong {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.guide-footer-item code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+}
+
+.guide-footer-success {
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success);
+}
+
+.guide-footer-success span {
+  color: var(--text);
+}
+
+.guide-footer-warn {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  color: var(--warning);
+}
+
+.guide-footer-warn span {
+  color: var(--text);
+}
+
+/* Legacy guide classes (kept for compatibility) */
 .guide-section {
   padding: 16px 0;
   border-bottom: 1px solid var(--border);
@@ -126,51 +492,6 @@ a {
   margin: 0 0 10px;
   font-size: 0.9rem;
   line-height: 1.55;
-}
-
-.guide-example {
-  margin: 0;
-  padding: 12px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.82rem;
-  line-height: 1.6;
-  color: var(--text);
-  white-space: pre-wrap;
-}
-
-.guide-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-  margin-bottom: 8px;
-}
-
-.guide-table th,
-.guide-table td {
-  text-align: left;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-}
-
-.guide-table th {
-  font-weight: 600;
-  color: var(--muted);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.guide-table code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.82rem;
-  background: var(--surface);
-  padding: 2px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
 }
 
 .guide-list {
