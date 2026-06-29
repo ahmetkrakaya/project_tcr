@@ -64,8 +64,10 @@ function normalizePaceRaw(raw: string): string {
     t = t.slice(1, -1).trim();
   }
   return t
+    .replace(/(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)pace\s*$/i, "$1")
     .replace(/(\d{1,2}:\d{2})pace\s*$/i, "$1")
     .replace(/\s+pace\s*$/i, "")
+    .replace(/(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)\s*p\s*$/i, "$1")
     .replace(/\s*p\s*$/i, "")
     .replace(/^@\s*/, "");
 }

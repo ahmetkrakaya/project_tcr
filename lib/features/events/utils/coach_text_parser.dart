@@ -81,10 +81,18 @@ String _normalizePaceRaw(String raw) {
   }
   return t
       .replaceAllMapped(
+        RegExp(r'(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)pace\s*$', caseSensitive: false),
+        (m) => m.group(1)!,
+      )
+      .replaceAllMapped(
         RegExp(r'(\d{1,2}:\d{2})pace\s*$', caseSensitive: false),
         (m) => m.group(1)!,
       )
       .replaceAll(RegExp(r'\s+pace\s*$', caseSensitive: false), '')
+      .replaceAllMapped(
+        RegExp(r'(\d{1,2}:\d{2}(?:\s*[\/\-]\s*\d{1,2}:\d{2})?)\s*p\s*$', caseSensitive: false),
+        (m) => m.group(1)!,
+      )
       .replaceAll(RegExp(r'\s*p\s*$', caseSensitive: false), '')
       .replaceAll(RegExp(r'^@\s*'), '');
 }

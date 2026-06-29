@@ -333,6 +333,24 @@ soğuma 1k 5:50/6:00''';
       expect(seg['duration_seconds'], 60);
       expect(seg['pace_seconds_per_km_min'], 180);
     });
+
+    test('spaced and glued unit variants parse the same', () {
+      const pairs = [
+        ('15 dk ısınma', '15dk ısınma'),
+        ('15dakika ısınma', '15dk ısınma'),
+        ('500 m ısınma', '500m ısınma'),
+        ('500metre ısınma', '500m ısınma'),
+        ('6 x 5 dk 3:00 pace R 1 dk 3:00 pace', '6x5dk 3:00pace R1dk 3:00pace'),
+        ('4 x 400 m vdot R 200 m 3 pace', '4x400m vdot R200m 3pace'),
+      ];
+      for (final (spaced, glued) in pairs) {
+        final a = parseCoachText(spaced);
+        final b = parseCoachText(glued);
+        expect(a.ok, isTrue, reason: '$spaced: ${a.error}');
+        expect(b.ok, isTrue, reason: '$glued: ${b.error}');
+        expect(a.workoutDefinition, b.workoutDefinition, reason: '$spaced vs $glued');
+      }
+    });
   });
 }
 

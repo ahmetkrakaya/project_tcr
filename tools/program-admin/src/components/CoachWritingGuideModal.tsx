@@ -78,8 +78,10 @@ export function CoachWritingGuideModal({ open, onClose }: Props) {
               </tbody>
             </table>
             <p className="guide-tags muted">
-              Isınma: ısınma, warmup, warm up, wu · Soğuma: soğuma, cooldown, cool,
-              cd
+              Birimler bitişik veya boşluklu yazılabilir: <code>15dk</code> ={" "}
+              <code>15 dk</code>, <code>500m</code> = <code>500 m</code>,{" "}
+              <code>3:00pace</code> = <code>3:00 pace</code>, <code>R1dk</code> ={" "}
+              <code>R 1 dk</code>
             </p>
           </section>
 
