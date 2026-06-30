@@ -685,6 +685,14 @@ class _ReportsTab extends StatelessWidget {
           onTap: () =>
               context.pushNamed(RouteNames.adminStravaConnectionReport),
         ),
+        const SizedBox(height: 12),
+        _ReportCard(
+          icon: Icons.qr_code_scanner_outlined,
+          title: 'Avantaj Kullanımları',
+          subtitle: 'QR doğrulama kayıtları ve özet',
+          iconColor: const Color(0xFF1B4332),
+          onTap: () => context.pushNamed(RouteNames.adminPartnerRedemptions),
+        ),
       ],
     );
   }

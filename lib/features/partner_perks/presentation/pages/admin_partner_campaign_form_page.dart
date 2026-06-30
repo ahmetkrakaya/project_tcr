@@ -57,6 +57,8 @@ class _AdminPartnerCampaignFormPageState
   bool _hasEndsAt = false;
   bool _isSaving = false;
   bool _isExtractingColor = false;
+  bool _sortOrderUserEdited = false;
+  bool _defaultSortOrderApplied = false;
   String? _initializedCampaignKey;
   Uint8List? _localLogoBytes;
   String? _existingLogoUrl;
@@ -72,14 +74,12 @@ class _AdminPartnerCampaignFormPageState
     _taglineController = TextEditingController();
     _brandColorController = TextEditingController(text: '#1B4332');
     _discountPercentController = TextEditingController(text: '10');
-    _discountLabelController =
-        TextEditingController(text: 'Sandviçlerde %10 indirim');
+    _discountLabelController = TextEditingController();
     _termsController = TextEditingController();
-    _redemptionHintController =
-        TextEditingController(text: 'Bu ekranı kasada gösterin');
+    _redemptionHintController = TextEditingController();
     _locationNameController = TextEditingController();
     _locationAddressController = TextEditingController();
-    _sortOrderController = TextEditingController(text: '0');
+    _sortOrderController = TextEditingController();
     _usageLimitCountController = TextEditingController(text: '1');
     _successMessageController = TextEditingController();
     _startsAt = DateTime.now();
@@ -134,6 +134,21 @@ class _AdminPartnerCampaignFormPageState
     _hasEndsAt = campaign.endsAt != null;
     _existingLogoUrl = campaign.logoUrl;
     _loadLogoSuggestedColor();
+  }
+
+  void _scheduleDefaultSortOrder(List<PartnerCampaignModel> campaigns) {
+    if (widget.isEditing || _sortOrderUserEdited || _defaultSortOrderApplied) {
+      return;
+    }
+
+    _defaultSortOrderApplied = true;
+    final nextOrder = campaigns.where((campaign) => campaign.isActive).length;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.isEditing || _sortOrderUserEdited) return;
+      if (_sortOrderController.text == nextOrder.toString()) return;
+      setState(() => _sortOrderController.text = nextOrder.toString());
+    });
   }
 
   Future<Uint8List?> _currentLogoBytes() async {
@@ -456,6 +471,11 @@ class _AdminPartnerCampaignFormPageState
       );
     }
 
+    ref.listen(allPartnerCampaignsProvider, (previous, next) {
+      next.whenData(_scheduleDefaultSortOrder);
+    });
+    ref.watch(allPartnerCampaignsProvider).whenData(_scheduleDefaultSortOrder);
+
     return _buildScaffold(
       backgroundColor: backgroundColor,
       existingId: null,
@@ -579,8 +599,9 @@ class _AdminPartnerCampaignFormPageState
                   child: AppTextField(
                     controller: _sortOrderController,
                     label: 'Sıra',
-                    hint: '0',
+                    hint: 'Otomatik',
                     keyboardType: TextInputType.number,
+                    onChanged: (_) => _sortOrderUserEdited = true,
                   ),
                 ),
               ],

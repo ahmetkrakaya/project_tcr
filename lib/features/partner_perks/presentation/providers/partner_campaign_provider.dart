@@ -19,11 +19,18 @@ final allPartnerCampaignsProvider =
   return ds.getAllCampaigns();
 });
 
-/// Şu an aktif kampanyalar (üye ekranları için).
+/// Şu an aktif kampanyalar (üye ekranları için, sıra no artan).
 final activePartnerCampaignsProvider =
     FutureProvider<List<PartnerCampaignModel>>((ref) async {
   final campaigns = await ref.watch(allPartnerCampaignsProvider.future);
-  return campaigns.where((c) => c.isCurrentlyActive()).toList();
+  final active =
+      campaigns.where((campaign) => campaign.isCurrentlyActive()).toList()
+        ..sort((a, b) {
+          final orderCompare = a.sortOrder.compareTo(b.sortOrder);
+          if (orderCompare != 0) return orderCompare;
+          return a.partnerName.compareTo(b.partnerName);
+        });
+  return active;
 });
 
 /// Tek kampanya detayı.
@@ -53,11 +60,36 @@ final partnerRedemptionTokenProvider =
 });
 
 /// Admin kullanım raporu.
-final partnerRedemptionReportProvider =
-    FutureProvider.family<PartnerRedemptionReport, String?>((ref, campaignId) async {
+final partnerRedemptionReportProvider = FutureProvider.family<
+    PartnerRedemptionReport, PartnerRedemptionReportFilters>((ref, filters) async {
   final ds = ref.watch(_partnerCampaignDataSourceProvider);
-  return ds.getRedemptionReport(campaignId: campaignId);
+  return ds.getRedemptionReport(
+    campaignId: filters.campaignId,
+    from: _startOfDayUtc(filters.fromDate),
+    to: _endOfDayUtc(filters.toDate),
+  );
 });
+
+/// Admin dashboard özeti.
+final partnerRedemptionDashboardProvider = FutureProvider.family<
+    PartnerRedemptionDashboard, PartnerRedemptionReportFilters>((ref, filters) async {
+  final ds = ref.watch(_partnerCampaignDataSourceProvider);
+  return ds.getRedemptionDashboard(
+    campaignId: filters.campaignId,
+    from: _startOfDayUtc(filters.fromDate),
+    to: _endOfDayUtc(filters.toDate),
+  );
+});
+
+DateTime? _startOfDayUtc(DateTime? date) {
+  if (date == null) return null;
+  return DateTime(date.year, date.month, date.day).toUtc();
+}
+
+DateTime? _endOfDayUtc(DateTime? date) {
+  if (date == null) return null;
+  return DateTime(date.year, date.month, date.day, 23, 59, 59, 999).toUtc();
+}
 
 class PartnerCampaignRepository {
   PartnerCampaignRepository(this._dataSource);

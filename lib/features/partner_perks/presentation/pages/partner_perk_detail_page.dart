@@ -1,16 +1,16 @@
 import 'dart:async';
+import 'dart:math' show pi;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/map_directions_utils.dart';
-import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/partner_campaign_model.dart';
@@ -30,15 +30,33 @@ class PartnerPerkDetailPage extends ConsumerStatefulWidget {
 class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
   Timer? _clockTimer;
   Timer? _entitlementTimer;
-  Timer? _tokenTimer;
+  Timer? _tokenExpiryTimer;
   DateTime _now = DateTime.now();
+  DateTime? _activeTokenExpiresAt;
   bool _qrEnabled = false;
+  PartnerPerkEntitlement? _cachedEntitlement;
 
   @override
   void initState() {
     super.initState();
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
+      if (!mounted) return;
+      final now = DateTime.now();
+      setState(() => _now = now);
+      _refreshTokenIfExpired(now);
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final campaign =
+          ref.read(partnerCampaignByIdProvider(widget.campaignId)).valueOrNull;
+      _ensureQrPollingConfigured(campaign);
+
+      if (campaign?.qrRedemptionEnabled == true) {
+        _syncEntitlementFromProvider(
+          ref.read(partnerPerkEntitlementProvider(widget.campaignId)),
+        );
+      }
     });
   }
 
@@ -47,23 +65,58 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
     _qrEnabled = qrEnabled;
 
     _entitlementTimer?.cancel();
-    _tokenTimer?.cancel();
+    _tokenExpiryTimer?.cancel();
+    _activeTokenExpiresAt = null;
 
     if (!qrEnabled) return;
 
-    _entitlementTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _entitlementTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (!mounted) return;
       ref.invalidate(partnerPerkEntitlementProvider(widget.campaignId));
     });
   }
 
-  void _scheduleTokenRefresh(bool canRedeem) {
-    _tokenTimer?.cancel();
-    if (!canRedeem || !_qrEnabled) return;
+  void _scheduleTokenExpiryRefresh(PartnerRedemptionToken token) {
+    if (_activeTokenExpiresAt == token.expiresAt && _tokenExpiryTimer != null) {
+      return;
+    }
+    _scheduleTokenExpiryRefreshAt(token.expiresAt);
+  }
 
-    _tokenTimer = Timer.periodic(const Duration(seconds: 50), (_) {
-      if (!mounted) return;
-      ref.invalidate(partnerRedemptionTokenProvider(widget.campaignId));
+  void _scheduleTokenExpiryRefreshAt(DateTime expiresAt) {
+    _tokenExpiryTimer?.cancel();
+    _activeTokenExpiresAt = expiresAt;
+
+    final remaining = expiresAt.difference(DateTime.now());
+    if (!remaining.isNegative && remaining.inMilliseconds > 0) {
+      _tokenExpiryTimer = Timer(remaining, () {
+        if (!mounted) return;
+        _requestNewToken();
+      });
+    } else {
+      _requestNewToken();
+    }
+  }
+
+  void _refreshTokenIfExpired(DateTime now) {
+    final expiresAt = _activeTokenExpiresAt;
+    if (expiresAt == null || now.isBefore(expiresAt)) return;
+    _requestNewToken();
+  }
+
+  void _requestNewToken() {
+    _tokenExpiryTimer?.cancel();
+    _activeTokenExpiresAt = null;
+    ref.invalidate(partnerRedemptionTokenProvider(widget.campaignId));
+  }
+
+  void _syncTokenExpirySchedule(AsyncValue<PartnerRedemptionToken>? async) {
+    async?.whenData((token) {
+      if (_activeTokenExpiresAt == token.expiresAt) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scheduleTokenExpiryRefresh(token);
+      });
     });
   }
 
@@ -71,7 +124,7 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
   void dispose() {
     _clockTimer?.cancel();
     _entitlementTimer?.cancel();
-    _tokenTimer?.cancel();
+    _tokenExpiryTimer?.cancel();
     super.dispose();
   }
 
@@ -96,14 +149,56 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
     );
   }
 
+  String? _footerMessage(
+    PartnerCampaignModel campaign,
+    PartnerPerkEntitlement? entitlement,
+  ) {
+    if (campaign.qrRedemptionEnabled) {
+      if (entitlement == null) return null;
+      if (!entitlement.canRedeem) {
+        if (entitlement.showRedemptionSuccess) return null;
+        return entitlement.memberDisplayMessage;
+      }
+    }
+
+    final hint = campaign.redemptionHint.trim();
+    return hint.isEmpty ? null : hint;
+  }
+
+  void _onQrSideOpened() {
+    ref.invalidate(partnerPerkEntitlementProvider(widget.campaignId));
+  }
+
+  void _syncEntitlementFromProvider(AsyncValue<PartnerPerkEntitlement>? async) {
+    final current = async?.valueOrNull;
+    if (current == null) return;
+
+    if (_cachedEntitlement != current) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _cachedEntitlement == current) return;
+        setState(() => _cachedEntitlement = current);
+      });
+    }
+
+    if (!current.canRedeem) {
+      _tokenExpiryTimer?.cancel();
+      _activeTokenExpiresAt = null;
+    }
+  }
+
+  void _ensureQrPollingConfigured(PartnerCampaignModel? campaign) {
+    if (campaign == null) return;
+    if (_qrEnabled == campaign.qrRedemptionEnabled) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _configureQrPolling(campaign.qrRedemptionEnabled);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(partnerCampaignByIdProvider(widget.campaignId), (prev, next) {
-      next.whenData((campaign) {
-        if (campaign != null) {
-          _configureQrPolling(campaign.qrRedemptionEnabled);
-        }
-      });
+      next.whenData((campaign) => _ensureQrPollingConfigured(campaign));
     });
 
     final campaignAsync =
@@ -114,27 +209,55 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
       orElse: () => false,
     );
 
+    final entitlementAsync = qrEnabled
+        ? ref.watch(partnerPerkEntitlementProvider(widget.campaignId))
+        : null;
+
+    _syncEntitlementFromProvider(entitlementAsync);
+
+    final entitlement =
+        entitlementAsync?.valueOrNull ?? _cachedEntitlement;
+    final entitlementInitialLoading =
+        entitlementAsync?.isLoading == true && entitlement == null;
+
     if (qrEnabled) {
       ref.listen(
         partnerPerkEntitlementProvider(widget.campaignId),
         (prev, next) {
-          next.whenData((e) => _scheduleTokenRefresh(e.canRedeem));
+          next.whenData((e) {
+            final wasRedeemable = prev?.valueOrNull?.canRedeem ?? false;
+            if (_cachedEntitlement != e) {
+              setState(() => _cachedEntitlement = e);
+            }
+            if (!e.canRedeem) {
+              _tokenExpiryTimer?.cancel();
+              _activeTokenExpiresAt = null;
+              if (wasRedeemable && e.showRedemptionSuccess) {
+                HapticFeedback.mediumImpact();
+              }
+            }
+          });
+        },
+      );
+
+      ref.listen(
+        partnerRedemptionTokenProvider(widget.campaignId),
+        (prev, next) {
+          next.whenData(_scheduleTokenExpiryRefresh);
         },
       );
     }
 
-    final entitlementAsync = qrEnabled
-        ? ref.watch(partnerPerkEntitlementProvider(widget.campaignId))
+    final tokenAsync = qrEnabled && (entitlement?.canRedeem ?? false)
+        ? ref.watch(partnerRedemptionTokenProvider(widget.campaignId))
         : null;
-    final tokenAsync = entitlementAsync?.maybeWhen(
-      data: (entitlement) => entitlement.canRedeem
-          ? ref.watch(partnerRedemptionTokenProvider(widget.campaignId))
-          : null,
-      orElse: () => null,
-    );
+
+    if (qrEnabled) {
+      _syncTokenExpirySchedule(tokenAsync);
+    }
 
     return campaignAsync.when(
-      loading: () => const Scaffold(body: LoadingWidget()),
+      loading: () => const _PartnerPerkDetailLoadingScaffold(),
       error: (e, _) => Scaffold(
         appBar: AppBar(),
         body: Center(child: Text('Kampanya yüklenemedi: $e')),
@@ -150,21 +273,13 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
         }
 
         final brandColor = _parseColor(campaign.brandColor);
-        final timeText = DateFormat('HH:mm:ss').format(_now);
+        final footerMessage = _footerMessage(campaign, entitlement);
         final hasLocation = hasNavigableLocation(
           locationName: campaign.locationName,
           locationAddress: campaign.locationAddress,
           lat: campaign.locationLat,
           lng: campaign.locationLng,
         );
-
-        final redemptionHint = campaign.qrRedemptionEnabled
-            ? entitlementAsync?.maybeWhen(
-                  data: (e) => e.statusMessage,
-                  orElse: () => campaign.redemptionHint,
-                ) ??
-                campaign.redemptionHint
-            : campaign.redemptionHint;
 
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle.light,
@@ -215,43 +330,37 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
                     children: [
                       Expanded(
                         child: Center(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                _CouponCard(
+                          child: _FlipCouponCard(
                                   campaign: campaign,
                                   brandColor: brandColor,
                                   notchColor: _darken(brandColor, 0.22),
                                   userName: user?.fullName ?? 'TCR Üyesi',
                                   avatarUrl: user?.avatarUrl,
-                                  timeText: timeText,
+                                  now: _now,
+                                  qrEnabled: campaign.qrRedemptionEnabled,
+                                  cachedEntitlement: entitlement,
+                                  entitlementInitialLoading:
+                                      entitlementInitialLoading,
+                                  tokenAsync: tokenAsync,
+                                  onQrSideOpened: _onQrSideOpened,
                                 ),
-                                if (campaign.qrRedemptionEnabled) ...[
-                                  const SizedBox(height: 20),
-                                  _QrRedemptionSection(
-                                    brandColor: brandColor,
-                                    entitlementAsync: entitlementAsync,
-                                    tokenAsync: tokenAsync,
-                                  ),
-                                ],
-                              ],
-                            ),
+                        ),
+                      ),
+                      if (footerMessage != null) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          footerMessage,
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            fontWeight: FontWeight.w500,
+                            height: 1.4,
                           ),
+                          textAlign: TextAlign.center,
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        redemptionHint,
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          fontWeight: FontWeight.w500,
-                          height: 1.4,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+                      ],
                       if (campaign.terms != null &&
                           campaign.terms!.isNotEmpty) ...[
-                        const SizedBox(height: 8),
+                        SizedBox(height: footerMessage != null ? 8 : 16),
                         Text(
                           campaign.terms!,
                           style: AppTypography.bodySmall.copyWith(
@@ -285,171 +394,19 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
   }
 }
 
-class _QrRedemptionSection extends StatelessWidget {
-  const _QrRedemptionSection({
-    required this.brandColor,
-    required this.entitlementAsync,
-    required this.tokenAsync,
-  });
-
-  final Color brandColor;
-  final AsyncValue<PartnerPerkEntitlement>? entitlementAsync;
-  final AsyncValue<PartnerRedemptionToken>? tokenAsync;
-
-  @override
-  Widget build(BuildContext context) {
-    if (entitlementAsync == null) {
-      return const SizedBox.shrink();
-    }
-
-    return entitlementAsync!.when(
-      loading: () => const _QrPanel(
-        child: SizedBox(
-          height: 48,
-          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        ),
-      ),
-      error: (e, _) => _QrPanel(
-        child: Text(
-          'QR yüklenemedi',
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral600),
-          textAlign: TextAlign.center,
-        ),
-      ),
-      data: (entitlement) {
-        if (!entitlement.canRedeem) {
-          return _QrPanel(
-            child: Column(
-              children: [
-                Icon(
-                  Icons.check_circle_outline_rounded,
-                  color: brandColor,
-                  size: 40,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  entitlement.statusMessage,
-                  style: AppTypography.titleSmall.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.neutral800,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          );
-        }
-
-        if (tokenAsync == null) {
-          return const SizedBox.shrink();
-        }
-
-        return tokenAsync!.when(
-          loading: () => const _QrPanel(
-            child: SizedBox(
-              height: 180,
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-          ),
-          error: (e, _) => _QrPanel(
-            child: Text(
-              'QR oluşturulamadı',
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.neutral600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          data: (token) {
-            final secondsLeft =
-                token.expiresAt.difference(DateTime.now()).inSeconds.clamp(0, 60);
-
-            return _QrPanel(
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.neutral200),
-                    ),
-                    child: QrImageView(
-                      data: token.redeemUrl,
-                      version: QrVersions.auto,
-                      size: 180,
-                      backgroundColor: Colors.white,
-                      eyeStyle: QrEyeStyle(
-                        eyeShape: QrEyeShape.square,
-                        color: brandColor,
-                      ),
-                      dataModuleStyle: QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.square,
-                        color: AppColors.neutral900,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Kasada okutulmasını isteyin',
-                    style: AppTypography.titleSmall.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.neutral800,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Kod $secondsLeft sn içinde yenilenir',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral500,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _QrPanel extends StatelessWidget {
-  const _QrPanel({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 360),
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-}
-
-class _CouponCard extends StatelessWidget {
-  const _CouponCard({
+class _FlipCouponCard extends StatefulWidget {
+  const _FlipCouponCard({
     required this.campaign,
     required this.brandColor,
     required this.notchColor,
     required this.userName,
     required this.avatarUrl,
-    required this.timeText,
+    required this.now,
+    required this.qrEnabled,
+    required this.cachedEntitlement,
+    required this.entitlementInitialLoading,
+    required this.tokenAsync,
+    this.onQrSideOpened,
   });
 
   final PartnerCampaignModel campaign;
@@ -457,35 +414,335 @@ class _CouponCard extends StatelessWidget {
   final Color notchColor;
   final String userName;
   final String? avatarUrl;
-  final String timeText;
+  final DateTime now;
+  final bool qrEnabled;
+  final PartnerPerkEntitlement? cachedEntitlement;
+  final bool entitlementInitialLoading;
+  final AsyncValue<PartnerRedemptionToken>? tokenAsync;
+  final VoidCallback? onQrSideOpened;
+
+  @override
+  State<_FlipCouponCard> createState() => _FlipCouponCardState();
+}
+
+class _FlipCouponCardState extends State<_FlipCouponCard>
+    with TickerProviderStateMixin {
+  static const double _cardHeight = 400;
+  static const int _hintCycles = 4;
+
+  late final AnimationController _flipController;
+  late final Animation<double> _flipAnimation;
+  late final AnimationController _gestureHintController;
+  bool _hintScheduled = false;
+  bool _showGestureHint = false;
+  bool _userInteracted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _flipController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 480),
+    );
+    _flipAnimation = CurvedAnimation(
+      parent: _flipController,
+      curve: Curves.easeInOutCubic,
+    );
+    _gestureHintController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _flipController.addStatusListener(_onFlipStatusChanged);
+    _scheduleSwipeHintIfNeeded();
+  }
+
+  void _onFlipStatusChanged(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    if (_flipController.value >= 0.5) {
+      widget.onQrSideOpened?.call();
+    }
+  }
+
+  @override
+  void dispose() {
+    _flipController.removeStatusListener(_onFlipStatusChanged);
+    _gestureHintController.removeStatusListener(_onGestureHintStatus);
+    _flipController.dispose();
+    _gestureHintController.dispose();
+    super.dispose();
+  }
+
+  bool get _canSwipe =>
+      widget.qrEnabled &&
+      !widget.entitlementInitialLoading &&
+      (widget.cachedEntitlement?.canRedeem ?? false);
+
+  void _startGestureHint() {
+    if (!mounted || _userInteracted) return;
+    setState(() => _showGestureHint = true);
+    _gestureHintController
+      ..removeStatusListener(_onGestureHintStatus)
+      ..addStatusListener(_onGestureHintStatus)
+      ..repeat(count: _hintCycles, reverse: true);
+  }
+
+  void _onGestureHintStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed && mounted) {
+      _stopGestureHint();
+    }
+  }
+
+  void _stopGestureHint() {
+    if (!_showGestureHint) return;
+    _gestureHintController.removeStatusListener(_onGestureHintStatus);
+    _gestureHintController.stop();
+    _gestureHintController.reset();
+    if (mounted) setState(() => _showGestureHint = false);
+  }
+
+  void _scheduleSwipeHintIfNeeded() {
+    if (!_canSwipe || _hintScheduled || _userInteracted) return;
+    _hintScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !_canSwipe || _userInteracted) return;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (!mounted || !_canSwipe || _userInteracted) return;
+
+      _startGestureHint();
+
+      for (var i = 0; i < _hintCycles; i++) {
+        if (!mounted || _userInteracted) break;
+        await _flipController.animateTo(
+          0.12,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+        );
+        if (!mounted || _userInteracted) break;
+        await _flipController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeInCubic,
+        );
+        if (i < _hintCycles - 1) {
+          await Future<void>.delayed(const Duration(milliseconds: 180));
+        }
+      }
+    });
+  }
+
+  void _onUserInteraction() {
+    if (_userInteracted) return;
+    _userInteracted = true;
+    _stopGestureHint();
+  }
+
+  @override
+  void didUpdateWidget(_FlipCouponCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final wasRedeemable = oldWidget.cachedEntitlement?.canRedeem ?? false;
+    final isRedeemable = widget.cachedEntitlement?.canRedeem ?? false;
+    if (wasRedeemable && !isRedeemable && _flipController.value > 0) {
+      _flipController.reverse();
+    }
+    final becameSwipeable = _canSwipe &&
+        (!oldWidget.qrEnabled ||
+            oldWidget.entitlementInitialLoading ||
+            !(oldWidget.cachedEntitlement?.canRedeem ?? false));
+    if (becameSwipeable) {
+      _hintScheduled = false;
+      _scheduleSwipeHintIfNeeded();
+    }
+  }
+
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    if (!_canSwipe) return;
+    _onUserInteraction();
+    final width = context.size?.width ?? 360;
+    final delta = (-details.delta.dx / width) * 1.6;
+    _flipController.value = (_flipController.value + delta).clamp(0.0, 1.0);
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    if (!_canSwipe) return;
+    final velocity = -(details.primaryVelocity ?? 0);
+    if (_flipController.value >= 0.42 || velocity > 420) {
+      _flipController.forward();
+      HapticFeedback.lightImpact();
+    } else {
+      _flipController.reverse();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 360),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22),
-            blurRadius: 32,
-            offset: const Offset(0, 16),
-          ),
-        ],
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragUpdate: _onHorizontalDragUpdate,
+      onHorizontalDragEnd: _onHorizontalDragEnd,
+      child: AnimatedBuilder(
+        animation: _flipAnimation,
+        builder: (context, _) {
+          final angle = _flipAnimation.value * pi;
+          final showBack = angle >= pi / 2;
+
+          return Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateY(angle),
+            child: showBack
+                ? Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()..rotateY(pi),
+                    child: _CouponCardShell(
+                      height: _cardHeight,
+                      child: _CouponCardBack(
+                        campaign: widget.campaign,
+                        brandColor: widget.brandColor,
+                        notchColor: widget.notchColor,
+                        now: widget.now,
+                        tokenAsync: widget.tokenAsync,
+                      ),
+                    ),
+                  )
+                : _CouponCardShell(
+                    height: _cardHeight,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _CouponCardFront(
+                          campaign: widget.campaign,
+                          brandColor: widget.brandColor,
+                          notchColor: widget.notchColor,
+                          userName: widget.userName,
+                          avatarUrl: widget.avatarUrl,
+                          entitlement: widget.cachedEntitlement,
+                        ),
+                        if (_showGestureHint)
+                          _SwipeGestureHintOverlay(
+                            animation: _gestureHintController,
+                          ),
+                      ],
+                    ),
+                  ),
+          );
+        },
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+    );
+  }
+}
+
+class _SwipeGestureHintOverlay extends StatelessWidget {
+  const _SwipeGestureHintOverlay({
+    required this.animation,
+  });
+
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          final t = Curves.easeInOut.transform(animation.value);
+          final breathe = 0.32 + 0.16 * (1 - (t - 0.5).abs() * 2).clamp(0.0, 1.0);
+          // 0→1 sola, 1→0 sağa (reverse ile bir sola bir sağa)
+          final rotation = (t - 0.5) * 0.34;
+
+          return Align(
+            alignment: const Alignment(0.72, 0),
+            child: Opacity(
+              opacity: breathe,
+              child: Transform.rotate(
+                angle: rotation,
+                child: Icon(
+                  Icons.swipe,
+                  size: 100,
+                  color: AppColors.neutral400,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CouponCardShell extends StatelessWidget {
+  const _CouponCardShell({
+    required this.height,
+    required this.child,
+  });
+
+  final double height;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: height,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 360),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.22),
+              blurRadius: 32,
+              offset: const Offset(0, 16),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: child,
+      ),
+    );
+  }
+}
+
+class _CouponCardFront extends StatelessWidget {
+  const _CouponCardFront({
+    required this.campaign,
+    required this.brandColor,
+    required this.notchColor,
+    required this.userName,
+    required this.avatarUrl,
+    required this.entitlement,
+  });
+
+  final PartnerCampaignModel campaign;
+  final Color brandColor;
+  final Color notchColor;
+  final String userName;
+  final String? avatarUrl;
+  final PartnerPerkEntitlement? entitlement;
+
+  @override
+  Widget build(BuildContext context) {
+    final showSuccess = entitlement?.showRedemptionSuccess ?? false;
+    final logoSize = showSuccess ? 72.0 : 96.0;
+    final topPadding = showSuccess ? 16.0 : 22.0;
+
+    return Column(
+      mainAxisSize: MainAxisSize.max,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(24, topPadding, 24, 8),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _LogoFrame(campaign: campaign, brandColor: brandColor),
-                const SizedBox(height: 20),
-                if (campaign.tagline != null &&
-                    campaign.tagline!.isNotEmpty) ...[
+                _LogoFrame(
+                  campaign: campaign,
+                  brandColor: brandColor,
+                  size: logoSize,
+                ),
+                SizedBox(height: showSuccess ? 8 : 12),
+                if (campaign.tagline != null && campaign.tagline!.isNotEmpty) ...[
                   Text(
                     campaign.tagline!.toUpperCase(),
                     style: AppTypography.labelSmall.copyWith(
@@ -495,103 +752,121 @@ class _CouponCard extends StatelessWidget {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: showSuccess ? 2 : 4),
                 ],
                 Text(
                   campaign.partnerName,
-                  style: AppTypography.titleLarge.copyWith(
+                  style: (showSuccess
+                          ? AppTypography.titleMedium
+                          : AppTypography.titleLarge)
+                      .copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.neutral900,
                   ),
                   textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: showSuccess ? 8 : 12),
                 Text(
                   '%${campaign.discountPercent}',
-                  style: AppTypography.displaySmall.copyWith(
+                  style: (showSuccess
+                          ? AppTypography.displayMedium
+                          : AppTypography.displaySmall)
+                      .copyWith(
                     color: brandColor,
                     fontWeight: FontWeight.w800,
                     height: 1,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: showSuccess ? 2 : 4),
                 Text(
                   campaign.discountLabel,
                   style: AppTypography.titleMedium.copyWith(
                     color: AppColors.neutral700,
                     fontWeight: FontWeight.w600,
+                    fontSize: showSuccess ? 15 : null,
                   ),
                   textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          _TicketDivider(notchColor: notchColor),
+        ),
+        _TicketDivider(notchColor: notchColor),
+        if (showSuccess)
           Container(
             width: double.infinity,
             color: const Color(0xFFF7F8FA),
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    UserAvatar(
-                      imageUrl: avatarUrl,
-                      name: userName,
-                      size: 48,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'TCR Üyesi',
-                            style: AppTypography.labelSmall.copyWith(
-                              color: AppColors.neutral500,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            userName,
-                            style: AppTypography.titleSmall.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
                 Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFECFDF3),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFECFDF3),
+                    shape: BoxShape.circle,
                   ),
-                  child: Row(
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: Color(0xFF15803D),
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  entitlement!.memberDisplayMessage,
+                  style: AppTypography.labelLarge.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.neutral900,
+                    height: 1.35,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          )
+        else
+          Container(
+            width: double.infinity,
+            height: 64,
+            color: const Color(0xFFF7F8FA),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            alignment: Alignment.center,
+            child: Row(
+              children: [
+                UserAvatar(
+                  imageUrl: avatarUrl,
+                  name: userName,
+                  size: 36,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF22C55E),
-                          shape: BoxShape.circle,
+                      Text(
+                        'TCR Üyesi',
+                        style: AppTypography.labelSmall.copyWith(
+                          color: AppColors.neutral500,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
                         ),
                       ),
-                      const SizedBox(width: 8),
                       Text(
-                        'Geçerli · $timeText',
-                        style: AppTypography.labelMedium.copyWith(
-                          color: const Color(0xFF15803D),
+                        userName,
+                        style: AppTypography.labelLarge.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -599,8 +874,173 @@ class _CouponCard extends StatelessWidget {
               ],
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _CouponCardBack extends StatelessWidget {
+  const _CouponCardBack({
+    required this.campaign,
+    required this.brandColor,
+    required this.notchColor,
+    required this.now,
+    required this.tokenAsync,
+  });
+
+  final PartnerCampaignModel campaign;
+  final Color brandColor;
+  final Color notchColor;
+  final DateTime now;
+  final AsyncValue<PartnerRedemptionToken>? tokenAsync;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.max,
+      children: [
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                Text(
+                  campaign.partnerName,
+                  style: AppTypography.titleMedium.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.neutral900,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Kasada okutulmasını isteyin',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.neutral500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: Center(
+                    child: _QrBackContent(
+                      brandColor: brandColor,
+                      now: now,
+                      tokenAsync: tokenAsync,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QrBackContent extends StatelessWidget {
+  const _QrBackContent({
+    required this.brandColor,
+    required this.now,
+    required this.tokenAsync,
+  });
+
+  final Color brandColor;
+  final DateTime now;
+  final AsyncValue<PartnerRedemptionToken>? tokenAsync;
+
+  @override
+  Widget build(BuildContext context) {
+    if (tokenAsync == null) {
+      return const SizedBox(
+        height: 180,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    return tokenAsync!.when(
+      loading: () => const SizedBox(
+        height: 180,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+      error: (e, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline_rounded, color: AppColors.neutral400, size: 36),
+          const SizedBox(height: 10),
+          Text(
+            'QR oluşturulamadı',
+            style: AppTypography.titleSmall.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppColors.neutral800,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            e.toString().replaceFirst('Exception: ', ''),
+            style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
+      data: (token) {
+        final secondsLeft =
+            token.expiresAt.difference(now).inSeconds.clamp(0, 60);
+
+        if (secondsLeft <= 0) {
+          return const SizedBox(
+            height: 180,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.neutral200),
+                boxShadow: [
+                  BoxShadow(
+                    color: brandColor.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: QrImageView(
+                data: token.redeemUrl,
+                version: QrVersions.auto,
+                size: 168,
+                backgroundColor: Colors.white,
+                eyeStyle: QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: brandColor,
+                ),
+                dataModuleStyle: QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: AppColors.neutral900,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Kod $secondsLeft sn içinde yenilenir',
+              style: AppTypography.labelMedium.copyWith(
+                color: AppColors.neutral500,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -609,22 +1049,24 @@ class _LogoFrame extends StatelessWidget {
   const _LogoFrame({
     required this.campaign,
     required this.brandColor,
+    this.size = 112,
   });
 
   final PartnerCampaignModel campaign;
   final Color brandColor;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 112,
-      height: 112,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: brandColor.withValues(alpha: 0.08),
         shape: BoxShape.circle,
         border: Border.all(color: brandColor.withValues(alpha: 0.18), width: 2),
       ),
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(size * 0.16),
       child: campaign.logoUrl != null
           ? ClipOval(
               child: CachedNetworkImage(
@@ -802,6 +1244,222 @@ class _LocationButton extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PartnerPerkDetailLoadingScaffold extends StatelessWidget {
+  const _PartnerPerkDetailLoadingScaffold();
+
+  @override
+  Widget build(BuildContext context) {
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        backgroundColor: AppColors.backgroundLight,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          automaticallyImplyLeading: false,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: IconButton(
+              onPressed: () => Navigator.maybePop(context),
+              icon: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLight,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: AppColors.neutral800,
+                  size: 18,
+                ),
+              ),
+            ),
+          ),
+        ),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                AppColors.backgroundLight,
+                AppColors.surfaceVariantLight,
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: _CouponCardLoadingSkeleton(
+                        notchColor: AppColors.backgroundLight,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CouponCardLoadingSkeleton extends StatelessWidget {
+  const _CouponCardLoadingSkeleton({required this.notchColor});
+
+  static const double _cardHeight = 400;
+
+  final Color notchColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: _cardHeight,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 360),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.22),
+              blurRadius: 32,
+              offset: const Offset(0, 16),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            Expanded(
+              child: Shimmer.fromColors(
+                baseColor: AppColors.neutral300,
+                highlightColor: AppColors.neutral100,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        height: 12,
+                        width: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        height: 28,
+                        width: 160,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        height: 48,
+                        width: 88,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 18,
+                        width: 200,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            _TicketDivider(notchColor: notchColor),
+            Container(
+              width: double.infinity,
+              height: 64,
+              color: const Color(0xFFF7F8FA),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Shimmer.fromColors(
+                baseColor: AppColors.neutral300,
+                highlightColor: AppColors.neutral100,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            height: 10,
+                            width: 56,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            height: 14,
+                            width: 120,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

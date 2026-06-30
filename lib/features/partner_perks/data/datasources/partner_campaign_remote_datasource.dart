@@ -107,27 +107,55 @@ class PartnerCampaignRemoteDataSource {
   }
 
   Future<PartnerRedemptionToken> createRedemptionToken(String campaignId) async {
-    final response = await _supabase.rpc(
-      'create_partner_redemption_token',
-      params: {'p_campaign_id': campaignId},
-    );
-    return PartnerRedemptionToken.fromJson(
-      Map<String, dynamic>.from(response as Map),
-    );
+    try {
+      final response = await _supabase.rpc(
+        'create_partner_redemption_token',
+        params: {'p_campaign_id': campaignId},
+      );
+      return PartnerRedemptionToken.fromJson(
+        Map<String, dynamic>.from(response as Map),
+      );
+    } on PostgrestException catch (e) {
+      throw Exception(
+        e.message.isNotEmpty ? e.message : 'QR token oluşturulamadı (${e.code})',
+      );
+    }
   }
 
   Future<PartnerRedemptionReport> getRedemptionReport({
     String? campaignId,
     int limit = 100,
+    DateTime? from,
+    DateTime? to,
   }) async {
     final response = await _supabase.rpc(
       'get_partner_redemption_report',
       params: {
         'p_campaign_id': campaignId,
         'p_limit': limit,
+        'p_from': from?.toUtc().toIso8601String(),
+        'p_to': to?.toUtc().toIso8601String(),
       },
     );
     return PartnerRedemptionReport.fromJson(
+      Map<String, dynamic>.from(response as Map),
+    );
+  }
+
+  Future<PartnerRedemptionDashboard> getRedemptionDashboard({
+    String? campaignId,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final response = await _supabase.rpc(
+      'get_partner_redemption_dashboard',
+      params: {
+        'p_campaign_id': campaignId,
+        'p_from': from?.toUtc().toIso8601String(),
+        'p_to': to?.toUtc().toIso8601String(),
+      },
+    );
+    return PartnerRedemptionDashboard.fromJson(
       Map<String, dynamic>.from(response as Map),
     );
   }

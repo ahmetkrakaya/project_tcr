@@ -106,12 +106,6 @@ class AdminPartnerCampaignsPage extends ConsumerWidget {
                 );
               },
             ),
-      floatingActionButton: isAdmin
-          ? FloatingActionButton(
-              onPressed: () => _openCreatePage(context),
-              child: const Icon(Icons.add),
-            )
-          : null,
     );
   }
 

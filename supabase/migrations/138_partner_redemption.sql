@@ -280,7 +280,7 @@ CREATE OR REPLACE FUNCTION public.create_partner_redemption_token(p_campaign_id 
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
     v_user_id UUID := auth.uid();
@@ -306,13 +306,15 @@ BEGIN
         RAISE EXCEPTION 'QR redemption is not enabled for this campaign';
     END IF;
 
-    v_entitlement := public.get_partner_perk_entitlement(p_campaign_id);
+    v_entitlement := public._get_partner_perk_entitlement_for_user(
+        p_campaign_id, v_user_id
+    );
 
     IF NOT (v_entitlement->>'can_redeem')::boolean THEN
         RAISE EXCEPTION 'Cannot redeem: %', v_entitlement->>'reason';
     END IF;
 
-    v_token := replace(replace(encode(gen_random_bytes(24), 'base64'), '+', '-'), '/', '_');
+    v_token := translate(encode(gen_random_bytes(24), 'base64'), '+/', '-_');
     v_expires := NOW() + INTERVAL '60 seconds';
 
     INSERT INTO public.partner_redemption_tokens (campaign_id, user_id, token, expires_at)
@@ -322,7 +324,7 @@ BEGIN
     RETURN jsonb_build_object(
         'token_id', v_token_id,
         'token', v_token,
-        'expires_at', v_expires,
+        'expires_at', to_jsonb(v_expires),
         'redeem_url', 'https://www.rivlus.com/p/r/' || v_token
     );
 END;
