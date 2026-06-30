@@ -539,6 +539,18 @@ class ProfilePage extends ConsumerWidget {
           onTap: () => context.pushNamed(RouteNames.paceCalculator),
         ),
       );
+
+      // Üye Avantajları
+      menuItems.add(
+        _buildMenuItem(
+          context,
+          icon: Icons.local_offer_outlined,
+          title: 'Üye Avantajları',
+          subtitle: 'Partner işletmelerde indirimler',
+          iconColor: const Color(0xFF1B4332),
+          onTap: () => context.pushNamed(RouteNames.partnerPerks),
+        ),
+      );
       
       // Bağlantılar - Sadece kendisi görebilir
       menuItems.add(_buildIntegrationsMenuItem(context, ref));

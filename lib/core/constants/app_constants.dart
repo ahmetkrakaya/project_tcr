@@ -301,6 +301,14 @@ class RouteNames {
   static const String donationCreate = 'donation-create';
   static const String foundations = 'foundations';
 
+  // Partner Perks (Üye Avantajları)
+  static const String partnerPerks = 'partner-perks';
+  static const String partnerPerkDetail = 'partner-perk-detail';
+  static const String adminPartnerCampaigns = 'admin-partner-campaigns';
+  static const String adminPartnerCampaignCreate = 'admin-partner-campaign-create';
+  static const String adminPartnerCampaignEdit = 'admin-partner-campaign-edit';
+  static const String adminPartnerRedemptions = 'admin-partner-redemptions';
+
   // Tools
   static const String paceCalculator = 'pace-calculator';
   static const String laneCalculator = 'lane-calculator';

@@ -24,6 +24,7 @@ import '../../../posts/presentation/providers/post_provider.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../admin/presentation/widgets/admin_home_menu_sheet.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
+import '../../../partner_perks/presentation/widgets/partner_perks_home_banner.dart';
 
 /// Home Page Scroll Controller Provider
 final homePageScrollControllerProvider = StateNotifierProvider<HomePageScrollControllerNotifier, ScrollController?>((ref) {
@@ -184,6 +185,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ],
                   ),
                 ),
+              ),
+
+              // Üye avantajları banner (aktif kampanya varsa)
+              const SliverToBoxAdapter(
+                child: PartnerPerksHomeBanner(),
               ),
 
               // Pinli + Bu Hafta Etkinlikleri - Real Data

@@ -81,6 +81,11 @@ import '../../features/posts/presentation/pages/create_post_page.dart';
 import '../../features/posts/presentation/pages/post_detail_page.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../features/activity/presentation/pages/running_viewer_page.dart';
+import '../../features/partner_perks/presentation/pages/partner_perks_page.dart';
+import '../../features/partner_perks/presentation/pages/partner_perk_detail_page.dart';
+import '../../features/partner_perks/presentation/pages/admin_partner_campaigns_page.dart';
+import '../../features/partner_perks/presentation/pages/admin_partner_campaign_form_page.dart';
+import '../../features/partner_perks/presentation/pages/admin_partner_redemptions_page.dart';
 
 /// App Router Provider - Auth state'den bağımsız, sadece başlangıçta kontrol eder
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -647,7 +652,50 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const PaceCalculatorPage(),
       ),
 
+      // Partner Perks (Üye Avantajları)
+      GoRoute(
+        path: '/partner-perks',
+        name: RouteNames.partnerPerks,
+        builder: (context, state) => const PartnerPerksPage(),
+        routes: [
+          GoRoute(
+            path: ':campaignId',
+            name: RouteNames.partnerPerkDetail,
+            builder: (context, state) {
+              final campaignId = state.pathParameters['campaignId']!;
+              return PartnerPerkDetailPage(campaignId: campaignId);
+            },
+          ),
+        ],
+      ),
+
       // Admin (Outside shell)
+      GoRoute(
+        path: '/admin/partner-campaigns',
+        name: RouteNames.adminPartnerCampaigns,
+        builder: (context, state) => const AdminPartnerCampaignsPage(),
+        routes: [
+          GoRoute(
+            path: 'create',
+            name: RouteNames.adminPartnerCampaignCreate,
+            builder: (context, state) =>
+                const AdminPartnerCampaignFormPage(),
+          ),
+          GoRoute(
+            path: 'edit/:campaignId',
+            name: RouteNames.adminPartnerCampaignEdit,
+            builder: (context, state) {
+              final campaignId = state.pathParameters['campaignId']!;
+              return AdminPartnerCampaignFormPage(campaignId: campaignId);
+            },
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/admin/partner-redemptions',
+        name: RouteNames.adminPartnerRedemptions,
+        builder: (context, state) => const AdminPartnerRedemptionsPage(),
+      ),
       GoRoute(
         path: '/admin/reports',
         name: RouteNames.adminReportsHub,

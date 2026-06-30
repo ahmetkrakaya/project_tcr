@@ -62,6 +62,24 @@ class AdminReportsHubPage extends ConsumerWidget {
                   onTap: () =>
                       context.pushNamed(RouteNames.adminCreateNotification),
                 ),
+                const SizedBox(height: 12),
+                _MenuCard(
+                  icon: Icons.local_offer_outlined,
+                  title: 'Üye Avantajları',
+                  subtitle: 'Partner kampanyalarını ekle ve yönet',
+                  iconColor: const Color(0xFF1B4332),
+                  onTap: () =>
+                      context.pushNamed(RouteNames.adminPartnerCampaigns),
+                ),
+                const SizedBox(height: 12),
+                _MenuCard(
+                  icon: Icons.qr_code_scanner_outlined,
+                  title: 'Avantaj Kullanımları',
+                  subtitle: 'QR doğrulama kayıtları ve özet',
+                  iconColor: AppColors.tertiary,
+                  onTap: () =>
+                      context.pushNamed(RouteNames.adminPartnerRedemptions),
+                ),
                 const SizedBox(height: 24),
                 _SectionHeader(title: 'Kullanıcı'),
                 _MenuCard(

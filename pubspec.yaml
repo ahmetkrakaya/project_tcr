@@ -27,6 +27,7 @@ dependencies:
   geolocator: ^13.0.2
   
   # UI Components
+  qr_flutter: ^4.1.0
   flutter_svg: ^2.0.16
   cached_network_image: ^3.4.1
   shimmer: ^3.0.0
