@@ -13,6 +13,8 @@ import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../providers/group_provider.dart';
 import '../widgets/group_avatar.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Adminlerin, herhangi bir gruba dahil olmayan aktif üyeleri atayabildiği sayfa.
 class UnassignedMembersPage extends ConsumerStatefulWidget {
@@ -48,8 +50,8 @@ class _UnassignedMembersPageState extends ConsumerState<UnassignedMembersPage> {
     final searchQuery = _searchController.text.toLowerCase().trim();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final pageBackground =
-        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
-    final pageSurface = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+        ThemeBrightnessHolder.scaffoldBackground;
+    final pageSurface = ThemeBrightnessHolder.surface;
 
     return Scaffold(
       backgroundColor: pageBackground,
@@ -57,7 +59,7 @@ class _UnassignedMembersPageState extends ConsumerState<UnassignedMembersPage> {
         backgroundColor: pageSurface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
         title: const Text('Gruba Dahil Olmayan Üyeler'),
@@ -158,7 +160,7 @@ class _UnassignedMembersPageState extends ConsumerState<UnassignedMembersPage> {
     if (!context.mounted) return;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sheetSurface = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final sheetSurface = ThemeBrightnessHolder.surface;
     final messenger = ScaffoldMessenger.of(context);
     if (groupsAsync.isEmpty) {
       messenger.showSnackBar(
@@ -188,7 +190,7 @@ class _UnassignedMembersPageState extends ConsumerState<UnassignedMembersPage> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: ThemeBrightnessHolder.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -211,7 +213,7 @@ class _UnassignedMembersPageState extends ConsumerState<UnassignedMembersPage> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: Icon(Icons.close),
                       onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
@@ -247,7 +249,7 @@ class _UnassignedMembersPageState extends ConsumerState<UnassignedMembersPage> {
                         subtitle: group.targetDistance != null
                             ? Text('Hedef: ${group.targetDistance}')
                             : null,
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: Icon(Icons.chevron_right),
                         onTap: () async {
                           Navigator.pop(ctx);
                           try {
@@ -365,7 +367,7 @@ class _UnassignedUserTile extends StatelessWidget {
                         color: AppColors.secondary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.group_add,
                         size: 18,
                         color: AppColors.secondary,

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/user_avatar.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Chat Room Page
 class ChatRoomPage extends ConsumerStatefulWidget {
@@ -39,7 +41,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
                 color: AppColors.primaryContainer,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.public,
                 color: AppColors.primary,
                 size: 20,
@@ -56,7 +58,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
                 Text(
                   '156 üye',
                   style: AppTypography.labelSmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -65,7 +67,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.info_outline),
+            icon: Icon(Icons.info_outline),
             onPressed: () {
               // Show room info
             },
@@ -142,7 +144,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: isMe ? AppColors.primary : AppColors.surfaceVariantLight,
+                    color: isMe ? AppColors.primary : ThemeBrightnessHolder.surfaceContainerHighest,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(18),
                       topRight: const Radius.circular(18),
@@ -191,7 +193,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
             : MediaQuery.of(context).padding.bottom + 12,
       ),
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        color: ThemeBrightnessHolder.scaffoldBackground,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -203,8 +205,8 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            color: AppColors.neutral500,
+            icon: Icon(Icons.add_circle_outline),
+            color: ThemeBrightnessHolder.onSurfaceVariant,
             onPressed: () {
               _showAttachmentOptions();
             },
@@ -215,7 +217,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
               decoration: InputDecoration(
                 hintText: 'Mesaj yaz...',
                 filled: true,
-                fillColor: AppColors.surfaceVariantLight,
+                fillColor: ThemeBrightnessHolder.surfaceContainerHighest,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 10,
@@ -234,7 +236,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
           CircleAvatar(
             backgroundColor: AppColors.primary,
             child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white, size: 20),
+              icon: Icon(Icons.send, color: Colors.white, size: 20),
               onPressed: () {
                 // Send message
                 if (_messageController.text.trim().isNotEmpty) {
@@ -265,7 +267,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
                     color: AppColors.primaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.photo, color: AppColors.primary),
+                  child: Icon(Icons.photo, color: AppColors.primary),
                 ),
                 title: const Text('Fotoğraf'),
                 subtitle: const Text('Galeriden seç'),
@@ -281,7 +283,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
                     color: AppColors.secondaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.camera_alt, color: AppColors.secondary),
+                  child: Icon(Icons.camera_alt, color: AppColors.secondary),
                 ),
                 title: const Text('Kamera'),
                 subtitle: const Text('Fotoğraf çek'),

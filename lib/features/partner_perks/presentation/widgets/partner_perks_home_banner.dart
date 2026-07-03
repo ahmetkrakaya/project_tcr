@@ -13,15 +13,16 @@ import '../providers/partner_campaign_provider.dart';
 class PartnerPerksHomeBanner extends ConsumerStatefulWidget {
   const PartnerPerksHomeBanner({super.key});
 
-  static const double _bannerHeight = 68;
-  static const double _cardGap = 8;
+  static const double bannerHeight = 68;
+  static const double cardGap = 8;
 
   @override
   ConsumerState<PartnerPerksHomeBanner> createState() =>
       _PartnerPerksHomeBannerState();
 }
 
-class _PartnerPerksHomeBannerState extends ConsumerState<PartnerPerksHomeBanner> {
+class _PartnerPerksHomeBannerState extends ConsumerState<PartnerPerksHomeBanner>
+    with WidgetsBindingObserver {
   static const Duration _autoSlideInterval = Duration(seconds: 4);
   static const Duration _slideDuration = Duration(milliseconds: 550);
 
@@ -31,12 +32,63 @@ class _PartnerPerksHomeBannerState extends ConsumerState<PartnerPerksHomeBanner>
   int _slideItemCount = 0;
   bool _isAutoWrapping = false;
   bool _isUserDragging = false;
+  bool _routeIsCurrent = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncRouteVisibility();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _onRouteHidden();
+    } else if (state == AppLifecycleState.resumed) {
+      _syncRouteVisibility();
+    }
+  }
 
   @override
   void dispose() {
-    _autoSlideTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _pauseAutoSlide();
     _pageController?.dispose();
     super.dispose();
+  }
+
+  void _syncRouteVisibility() {
+    if (!mounted) return;
+
+    final route = ModalRoute.of(context);
+    final isCurrent = route == null || route.isCurrent;
+    if (isCurrent == _routeIsCurrent) return;
+
+    _routeIsCurrent = isCurrent;
+    if (isCurrent) {
+      _onRouteVisible();
+    } else {
+      _onRouteHidden();
+    }
+  }
+
+  void _onRouteHidden() {
+    _pauseAutoSlide();
+    _isUserDragging = false;
+    _isAutoWrapping = false;
+  }
+
+  void _onRouteVisible() {
+    if (_slideItemCount <= 1) return;
+    _recenterClonePage(_slideItemCount);
+    _ensureAutoSlideRunning(_slideItemCount);
   }
 
   int _extendedPageCount(int itemCount) => itemCount + 2;
@@ -57,13 +109,30 @@ class _PartnerPerksHomeBannerState extends ConsumerState<PartnerPerksHomeBanner>
     _pageController?.dispose();
     _slideItemCount = itemCount;
     _currentPage = 1;
+    _isAutoWrapping = false;
+    _isUserDragging = false;
     _pageController = PageController(initialPage: 1);
+  }
+
+  void _disposePageController() {
+    _pauseAutoSlide();
+    _pageController?.dispose();
+    _pageController = null;
+    _slideItemCount = 0;
+    _currentPage = 1;
+    _isAutoWrapping = false;
+    _isUserDragging = false;
   }
 
   void _configureAutoSlide(int itemCount) {
     _autoSlideTimer?.cancel();
     _autoSlideTimer = null;
-    if (itemCount <= 1 || _isAutoWrapping || _isUserDragging) return;
+    if (!_routeIsCurrent ||
+        itemCount <= 1 ||
+        _isAutoWrapping ||
+        _isUserDragging) {
+      return;
+    }
 
     _autoSlideTimer = Timer.periodic(_autoSlideInterval, (_) {
       _advanceAutoSlide(itemCount);
@@ -71,21 +140,28 @@ class _PartnerPerksHomeBannerState extends ConsumerState<PartnerPerksHomeBanner>
   }
 
   void _ensureAutoSlideRunning(int itemCount) {
-    if (itemCount <= 1 || _isAutoWrapping || _isUserDragging) return;
+    if (!_routeIsCurrent ||
+        itemCount <= 1 ||
+        _isAutoWrapping ||
+        _isUserDragging) {
+      return;
+    }
     if (_autoSlideTimer == null || !_autoSlideTimer!.isActive) {
       _configureAutoSlide(itemCount);
     }
   }
 
   void _advanceAutoSlide(int itemCount) {
-    if (!mounted || itemCount <= 1 || _isAutoWrapping || _isUserDragging) {
+    if (!mounted ||
+        !_routeIsCurrent ||
+        itemCount <= 1 ||
+        _isAutoWrapping ||
+        _isUserDragging) {
       return;
     }
+
     final controller = _pageController;
     if (controller == null || !controller.hasClients) return;
-
-    final route = ModalRoute.of(context);
-    if (route != null && !route.isCurrent) return;
 
     if (_currentPage >= itemCount) {
       _isAutoWrapping = true;
@@ -150,13 +226,36 @@ class _PartnerPerksHomeBannerState extends ConsumerState<PartnerPerksHomeBanner>
     }
   }
 
-  void _scheduleAutoSlideIfVisible(int itemCount) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || itemCount <= 1) return;
-      final route = ModalRoute.of(context);
-      if (route != null && !route.isCurrent) return;
-      _ensureAutoSlideRunning(itemCount);
-    });
+  void _releaseDragState(int itemCount) {
+    if (!_isUserDragging) return;
+
+    _isUserDragging = false;
+    if (_isAutoWrapping || itemCount <= 1) return;
+
+    _recenterClonePage(itemCount);
+    _ensureAutoSlideRunning(itemCount);
+  }
+
+  void _syncControllerForCampaigns(List<PartnerCampaignModel> campaigns) {
+    if (!mounted) return;
+
+    if (campaigns.length <= 1) {
+      if (_pageController != null) {
+        _disposePageController();
+        setState(() {});
+      }
+      return;
+    }
+
+    final needsController =
+        _pageController == null || _slideItemCount != campaigns.length;
+    if (!needsController) return;
+
+    _ensurePageController(campaigns.length);
+    if (_routeIsCurrent) {
+      _ensureAutoSlideRunning(campaigns.length);
+    }
+    setState(() {});
   }
 
   Color _parseColor(String hex) {
@@ -186,74 +285,83 @@ class _PartnerPerksHomeBannerState extends ConsumerState<PartnerPerksHomeBanner>
   Widget build(BuildContext context) {
     final campaignsAsync = ref.watch(activePartnerCampaignsProvider);
 
+    ref.listen(activePartnerCampaignsProvider, (previous, next) {
+      next.whenData(_syncControllerForCampaigns);
+    });
+
     return campaignsAsync.when(
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (campaigns) {
         if (campaigns.isEmpty) return const SizedBox.shrink();
 
-        if (campaigns.length > 1) {
-          _ensurePageController(campaigns.length);
-          _scheduleAutoSlideIfVisible(campaigns.length);
-        } else if (_slideItemCount != 1) {
-          _slideItemCount = 1;
-          _pauseAutoSlide();
-          _pageController?.dispose();
-          _pageController = null;
+        if (campaigns.length > 1 &&
+            (_pageController == null || _slideItemCount != campaigns.length)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _syncControllerForCampaigns(campaigns);
+          });
         }
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
           child: campaigns.length == 1
               ? _buildBanner(context, campaigns.first)
-              : SizedBox(
-                  height: PartnerPerksHomeBanner._bannerHeight,
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: (notification) {
-                      final itemCount = campaigns.length;
+              : _pageController == null
+                  ? SizedBox(
+                      height: PartnerPerksHomeBanner.bannerHeight,
+                      child: _buildBanner(context, campaigns.first),
+                    )
+                  : SizedBox(
+                      height: PartnerPerksHomeBanner.bannerHeight,
+                      child: Listener(
+                        onPointerUp: (_) =>
+                            _releaseDragState(campaigns.length),
+                        onPointerCancel: (_) =>
+                            _releaseDragState(campaigns.length),
+                        child: NotificationListener<ScrollNotification>(
+                          onNotification: (notification) {
+                            final itemCount = campaigns.length;
 
-                      if (notification is ScrollUpdateNotification &&
-                          notification.dragDetails != null) {
-                        if (!_isUserDragging) {
-                          _isUserDragging = true;
-                          _pauseAutoSlide();
-                        }
-                      } else if (notification is ScrollEndNotification) {
-                        if (_isAutoWrapping) return false;
-
-                        _isUserDragging = false;
-                        _recenterClonePage(itemCount);
-                        _ensureAutoSlideRunning(itemCount);
-                      }
-                      return false;
-                    },
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: PageView.builder(
-                        controller: _pageController,
-                        clipBehavior: Clip.hardEdge,
-                        physics: const PageScrollPhysics(
-                          parent: BouncingScrollPhysics(),
+                            if (notification is ScrollStartNotification &&
+                                notification.dragDetails != null) {
+                              if (!_isUserDragging) {
+                                _isUserDragging = true;
+                                _pauseAutoSlide();
+                              }
+                            } else if (notification is ScrollEndNotification) {
+                              if (_isAutoWrapping) return false;
+                              _releaseDragState(itemCount);
+                            }
+                            return false;
+                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: PageView.builder(
+                              controller: _pageController,
+                              clipBehavior: Clip.hardEdge,
+                              physics: const PageScrollPhysics(
+                                parent: ClampingScrollPhysics(),
+                              ),
+                              itemCount: _extendedPageCount(campaigns.length),
+                              onPageChanged: (index) =>
+                                  _onPageChanged(index, campaigns.length),
+                              itemBuilder: (context, index) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal:
+                                        PartnerPerksHomeBanner.cardGap / 2,
+                                  ),
+                                  child: _buildBanner(
+                                    context,
+                                    _campaignAt(index, campaigns),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
                         ),
-                        itemCount: _extendedPageCount(campaigns.length),
-                        onPageChanged: (index) =>
-                            _onPageChanged(index, campaigns.length),
-                        itemBuilder: (context, index) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal:
-                                  PartnerPerksHomeBanner._cardGap / 2,
-                            ),
-                            child: _buildBanner(
-                              context,
-                              _campaignAt(index, campaigns),
-                            ),
-                          );
-                        },
                       ),
                     ),
-                  ),
-                ),
         );
       },
     );
@@ -278,9 +386,8 @@ class _PartnerPerkBannerCard extends StatelessWidget {
       color: brandColor,
       borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
-      child: GestureDetector(
+      child: InkWell(
         onTap: onTap,
-        behavior: HitTestBehavior.opaque,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Row(

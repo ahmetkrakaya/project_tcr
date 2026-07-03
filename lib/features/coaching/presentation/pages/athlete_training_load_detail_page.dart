@@ -12,24 +12,8 @@ import '../../../../shared/widgets/report_info_button.dart';
 import '../../data/models/training_load_models.dart';
 import '../providers/training_load_provider.dart';
 import '../widgets/training_load_format.dart';
-
-const _info = ReportInfo(
-  title: 'Antrenman Yükü (PMC)',
-  summary:
-      'Tek sporcunun zaman içindeki form ve yük grafiğini gösterir. PMC, '
-      'fitness ile yorgunluk dengesini izlemenin standart yoludur.',
-  terms: [
-    ReportInfoTerm('CTL (Fitness)', 'Kronik yük: uzun vadeli kondisyon.'),
-    ReportInfoTerm('ATL (Yorgunluk)', 'Akut yük: son günlerin yorgunluğu.'),
-    ReportInfoTerm('TSB (Form)', 'CTL − ATL. Pozitif dinç, negatif yorgun.'),
-    ReportInfoTerm('Haftalık km/yük', 'Haftalık toplam hacmin değişimi.'),
-  ],
-  takeaways: [
-    'CTL yavaşça yükselmeli; ani sıçramalar sakatlık riski taşır.',
-    'Yarış haftası TSB pozitife çekilir (tapering).',
-    'Uzun süre çok negatif TSB aşırı yorgunluğa işaret eder.',
-  ],
-);
+import '../widgets/training_load_report_info.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class AthleteTrainingLoadDetailPage extends ConsumerStatefulWidget {
   const AthleteTrainingLoadDetailPage({
@@ -60,7 +44,7 @@ class _AthleteTrainingLoadDetailPageState
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.athleteName ?? 'Antrenman Yükü'),
-        actions: const [ReportInfoButton(info: _info)],
+        actions: const [ReportInfoButton(info: athleteTrainingLoadReportInfo)],
       ),
       body: loadAsync.when(
         loading: () => const Center(child: LoadingWidget()),
@@ -92,7 +76,7 @@ class _AthleteTrainingLoadDetailPageState
                   const SizedBox(height: 16),
                   _WeeklyLoadCard(points: points),
                   const SizedBox(height: 16),
-                  _buildLegend(),
+                  _buildLegend(context),
                 ],
               ],
             ),
@@ -103,7 +87,14 @@ class _AthleteTrainingLoadDetailPageState
   }
 
   Widget _buildRangeSelector() {
+    final cs = Theme.of(context).colorScheme;
     return SegmentedButton<int>(
+      style: SegmentedButton.styleFrom(
+        selectedBackgroundColor: cs.primary.withValues(alpha: 0.2),
+        selectedForegroundColor: cs.primary,
+        foregroundColor: cs.onSurfaceVariant,
+        side: BorderSide(color: cs.outlineVariant),
+      ),
       segments: _ranges.entries
           .map((e) => ButtonSegment(value: e.key, label: Text(e.value)))
           .toList(),
@@ -175,7 +166,8 @@ class _AthleteTrainingLoadDetailPageState
     );
   }
 
-  Widget _buildLegend() {
+  Widget _buildLegend(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     Widget item(Color c, String label) => Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -183,8 +175,7 @@ class _AthleteTrainingLoadDetailPageState
             const SizedBox(width: 6),
             Text(
               label,
-              style: AppTypography.labelSmall
-                  .copyWith(color: AppColors.neutral600),
+              style: AppTypography.labelSmall.copyWith(color: cs.onSurfaceVariant),
             ),
           ],
         );
@@ -224,7 +215,7 @@ class _SummaryTile extends StatelessWidget {
           Text(
             label,
             style: AppTypography.labelSmall
-                .copyWith(color: AppColors.neutral500),
+                .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
           ),
           const SizedBox(height: 6),
           Text(
@@ -237,7 +228,7 @@ class _SummaryTile extends StatelessWidget {
             Text(
               subtitle!,
               style: AppTypography.labelSmall
-                  .copyWith(color: AppColors.neutral500),
+                  .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -255,6 +246,7 @@ class _PmcChartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     double minY = 0;
     double maxY = 0;
     for (final p in points) {
@@ -295,8 +287,10 @@ class _PmcChartCard extends StatelessWidget {
         children: [
           Text(
             'Performans Yönetim Grafiği (PMC)',
-            style: AppTypography.titleSmall
-                .copyWith(fontWeight: FontWeight.w600),
+            style: AppTypography.titleSmall.copyWith(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -309,7 +303,7 @@ class _PmcChartCard extends StatelessWidget {
                 maxX: (n - 1).toDouble(),
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(
-                    getTooltipColor: (_) => AppColors.primary,
+                    getTooltipColor: (_) => cs.inverseSurface,
                     getTooltipItems: (spots) {
                       if (spots.isEmpty) return [];
                       final idx = spots.first.x.toInt();
@@ -323,7 +317,7 @@ class _PmcChartCard extends StatelessWidget {
                         return LineTooltipItem(
                           '$dateStr\nCTL ${p.ctl.round()}  ATL ${p.atl.round()}\nTSB ${TrainingLoadFormat.formatSigned(p.tsb)}',
                           AppTypography.labelSmall
-                              .copyWith(color: Colors.white),
+                              .copyWith(color: cs.onInverseSurface),
                         );
                       }).toList();
                     },
@@ -347,7 +341,7 @@ class _PmcChartCard extends StatelessWidget {
                         return Text(
                           value.toInt().toString(),
                           style: AppTypography.labelSmall
-                              .copyWith(color: AppColors.neutral500),
+                              .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                         );
                       },
                     ),
@@ -367,7 +361,7 @@ class _PmcChartCard extends StatelessWidget {
                           child: Text(
                             DateFormat('d/M').format(points[idx].date),
                             style: AppTypography.labelSmall
-                                .copyWith(color: AppColors.neutral500),
+                                .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                           ),
                         );
                       },
@@ -378,14 +372,14 @@ class _PmcChartCard extends StatelessWidget {
                   show: true,
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (_) =>
-                      FlLine(color: AppColors.neutral300, strokeWidth: 1),
+                      FlLine(color: ThemeBrightnessHolder.outlineVariant, strokeWidth: 1),
                 ),
                 borderData: FlBorderData(show: false),
                 extraLinesData: ExtraLinesData(
                   horizontalLines: [
                     HorizontalLine(
                       y: 0,
-                      color: AppColors.neutral400,
+                      color: ThemeBrightnessHolder.outline,
                       strokeWidth: 1,
                       dashArray: [4, 4],
                     ),
@@ -425,6 +419,7 @@ class _WeeklyLoadCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final buckets = _buckets();
     final maxTss = buckets.fold<double>(
       0,
@@ -438,8 +433,10 @@ class _WeeklyLoadCard extends StatelessWidget {
         children: [
           Text(
             'Haftalık Yük (TSS)',
-            style: AppTypography.titleSmall
-                .copyWith(fontWeight: FontWeight.w600),
+            style: AppTypography.titleSmall.copyWith(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -451,13 +448,14 @@ class _WeeklyLoadCard extends StatelessWidget {
                 barTouchData: BarTouchData(
                   enabled: true,
                   touchTooltipData: BarTouchTooltipData(
-                    getTooltipColor: (_) => AppColors.primary,
+                    getTooltipColor: (_) => cs.inverseSurface,
                     getTooltipItem: (group, _, rod, __) {
                       final b = buckets[group.x.toInt()];
                       final label = DateFormat('d MMM', 'tr_TR').format(b.weekStart);
                       return BarTooltipItem(
                         '$label haftası\n${rod.toY.round()} TSS',
-                        AppTypography.labelSmall.copyWith(color: Colors.white),
+                        AppTypography.labelSmall
+                            .copyWith(color: cs.onInverseSurface),
                       );
                     },
                   ),
@@ -478,7 +476,7 @@ class _WeeklyLoadCard extends StatelessWidget {
                         return Text(
                           value.toInt().toString(),
                           style: AppTypography.labelSmall
-                              .copyWith(color: AppColors.neutral500),
+                              .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                         );
                       },
                     ),
@@ -497,7 +495,7 @@ class _WeeklyLoadCard extends StatelessWidget {
                           child: Text(
                             DateFormat('d/M').format(buckets[idx].weekStart),
                             style: AppTypography.labelSmall
-                                .copyWith(color: AppColors.neutral500),
+                                .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                           ),
                         );
                       },
@@ -508,7 +506,7 @@ class _WeeklyLoadCard extends StatelessWidget {
                   show: true,
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (_) =>
-                      FlLine(color: AppColors.neutral300, strokeWidth: 1),
+                      FlLine(color: ThemeBrightnessHolder.outlineVariant, strokeWidth: 1),
                 ),
                 borderData: FlBorderData(show: false),
                 barGroups: [
@@ -518,7 +516,7 @@ class _WeeklyLoadCard extends StatelessWidget {
                       barRods: [
                         BarChartRodData(
                           toY: buckets[i].totalTss,
-                          color: AppColors.primary.withValues(alpha: 0.7),
+                          color: cs.primary.withValues(alpha: 0.85),
                           width: 14,
                           borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(4),
@@ -562,7 +560,7 @@ class _ErrorView extends StatelessWidget {
             Text(
               error.toString(),
               style: AppTypography.bodySmall
-                  .copyWith(color: AppColors.neutral500),
+                  .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),

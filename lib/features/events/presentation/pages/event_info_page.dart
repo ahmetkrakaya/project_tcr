@@ -4,9 +4,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/theme/content_block_theme.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../domain/entities/event_info_block_entity.dart';
 import '../providers/event_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Etkinlik Bilgileri Sayfası - Tam ekran görüntüleme
 class EventInfoPage extends ConsumerWidget {
@@ -69,7 +71,7 @@ class EventInfoPage extends ConsumerWidget {
                       color: AppColors.secondary,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.event,
                       color: Colors.white,
                       size: 24,
@@ -90,7 +92,7 @@ class EventInfoPage extends ConsumerWidget {
                         Text(
                           'Program ve Detaylar',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -113,13 +115,13 @@ class EventInfoPage extends ConsumerWidget {
                         Icon(
                           Icons.article_outlined,
                           size: 64,
-                          color: AppColors.neutral300,
+                          color: ThemeBrightnessHolder.outlineVariant,
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'Henüz bilgi eklenmemiş',
                           style: AppTypography.titleMedium.copyWith(
-                            color: AppColors.neutral400,
+                            color: ThemeBrightnessHolder.outline,
                           ),
                         ),
                       ],
@@ -164,13 +166,13 @@ class EventInfoPage extends ConsumerWidget {
       case EventInfoBlockType.subheader:
         return _buildSubheaderBlock(block);
       case EventInfoBlockType.scheduleItem:
-        return _buildScheduleItemBlock(block);
+        return _buildScheduleItemBlock(context, block);
       case EventInfoBlockType.warning:
-        return _buildWarningBlock(block);
+        return _buildWarningBlock(context, block);
       case EventInfoBlockType.info:
-        return _buildInfoBlock(block);
+        return _buildInfoBlock(context, block);
       case EventInfoBlockType.tip:
-        return _buildTipBlock(block);
+        return _buildTipBlock(context, block);
       case EventInfoBlockType.text:
         return _buildTextBlock(block);
       case EventInfoBlockType.quote:
@@ -239,7 +241,7 @@ class EventInfoPage extends ConsumerWidget {
                     color: Colors.white.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.link,
                     color: AppColors.info,
                     size: 20,
@@ -264,7 +266,7 @@ class EventInfoPage extends ConsumerWidget {
                         Text(
                           url,
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral600,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -273,7 +275,7 @@ class EventInfoPage extends ConsumerWidget {
                     ],
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.open_in_new,
                   size: 18,
                   color: AppColors.info,
@@ -369,7 +371,7 @@ class EventInfoPage extends ConsumerWidget {
   }
 
   /// Program öğesi - Saat + Açıklama
-  Widget _buildScheduleItemBlock(EventInfoBlockEntity block) {
+  Widget _buildScheduleItemBlock(BuildContext context, EventInfoBlockEntity block) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -409,6 +411,7 @@ class EventInfoPage extends ConsumerWidget {
               block.subContent ?? '',
               style: AppTypography.bodyLarge.copyWith(
                 fontWeight: FontWeight.w500,
+                color: ContentBlockTheme.onSurface(context),
               ),
             ),
           ),
@@ -418,7 +421,7 @@ class EventInfoPage extends ConsumerWidget {
   }
 
   /// Uyarı bloğu - Kırmızı
-  Widget _buildWarningBlock(EventInfoBlockEntity block) {
+  Widget _buildWarningBlock(BuildContext context, EventInfoBlockEntity block) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 10),
       padding: const EdgeInsets.all(20),
@@ -438,7 +441,11 @@ class EventInfoPage extends ConsumerWidget {
                 child: Text(
                   block.content,
                   style: AppTypography.titleMedium.copyWith(
-                    color: AppColors.error,
+                    color: ContentBlockTheme.title(
+                      context,
+                      AppColors.error,
+                      darkAccent: AppColors.errorLight,
+                    ),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -450,7 +457,8 @@ class EventInfoPage extends ConsumerWidget {
             Text(
               block.subContent!,
               style: AppTypography.bodyLarge.copyWith(
-                color: AppColors.error.withValues(alpha: 0.9),
+                color: ContentBlockTheme.body(context, AppColors.error,
+                    darkAccent: AppColors.errorLight),
                 height: 1.5,
               ),
             ),
@@ -461,7 +469,7 @@ class EventInfoPage extends ConsumerWidget {
   }
 
   /// Bilgi bloğu - Mavi
-  Widget _buildInfoBlock(EventInfoBlockEntity block) {
+  Widget _buildInfoBlock(BuildContext context, EventInfoBlockEntity block) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 10),
       padding: const EdgeInsets.all(20),
@@ -481,7 +489,11 @@ class EventInfoPage extends ConsumerWidget {
                 child: Text(
                   block.content,
                   style: AppTypography.titleMedium.copyWith(
-                    color: AppColors.info,
+                    color: ContentBlockTheme.title(
+                      context,
+                      AppColors.info,
+                      darkAccent: AppColors.infoLight,
+                    ),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -493,7 +505,8 @@ class EventInfoPage extends ConsumerWidget {
             Text(
               block.subContent!,
               style: AppTypography.bodyLarge.copyWith(
-                color: AppColors.info.withValues(alpha: 0.9),
+                color: ContentBlockTheme.body(context, AppColors.info,
+                    darkAccent: AppColors.infoLight),
                 height: 1.5,
               ),
             ),
@@ -504,7 +517,7 @@ class EventInfoPage extends ConsumerWidget {
   }
 
   /// İpucu bloğu - Yeşil
-  Widget _buildTipBlock(EventInfoBlockEntity block) {
+  Widget _buildTipBlock(BuildContext context, EventInfoBlockEntity block) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 10),
       padding: const EdgeInsets.all(20),
@@ -524,7 +537,11 @@ class EventInfoPage extends ConsumerWidget {
                 child: Text(
                   block.content,
                   style: AppTypography.titleMedium.copyWith(
-                    color: AppColors.success,
+                    color: ContentBlockTheme.title(
+                      context,
+                      AppColors.success,
+                      darkAccent: AppColors.successLight,
+                    ),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -536,7 +553,8 @@ class EventInfoPage extends ConsumerWidget {
             Text(
               block.subContent!,
               style: AppTypography.bodyLarge.copyWith(
-                color: AppColors.success.withValues(alpha: 0.9),
+                color: ContentBlockTheme.body(context, AppColors.success,
+                    darkAccent: AppColors.successLight),
                 height: 1.5,
               ),
             ),
@@ -553,7 +571,7 @@ class EventInfoPage extends ConsumerWidget {
       child: Text(
         block.content,
         style: AppTypography.bodyLarge.copyWith(
-          color: AppColors.neutral700,
+          color: ThemeBrightnessHolder.onSurface,
           height: 1.6,
         ),
       ),
@@ -585,7 +603,7 @@ class EventInfoPage extends ConsumerWidget {
                   '"${block.content}"',
                   style: AppTypography.titleMedium.copyWith(
                     fontStyle: FontStyle.italic,
-                    color: AppColors.neutral700,
+                    color: ThemeBrightnessHolder.onSurface,
                     fontWeight: FontWeight.w500,
                     height: 1.4,
                   ),
@@ -676,16 +694,16 @@ class EventInfoPage extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: 20),
       child: Row(
         children: [
-          Expanded(child: Divider(color: AppColors.neutral300, thickness: 1)),
+          Expanded(child: Divider(color: ThemeBrightnessHolder.outlineVariant, thickness: 1)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Icon(
               Icons.more_horiz,
-              color: AppColors.neutral400,
+              color: ThemeBrightnessHolder.outline,
               size: 24,
             ),
           ),
-          Expanded(child: Divider(color: AppColors.neutral300, thickness: 1)),
+          Expanded(child: Divider(color: ThemeBrightnessHolder.outlineVariant, thickness: 1)),
         ],
       ),
     );

@@ -13,6 +13,7 @@ import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../providers/statistics_provider.dart';
 import '../../../../shared/providers/auth_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Profile Page
 class ProfilePage extends ConsumerWidget {
@@ -45,7 +46,7 @@ class ProfilePage extends ConsumerWidget {
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(Icons.arrow_back),
                 onPressed: () {
                   if (context.canPop()) {
                     context.pop();
@@ -68,7 +69,7 @@ class ProfilePage extends ConsumerWidget {
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.settings_outlined),
+                    icon: Icon(Icons.settings_outlined),
                     onPressed: () => context.pushNamed(RouteNames.settings),
                   ),
                 ),
@@ -93,7 +94,7 @@ class ProfilePage extends ConsumerWidget {
                   Text(
                     isOwnProfile ? 'Profilim' : 'Profil',
                     style: AppTypography.titleMedium.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -276,16 +277,19 @@ class ProfilePage extends ConsumerWidget {
           Expanded(
             child: runningCountAsync.when(
               data: (count) => _buildStatCard(
+                context,
                 value: count.toString(),
                 label: 'Koşu',
                 icon: Icons.directions_run,
               ),
               loading: () => _buildStatCard(
+                context,
                 value: '...',
                 label: 'Koşu',
                 icon: Icons.directions_run,
               ),
               error: (_, __) => _buildStatCard(
+                context,
                 value: '--',
                 label: 'Koşu',
                 icon: Icons.directions_run,
@@ -296,6 +300,7 @@ class ProfilePage extends ConsumerWidget {
           Expanded(
             child: statsAsync.when(
               data: (stats) => _buildStatCard(
+                context,
                 value: stats != null
                     ? stats.totalDistanceKm.toStringAsFixed(0)
                     : '--',
@@ -303,11 +308,13 @@ class ProfilePage extends ConsumerWidget {
                 icon: Icons.straighten,
               ),
               loading: () => _buildStatCard(
+                context,
                 value: '...',
                 label: 'KM',
                 icon: Icons.straighten,
               ),
               error: (_, __) => _buildStatCard(
+                context,
                 value: '--',
                 label: 'KM',
                 icon: Icons.straighten,
@@ -317,9 +324,9 @@ class ProfilePage extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: pointsAsync.when(
-              data: (points) => _buildPointsCard(points),
-              loading: () => _buildPointsCard(null),
-              error: (_, __) => _buildPointsCard(null),
+              data: (points) => _buildPointsCard(context, points),
+              loading: () => _buildPointsCard(context, null),
+              error: (_, __) => _buildPointsCard(context, null),
             ),
           ),
           const SizedBox(width: 8),
@@ -343,18 +350,28 @@ class ProfilePage extends ConsumerWidget {
     return points.toString();
   }
 
-  Widget _buildPointsCard(int? points) {
+  Widget _buildPointsCard(BuildContext context, int? points) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
     final hasPoints = points != null && points > 0;
+    const accent = Color(0xFFFF8F00);
 
     return AppCard(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-      backgroundColor: hasPoints ? const Color(0xFFFFF8E1) : null,
+      backgroundColor: hasPoints
+          ? (isDark ? accent.withValues(alpha: 0.14) : const Color(0xFFFFF8E1))
+          : null,
+      border: Border.all(
+        color: hasPoints && isDark
+            ? accent.withValues(alpha: 0.35)
+            : cs.outlineVariant,
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.emoji_events,
-            color: hasPoints ? const Color(0xFFFF8F00) : AppColors.primary,
+            color: hasPoints ? accent : cs.primary,
             size: 22,
           ),
           const SizedBox(height: 6),
@@ -362,14 +379,18 @@ class ProfilePage extends ConsumerWidget {
             hasPoints ? _formatPoints(points) : (points == null ? '...' : '0'),
             style: AppTypography.titleLarge.copyWith(
               fontWeight: FontWeight.bold,
-              color: hasPoints ? const Color(0xFFFF8F00) : AppColors.neutral400,
+              color: hasPoints
+                  ? accent
+                  : (isDark ? cs.onSurfaceVariant : AppColors.neutral400),
             ),
           ),
           const SizedBox(height: 2),
           Text(
             'Puan',
             style: AppTypography.labelSmall.copyWith(
-              color: hasPoints ? const Color(0xFFFF8F00) : AppColors.neutral500,
+              color: hasPoints
+                  ? accent
+                  : (isDark ? cs.onSurfaceVariant : AppColors.neutral500),
             ),
             textAlign: TextAlign.center,
             maxLines: 1,
@@ -385,17 +406,29 @@ class ProfilePage extends ConsumerWidget {
     double? vdot,
     required bool isOwnProfile,
   }) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
     final hasVdot = vdot != null && vdot > 0;
+    final successColor = isDark ? AppColors.secondaryLight : AppColors.success;
 
     final card = AppCard(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-      backgroundColor: hasVdot ? AppColors.successContainer : null,
+      backgroundColor: hasVdot
+          ? (isDark
+              ? successColor.withValues(alpha: 0.14)
+              : AppColors.successContainer)
+          : null,
+      border: Border.all(
+        color: hasVdot && isDark
+            ? successColor.withValues(alpha: 0.35)
+            : cs.outlineVariant,
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.speed,
-            color: hasVdot ? AppColors.success : AppColors.primary,
+            color: hasVdot ? successColor : cs.primary,
             size: 22,
           ),
           const SizedBox(height: 6),
@@ -403,14 +436,18 @@ class ProfilePage extends ConsumerWidget {
             hasVdot ? vdot.toStringAsFixed(1) : '--',
             style: AppTypography.titleLarge.copyWith(
               fontWeight: FontWeight.bold,
-              color: hasVdot ? AppColors.success : AppColors.neutral400,
+              color: hasVdot
+                  ? successColor
+                  : (isDark ? cs.onSurfaceVariant : AppColors.neutral400),
             ),
           ),
           const SizedBox(height: 2),
           Text(
             'VDOT',
             style: AppTypography.labelSmall.copyWith(
-              color: hasVdot ? AppColors.success : AppColors.neutral500,
+              color: hasVdot
+                  ? successColor
+                  : (isDark ? cs.onSurfaceVariant : AppColors.neutral500),
             ),
             textAlign: TextAlign.center,
             maxLines: 1,
@@ -431,29 +468,34 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatCard({
+  Widget _buildStatCard(
+    BuildContext context, {
     required String value,
     required String label,
     required IconData icon,
   }) {
+    final cs = Theme.of(context).colorScheme;
+
     return AppCard(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+      border: Border.all(color: cs.outlineVariant),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: AppColors.primary, size: 22),
+          Icon(icon, color: cs.primary, size: 22),
           const SizedBox(height: 6),
           Text(
             value,
             style: AppTypography.titleLarge.copyWith(
               fontWeight: FontWeight.bold,
+              color: cs.onSurface,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
             style: AppTypography.labelSmall.copyWith(
-              color: AppColors.neutral500,
+              color: cs.onSurfaceVariant,
             ),
             textAlign: TextAlign.center,
             maxLines: 1,
@@ -472,23 +514,48 @@ class ProfilePage extends ConsumerWidget {
     Color? iconColor,
     required VoidCallback onTap,
   }) {
-    return ListTile(
-      leading: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: (iconColor ?? AppColors.primary).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
+    final cs = Theme.of(context).colorScheme;
+    final accent = iconColor ?? cs.primary;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Material(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: cs.outlineVariant),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListTile(
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: accent.withValues(alpha: 0.28)),
+                ),
+                child: Icon(icon, color: accent, size: 22),
+              ),
+              title: Text(
+                title,
+                style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
+              ),
+              subtitle: Text(
+                subtitle,
+                style: AppTypography.bodySmall.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              trailing: Icon(Icons.chevron_right, color: cs.outline),
+            ),
+          ),
         ),
-        child: Icon(icon, color: iconColor ?? AppColors.primary, size: 22),
       ),
-      title: Text(title, style: AppTypography.titleSmall),
-      subtitle: Text(
-        subtitle,
-        style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
-      ),
-      trailing: const Icon(Icons.chevron_right, color: AppColors.neutral400),
-      onTap: onTap,
     );
   }
 
@@ -617,7 +684,7 @@ class ProfilePage extends ConsumerWidget {
                 Text(
                   'Yönetim Araçları',
                   style: AppTypography.titleMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -735,31 +802,49 @@ class ProfilePage extends ConsumerWidget {
   }
 
   Widget _buildIntegrationsMenuItem(BuildContext context, WidgetRef ref) {
-    // Bağlantı durumunu göstermiyoruz; sabit bir açıklama metni kullanıyoruz.
     const subtitle = 'Koşu ve antrenman uygulamalarınızı buradan bağlayın.';
+    const stravaColor = Color(0xFFFC4C02);
+    final cs = Theme.of(context).colorScheme;
 
-    return ListTile(
-      leading: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: const Color(0xFFFC4C02).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Material(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.pushNamed(RouteNames.integrations),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: cs.outlineVariant),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListTile(
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: stravaColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: stravaColor.withValues(alpha: 0.28)),
+                ),
+                child: const Icon(Icons.link, color: stravaColor, size: 22),
+              ),
+              title: Text(
+                'Bağlantılar',
+                style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
+              ),
+              subtitle: Text(
+                subtitle,
+                style: AppTypography.bodySmall.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              trailing: Icon(Icons.chevron_right, color: cs.outline),
+            ),
+          ),
         ),
-        child: const Icon(Icons.link, color: Color(0xFFFC4C02), size: 22),
       ),
-      title: Text('Bağlantılar', style: AppTypography.titleSmall),
-      subtitle: Text(
-        subtitle,
-        style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.chevron_right, color: AppColors.neutral400),
-        ],
-      ),
-      onTap: () => context.pushNamed(RouteNames.integrations),
     );
   }
 }

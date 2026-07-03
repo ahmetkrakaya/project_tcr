@@ -9,6 +9,7 @@ import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// ICE Card Page
 class IceCardPage extends ConsumerStatefulWidget {
@@ -96,6 +97,8 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
     final isViewingOtherUser = widget.userId != null;
     final iceCardAsync =
         targetUserId != null ? ref.watch(iceCardNotifierProvider(targetUserId)) : null;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -104,7 +107,7 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
           // Sadece kendi ICE kartında ve düzenleme modunda değilken edit butonu göster
           if (!_isEditing && !isViewingOtherUser)
             IconButton(
-              icon: const Icon(Icons.edit),
+              icon: Icon(Icons.edit),
               onPressed: () => setState(() => _isEditing = true),
             ),
         ],
@@ -116,10 +119,15 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
           children: [
             // Warning Card
             AppCard(
-              backgroundColor: AppColors.warningContainer,
+              backgroundColor: isDark
+                  ? AppColors.warning.withValues(alpha: 0.14)
+                  : AppColors.warningContainer,
               child: Row(
                 children: [
-                  const Icon(Icons.privacy_tip, color: AppColors.warning),
+                  Icon(
+                    Icons.privacy_tip,
+                    color: isDark ? AppColors.warningLight : AppColors.warning,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -128,14 +136,16 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
                         Text(
                           'Gizlilik Bildirimi',
                           style: AppTypography.titleSmall.copyWith(
-                            color: AppColors.warning,
+                            color: isDark ? AppColors.warningLight : AppColors.warning,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Bu bilgiler sadece acil durumlarda yetkili kişiler tarafından görüntülenebilir. Tüm erişimler loglanır.',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral700,
+                            color: isDark
+                                ? cs.onSurfaceVariant
+                                : ThemeBrightnessHolder.onSurface,
                           ),
                         ),
                       ],
@@ -185,6 +195,8 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
   }
 
   Widget _buildViewMode(AsyncValue<IceCardEntity?>? iceCardAsync, bool isViewingOtherUser) {
+    final cs = Theme.of(context).colorScheme;
+
     return iceCardAsync?.when(
           data: (iceCard) {
             if (iceCard == null || !iceCard.hasEmergencyInfo) {
@@ -204,7 +216,7 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
                         _buildInfoItem('Yakınlık', iceCard.emergencyContactRelation!),
                     ],
                     icon: Icons.contact_phone,
-                    iconColor: AppColors.primary,
+                    iconColor: cs.primary,
                   ),
                   const SizedBox(height: 20),
                 ],
@@ -240,7 +252,7 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
                     'Ek Notlar',
                     [_buildInfoItem('', iceCard.additionalNotes!)],
                     icon: Icons.note,
-                    iconColor: AppColors.neutral500,
+                    iconColor: cs.onSurfaceVariant,
                   ),
                 ],
               ],
@@ -257,16 +269,16 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
+          Icon(
             Icons.medical_services_outlined,
             size: 64,
-            color: AppColors.neutral300,
+            color: ThemeBrightnessHolder.outlineVariant,
           ),
           const SizedBox(height: 16),
           Text(
             'Henüz ICE kartı oluşturulmadı',
             style: AppTypography.titleMedium.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
           if (!isViewingOtherUser) ...[
@@ -274,7 +286,7 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
             Text(
               'Acil durum bilgilerini eklemek için düzenle butonuna bas.',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral400,
+                color: ThemeBrightnessHolder.outline,
               ),
               textAlign: TextAlign.center,
             ),
@@ -296,6 +308,8 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
     required IconData icon,
     required Color iconColor,
   }) {
+    final cs = Theme.of(context).colorScheme;
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,7 +318,10 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
             children: [
               Icon(icon, color: iconColor, size: 20),
               const SizedBox(width: 8),
-              Text(title, style: AppTypography.titleSmall),
+              Text(
+                title,
+                style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
+              ),
             ],
           ),
           const Divider(height: 24),
@@ -315,6 +332,8 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
   }
 
   Widget _buildInfoItem(String label, String value) {
+    final cs = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
@@ -324,24 +343,29 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
             Text(
               label,
               style: AppTypography.labelSmall.copyWith(
-                color: AppColors.neutral500,
+                color: cs.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 4),
           ],
-          Text(value, style: AppTypography.bodyMedium),
+          Text(
+            value,
+            style: AppTypography.bodyMedium.copyWith(color: cs.onSurface),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildEditForm() {
+    final cs = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Acil Durumda Aranacak Kişi',
-          style: AppTypography.titleMedium,
+          style: AppTypography.titleMedium.copyWith(color: cs.onSurface),
         ),
         const SizedBox(height: 12),
         AppTextField(
@@ -366,7 +390,7 @@ class _IceCardPageState extends ConsumerState<IceCardPage> {
         const SizedBox(height: 24),
         Text(
           'Sağlık Bilgileri',
-          style: AppTypography.titleMedium,
+          style: AppTypography.titleMedium.copyWith(color: cs.onSurface),
         ),
         const SizedBox(height: 12),
         AppTextField(

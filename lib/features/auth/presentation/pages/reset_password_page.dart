@@ -8,6 +8,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/responsive.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Şifre sıfırlama linkine tıklandıktan sonra yeni şifre belirleme sayfası
 class ResetPasswordPage extends ConsumerStatefulWidget {
@@ -95,7 +96,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                       Text(
                         'Hesabınız için yeni bir şifre girin.',
                         style: AppTypography.bodyLarge.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.l),
@@ -114,7 +115,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                         suffix: IconButton(
                           icon: Icon(
                             _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
@@ -136,7 +137,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                         suffix: IconButton(
                           icon: Icon(
                             _obscureConfirm ? Icons.visibility_off : Icons.visibility,
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                           onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
                         ),

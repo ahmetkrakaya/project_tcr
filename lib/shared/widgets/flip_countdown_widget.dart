@@ -5,15 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_typography.dart';
 
-// Premium countdown renkleri (yarış teması)
-const Color _kCountdownBgStart = Color(0xFF1A1A2E);
-const Color _kCountdownBgEnd = Color(0xFF16213E);
-const Color _kCardFace = Color(0xFF1E2A3A);
-const Color _kHingeLine = Color(0xFF2A3548);
-const Color _kHingeGlow = Color(0xFFE94560); // Yarış vurgusu
-const Color _kDigitText = Color(0xFFF0F0F5);
-const Color _kDigitShadow = Color(0x40000000);
-
 /// Yarış etkinlikleri için premium flip-saat tarzı geri sayım.
 /// Klasik flip kart mekaniği: üst yarı menteşeden aşağı kapanır, alt yarı yeni rakamı gösterir.
 class FlipCountdownWidget extends StatefulWidget {
@@ -37,12 +28,6 @@ class _FlipCountdownWidgetState extends State<FlipCountdownWidget> {
   bool _isPast = false;
 
   DateTime _asLocalWallTime(DateTime dt) {
-    // DB/JSON tarafında timestamptz vs. kaynaklı UTC(+0) parse edilip
-    // uygulamada "yerel saat" olarak düşünülmüş etkinlik zamanlarında
-    // countdown 3 saat kayabiliyor (TR UTC+3).
-    //
-    // Burada "moment" değil "duvar saati" bazlı fark hesaplıyoruz:
-    // year/month/day/hour/minute/... bileşenlerini yerel DateTime'a taşıyoruz.
     return DateTime(
       dt.year,
       dt.month,
@@ -97,13 +82,15 @@ class _FlipCountdownWidgetState extends State<FlipCountdownWidget> {
   Widget build(BuildContext context) {
     if (_isPast) return const SizedBox.shrink();
 
+    final cs = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [_kCountdownBgStart, _kCountdownBgEnd],
+          colors: [cs.surfaceContainerHigh, cs.surfaceContainerHighest],
         ),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
@@ -113,7 +100,7 @@ class _FlipCountdownWidgetState extends State<FlipCountdownWidget> {
             offset: const Offset(0, 4),
           ),
           BoxShadow(
-            color: _kHingeGlow.withValues(alpha: 0.15),
+            color: cs.primary.withValues(alpha: 0.15),
             blurRadius: 20,
             offset: const Offset(0, 2),
           ),
@@ -123,24 +110,24 @@ class _FlipCountdownWidgetState extends State<FlipCountdownWidget> {
         mainAxisSize: MainAxisSize.min,
         children: [
           _FlipSegment(label: 'Gün', value: _days, segmentWidth: 38),
-          _buildDotSeparator(),
+          _buildDotSeparator(cs),
           _FlipSegment(label: 'Sa', value: _hours),
-          _buildDotSeparator(),
+          _buildDotSeparator(cs),
           _FlipSegment(label: 'Dk', value: _minutes),
-          _buildDotSeparator(),
+          _buildDotSeparator(cs),
           _FlipSegment(label: 'Sn', value: _seconds),
         ],
       ),
     );
   }
 
-  Widget _buildDotSeparator() {
+  Widget _buildDotSeparator(ColorScheme cs) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: Text(
         ':',
         style: AppTypography.titleLarge.copyWith(
-          color: _kDigitText.withValues(alpha: 0.5),
+          color: cs.onSurface.withValues(alpha: 0.5),
           fontWeight: FontWeight.w300,
           height: 1.2,
         ),
@@ -211,6 +198,8 @@ class _FlipSegmentState extends State<_FlipSegment>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -227,7 +216,7 @@ class _FlipSegmentState extends State<_FlipSegment>
         Text(
           widget.label,
           style: AppTypography.labelSmall.copyWith(
-            color: _kDigitText.withValues(alpha: 0.6),
+            color: cs.onSurfaceVariant,
             fontSize: 9,
             letterSpacing: 0.5,
             fontWeight: FontWeight.w500,
@@ -258,6 +247,7 @@ class _SplitFlipCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final showBottomAsNext = flipT >= 0.5;
 
     return SizedBox(
@@ -267,7 +257,6 @@ class _SplitFlipCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         child: Stack(
           children: [
-            // Column tam 34px: 17 + 17 (menteşe ayrı widget değil, taşma olmasın)
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -324,7 +313,6 @@ class _SplitFlipCard extends StatelessWidget {
                 ),
               ],
             ),
-            // Menteşe çizgisi overlay (Column'a dahil etmeden 1px taşmayı önledik)
             Positioned(
               top: _halfH - 0.5,
               left: 0,
@@ -336,9 +324,9 @@ class _SplitFlipCard extends StatelessWidget {
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                     colors: [
-                      _kHingeLine,
-                      _kHingeGlow.withValues(alpha: 0.6),
-                      _kHingeLine,
+                      cs.outlineVariant,
+                      cs.primary.withValues(alpha: 0.6),
+                      cs.outlineVariant,
                     ],
                   ),
                 ),
@@ -365,22 +353,27 @@ class _FullDigitContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final text = value.toString().padLeft(2, '0');
     final style = AppTypography.titleMedium.copyWith(
       fontWeight: FontWeight.w700,
-      color: _kDigitText,
+      color: cs.onSurface,
       fontSize: 18,
       height: 1.0,
       fontFeatures: const [FontFeature.tabularFigures()],
       shadows: [
-        Shadow(color: _kDigitShadow, blurRadius: 2, offset: const Offset(0, 1)),
+        Shadow(
+          color: Colors.black.withValues(alpha: 0.25),
+          blurRadius: 2,
+          offset: const Offset(0, 1),
+        ),
       ],
     );
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: _kCardFace,
+        color: cs.surfaceContainerHigh,
       ),
       alignment: Alignment.center,
       child: FittedBox(
@@ -416,7 +409,6 @@ class _HalfDigitFace extends StatelessWidget {
       height: fullHeight,
     );
 
-    // Sadece üst yarıyı göster: sabit yükseklik + ClipRect + içerik üstten hizalı
     final half = SizedBox(
       height: halfH,
       width: width,

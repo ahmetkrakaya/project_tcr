@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/route_entity.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Rota Harita Görünümü (flutter_map - OpenStreetMap / uydu, ücretsiz)
 /// 2D harita + rota çizgisi, başlangıç/bitiş işaretleri, flyover animasyonu.
@@ -416,15 +417,15 @@ class RouteMapViewState extends State<RouteMapView> {
   Widget _buildPlaceholder() {
     return Container(
       color: AppColors.neutral200,
-      child: const Center(
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.map_outlined, size: 48, color: AppColors.neutral400),
+            Icon(Icons.map_outlined, size: 48, color: ThemeBrightnessHolder.outline),
             SizedBox(height: 8),
             Text(
               'Rota koordinatları bulunamadı',
-              style: TextStyle(color: AppColors.neutral500),
+              style: TextStyle(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
           ],
         ),

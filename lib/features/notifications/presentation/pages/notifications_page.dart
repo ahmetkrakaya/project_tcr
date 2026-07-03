@@ -56,10 +56,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
     // Etkinlik oluşturuldu / güncellendi → etkinlik detay
     if (data['event_id'] != null &&
-        (type == 'event_created' ||
-            type == 'event_updated' ||
-            type == 'carpool_application' ||
-            type == 'carpool_application_response')) {
+        (type == NotificationTypes.eventCreated ||
+            type == NotificationTypes.eventUpdated ||
+            type == NotificationTypes.eventRsvpReminder ||
+            type == NotificationTypes.carpoolApplication ||
+            type == NotificationTypes.carpoolApplicationResponse)) {
       context.goNamed(RouteNames.eventDetail, pathParameters: {
         'eventId': data['event_id'] as String,
       });
@@ -132,18 +133,19 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(notificationsProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: AppColors.neutral200,
+      backgroundColor: cs.surfaceContainerHighest,
       appBar: AppBar(
         title: Text(
           'Bildirimler',
           style: AppTypography.titleLarge.copyWith(
             fontWeight: FontWeight.w600,
-            color: AppColors.onSurfaceLight,
+            color: cs.onSurface,
           ),
         ),
-        backgroundColor: AppColors.surfaceLight,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 1,
         actions: [
@@ -158,11 +160,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   onPressed: () async {
                     await ref.read(notificationsProvider.notifier).markAllAsRead();
                   },
-                  icon: Icon(Icons.done_all, size: 18, color: AppColors.primary),
+                  icon: Icon(Icons.done_all, size: 18, color: cs.primary),
                   label: Text(
                     'Tümünü okundu',
                     style: AppTypography.labelLarge.copyWith(
-                      color: AppColors.primary,
+                      color: cs.primary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -183,7 +185,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           }
           return RefreshIndicator(
             onRefresh: () => ref.read(notificationsProvider.notifier).refresh(),
-            color: AppColors.primary,
+            color: cs.primary,
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -194,8 +196,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _NotificationTile(
                     notification: n,
-                    onTap: () {
-                      ref.read(notificationsProvider.notifier).markAsRead(n.id);
+                    onTap: () async {
+                      await ref
+                          .read(notificationsProvider.notifier)
+                          .markAsRead(n.id);
                       _navigateFromNotification(n);
                     },
                   ),
@@ -234,14 +238,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 Text(
                   'Bildirimler yüklenemedi',
                   style: AppTypography.titleMedium.copyWith(
-                    color: AppColors.neutral800,
+                    color: cs.onSurface,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   err.toString(),
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: cs.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -249,11 +253,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 FilledButton.icon(
                   onPressed: () =>
                       ref.read(notificationsProvider.notifier).load(),
-                  icon: const Icon(Icons.refresh, size: 20),
+                  icon: Icon(Icons.refresh, size: 20),
                   label: const Text('Tekrar dene'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.onPrimary,
+                    backgroundColor: cs.primary,
+                    foregroundColor: cs.onPrimary,
                   ),
                 ),
               ],
@@ -276,11 +280,13 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
     final isUnread = notification.readAt == null;
-    final iconColor = _colorForType(notification.type);
+    final iconColor = _colorForType(context, notification.type);
 
     return Material(
-      color: AppColors.surfaceLight,
+      color: cs.surface,
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -292,17 +298,19 @@ class _NotificationTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: isUnread
-                  ? AppColors.primary.withValues(alpha: 0.25)
-                  : AppColors.neutral300.withValues(alpha: 0.5),
+                  ? cs.primary.withValues(alpha: 0.35)
+                  : cs.outlineVariant,
               width: isUnread ? 1.5 : 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            boxShadow: isDark
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,7 +322,7 @@ class _NotificationTile extends StatelessWidget {
                     width: 6,
                     height: 6,
                     decoration: BoxDecoration(
-                      color: AppColors.primary,
+                      color: cs.primary,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -342,7 +350,7 @@ class _NotificationTile extends StatelessWidget {
                       style: AppTypography.titleSmall.copyWith(
                         fontWeight:
                             isUnread ? FontWeight.w600 : FontWeight.w500,
-                        color: AppColors.neutral800,
+                        color: cs.onSurface,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -353,7 +361,7 @@ class _NotificationTile extends StatelessWidget {
                       Text(
                         notification.body!,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: cs.onSurfaceVariant,
                           height: 1.35,
                         ),
                         maxLines: 2,
@@ -366,13 +374,13 @@ class _NotificationTile extends StatelessWidget {
                         Icon(
                           Icons.schedule_outlined,
                           size: 12,
-                          color: AppColors.neutral400,
+                          color: cs.outline,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           timeago.format(notification.createdAt, locale: 'tr'),
                           style: AppTypography.labelSmall.copyWith(
-                            color: AppColors.neutral400,
+                            color: cs.outline,
                           ),
                         ),
                       ],
@@ -383,7 +391,7 @@ class _NotificationTile extends StatelessWidget {
               Icon(
                 Icons.chevron_right,
                 size: 20,
-                color: AppColors.neutral400,
+                color: cs.outline,
               ),
             ],
           ),
@@ -392,11 +400,13 @@ class _NotificationTile extends StatelessWidget {
     );
   }
 
-  Color _colorForType(String type) {
+  Color _colorForType(BuildContext context, String type) {
+    final accent = Theme.of(context).colorScheme.primary;
     switch (type) {
       case 'event_created':
       case 'event_updated':
-        return AppColors.primary;
+      case 'event_rsvp_reminder':
+        return accent;
       case 'carpool_application':
       case 'carpool_application_response':
         return AppColors.tertiary;
@@ -415,7 +425,7 @@ class _NotificationTile extends StatelessWidget {
       case 'order_status_changed':
         return AppColors.success;
       default:
-        return AppColors.primary;
+        return accent;
     }
   }
 
@@ -423,6 +433,7 @@ class _NotificationTile extends StatelessWidget {
     switch (type) {
       case 'event_created':
       case 'event_updated':
+      case 'event_rsvp_reminder':
         return Icons.event;
       case 'carpool_application':
       case 'carpool_application_response':

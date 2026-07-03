@@ -42,6 +42,7 @@ class _CreateDonationPageState extends ConsumerState<CreateDonationPage> {
     final creationState = ref.watch(donationCreationProvider);
     final isLoading = creationState is AsyncLoading;
     final isAdmin = ref.watch(isAdminProvider);
+    final cs = Theme.of(context).colorScheme;
     final eventsAsync = isAdmin && _selectedTargetUserId != null
         ? ref.watch(allRaceEventsProvider)
         : ref.watch(userParticipatedRaceEventsProvider);
@@ -69,13 +70,11 @@ class _CreateDonationPageState extends ConsumerState<CreateDonationPage> {
               const SizedBox(height: 8),
               activeMembersAsync!.when(
                 data: (members) => DropdownButtonFormField<String?>(
+                  isExpanded: true,
                   value: _selectedTargetUserId,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     hintText: 'Üye seçin (boş = kendiniz)',
-                    prefixIcon: const Icon(Icons.person_outline),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    prefixIcon: Icon(Icons.person_outline),
                   ),
                   items: [
                     const DropdownMenuItem<String?>(
@@ -118,16 +117,19 @@ class _CreateDonationPageState extends ConsumerState<CreateDonationPage> {
             ),
             const SizedBox(height: 8),
             SegmentedButton<bool>(
+              style: SegmentedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
               segments: const [
                 ButtonSegment(
                   value: true,
-                  label: Text('Etkinlikten Seç'),
-                  icon: Icon(Icons.event),
+                  label: Text('Etkinlik'),
+                  icon: Icon(Icons.event, size: 18),
                 ),
                 ButtonSegment(
                   value: false,
-                  label: Text('Manuel Giriş'),
-                  icon: Icon(Icons.edit),
+                  label: Text('Manuel'),
+                  icon: Icon(Icons.edit, size: 18),
                 ),
               ],
               selected: {_isFromEvent},
@@ -182,13 +184,11 @@ class _CreateDonationPageState extends ConsumerState<CreateDonationPage> {
                   }
 
                   return DropdownButtonFormField<String>(
+                    isExpanded: true,
                     value: _selectedEventId,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       hintText: 'Yarış seçin',
-                      prefixIcon: const Icon(Icons.emoji_events_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      prefixIcon: Icon(Icons.emoji_events_outlined),
                     ),
                     items: events.map((event) {
                       final eventDate = DateTime.parse(
@@ -307,13 +307,11 @@ class _CreateDonationPageState extends ConsumerState<CreateDonationPage> {
                   );
                 }
                 return DropdownButtonFormField<String>(
+                  isExpanded: true,
                   value: _selectedFoundationId,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     hintText: 'Vakıf seçin',
-                    prefixIcon: const Icon(Icons.favorite_outline),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    prefixIcon: Icon(Icons.favorite_outline),
                   ),
                   items: foundations.map((f) {
                     return DropdownMenuItem(
@@ -371,12 +369,12 @@ class _CreateDonationPageState extends ConsumerState<CreateDonationPage> {
               child: FilledButton(
                 onPressed: isLoading ? null : _submit,
                 child: isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 24,
                         height: 24,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: cs.onPrimary,
                         ),
                       )
                     : const Text('Bağışı Kaydet'),

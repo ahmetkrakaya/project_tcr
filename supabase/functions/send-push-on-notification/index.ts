@@ -84,10 +84,12 @@ async function sendFcm(
   projectId: string,
   fcmToken: string,
   record: NotificationRecord,
+  badgeCount: number,
 ): Promise<void> {
   const dataPayload: Record<string, string> = {
     type: record.type,
     notification_id: record.id,
+    badge_count: String(badgeCount),
   };
   if (record.data && typeof record.data === "object") {
     for (const [k, v] of Object.entries(record.data)) {
@@ -111,14 +113,16 @@ async function sendFcm(
     android["notification"] = {
       channel_id: "strava_watch_channel_v2",
       sound: soundName,
+      notification_count: badgeCount,
     };
   } else {
     android["notification"] = {
       channel_id: "tcr_notifications",
+      notification_count: badgeCount,
     };
   }
 
-  let aps: Record<string, unknown> = { sound: "default" };
+  let aps: Record<string, unknown> = { sound: "default", badge: badgeCount };
   if (isStravaWatch) {
     const soundRaw = record.data && typeof record.data === "object"
       ? (record.data as Record<string, unknown>).sound
@@ -126,7 +130,7 @@ async function sendFcm(
     const soundName = typeof soundRaw === "string" && soundRaw.startsWith("strava_alarm")
       ? soundRaw
       : "strava_alarm_1";
-    aps = { sound: `${soundName}.wav` };
+    aps = { sound: `${soundName}.wav`, badge: badgeCount };
   }
 
   const body = {
@@ -355,8 +359,31 @@ serve(async (req) => {
       "[send-push] Sending FCM to token (first 20 chars):",
       fcmToken.substring(0, 20) + "...",
     );
+
+    const { count: unreadCount, error: unreadError } = await supabase
+      .from("notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", record.user_id)
+      .is("read_at", null);
+
+    if (unreadError) {
+      console.error("[send-push] unread count query error:", unreadError);
+    }
+
+    const badgeCount = typeof unreadCount === "number" && unreadCount > 0
+      ? unreadCount
+      : 1;
+
+    console.log("[send-push] badge_count:", badgeCount);
+
     const accessToken = await getGoogleAccessToken(serviceAccount);
-    await sendFcm(accessToken, serviceAccount.project_id, fcmToken, record);
+    await sendFcm(
+      accessToken,
+      serviceAccount.project_id,
+      fcmToken,
+      record,
+      badgeCount,
+    );
     console.log("[send-push] FCM sent successfully");
 
     return new Response(

@@ -14,11 +14,14 @@ class PartnerCampaignModel {
     this.locationAddress,
     this.locationLat,
     this.locationLng,
+    this.promoCode,
+    this.websiteUrl,
     required this.startsAt,
     this.endsAt,
     required this.isActive,
     required this.sortOrder,
     this.qrRedemptionEnabled = false,
+    this.adminOnly = false,
     this.usageLimitType = 'once_per_day',
     this.usageLimitCount,
     this.successMessage,
@@ -40,11 +43,14 @@ class PartnerCampaignModel {
   final String? locationAddress;
   final double? locationLat;
   final double? locationLng;
+  final String? promoCode;
+  final String? websiteUrl;
   final DateTime startsAt;
   final DateTime? endsAt;
   final bool isActive;
   final int sortOrder;
   final bool qrRedemptionEnabled;
+  final bool adminOnly;
   final String usageLimitType;
   final int? usageLimitCount;
   final String? successMessage;
@@ -76,6 +82,8 @@ class PartnerCampaignModel {
       locationAddress: json['location_address'] as String?,
       locationLat: (json['location_lat'] as num?)?.toDouble(),
       locationLng: (json['location_lng'] as num?)?.toDouble(),
+      promoCode: json['promo_code'] as String?,
+      websiteUrl: json['website_url'] as String?,
       startsAt: DateTime.parse(json['starts_at'] as String),
       endsAt: json['ends_at'] != null
           ? DateTime.parse(json['ends_at'] as String)
@@ -83,6 +91,7 @@ class PartnerCampaignModel {
       isActive: json['is_active'] as bool? ?? true,
       sortOrder: json['sort_order'] as int? ?? 0,
       qrRedemptionEnabled: json['qr_redemption_enabled'] as bool? ?? false,
+      adminOnly: json['admin_only'] as bool? ?? false,
       usageLimitType: json['usage_limit_type'] as String? ?? 'once_per_day',
       usageLimitCount: json['usage_limit_count'] as int?,
       successMessage: json['success_message'] as String?,
@@ -111,11 +120,14 @@ class PartnerCampaignModel {
       'location_address': locationAddress,
       'location_lat': locationLat,
       'location_lng': locationLng,
+      'promo_code': promoCode,
+      'website_url': websiteUrl,
       'starts_at': startsAt.toUtc().toIso8601String(),
       'ends_at': endsAt?.toUtc().toIso8601String(),
       'is_active': isActive,
       'sort_order': sortOrder,
       'qr_redemption_enabled': qrRedemptionEnabled,
+      'admin_only': adminOnly,
       'usage_limit_type': usageLimitType,
       'usage_limit_count': usageLimitCount,
       'success_message': successMessage,
@@ -137,11 +149,14 @@ class PartnerCampaignModel {
     String? locationAddress,
     double? locationLat,
     double? locationLng,
+    String? promoCode,
+    String? websiteUrl,
     DateTime? startsAt,
     DateTime? endsAt,
     bool? isActive,
     int? sortOrder,
     bool? qrRedemptionEnabled,
+    bool? adminOnly,
     String? usageLimitType,
     int? usageLimitCount,
     String? successMessage,
@@ -161,11 +176,14 @@ class PartnerCampaignModel {
       locationAddress: locationAddress ?? this.locationAddress,
       locationLat: locationLat ?? this.locationLat,
       locationLng: locationLng ?? this.locationLng,
+      promoCode: promoCode ?? this.promoCode,
+      websiteUrl: websiteUrl ?? this.websiteUrl,
       startsAt: startsAt ?? this.startsAt,
       endsAt: endsAt ?? this.endsAt,
       isActive: isActive ?? this.isActive,
       sortOrder: sortOrder ?? this.sortOrder,
       qrRedemptionEnabled: qrRedemptionEnabled ?? this.qrRedemptionEnabled,
+      adminOnly: adminOnly ?? this.adminOnly,
       usageLimitType: usageLimitType ?? this.usageLimitType,
       usageLimitCount: usageLimitCount ?? this.usageLimitCount,
       successMessage: successMessage ?? this.successMessage,

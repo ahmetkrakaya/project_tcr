@@ -10,6 +10,7 @@ import '../../../../shared/widgets/app_card.dart';
 import '../../data/models/listing_model.dart';
 import '../../utils/listing_price_utils.dart';
 import '../providers/marketplace_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Favorites Page
 class FavoritesPage extends ConsumerStatefulWidget {
@@ -64,7 +65,7 @@ class _FavoritesPageState extends ConsumerState<FavoritesPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.favorite_border, size: 64, color: AppColors.neutral400),
+                  Icon(Icons.favorite_border, size: 64, color: ThemeBrightnessHolder.outline),
                   const SizedBox(height: 16),
                   Text(
                     'Henüz favori ürün yok',
@@ -73,7 +74,7 @@ class _FavoritesPageState extends ConsumerState<FavoritesPage> {
                   const SizedBox(height: 8),
                   Text(
                     'Beğendiğin ürünleri favorilere ekleyebilirsin',
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                    style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -143,7 +144,7 @@ class _FavoritesPageState extends ConsumerState<FavoritesPage> {
               const SizedBox(height: 8),
               Text(
                 error.toString(),
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -210,20 +211,20 @@ class _FavoritesPageState extends ConsumerState<FavoritesPage> {
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   );
                                 },
-                                errorBuilder: (context, error, stackTrace) => const Center(
+                                errorBuilder: (context, error, stackTrace) => Center(
                                   child: Icon(
                                     Icons.image,
                                     size: 48,
-                                    color: AppColors.neutral400,
+                                    color: ThemeBrightnessHolder.outline,
                                   ),
                                 ),
                               ),
                             )
-                          : const Center(
+                          : Center(
                               child: Icon(
                                 Icons.image,
                                 size: 48,
-                                color: AppColors.neutral400,
+                                color: ThemeBrightnessHolder.outline,
                               ),
                             ),
                     ),
@@ -251,7 +252,7 @@ class _FavoritesPageState extends ConsumerState<FavoritesPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.verified,
                               size: 12,
                               color: Colors.white,
@@ -297,7 +298,7 @@ class _FavoritesPageState extends ConsumerState<FavoritesPage> {
                         Text(
                           _buildSubtitle(listing),
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

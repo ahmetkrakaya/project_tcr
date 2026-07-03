@@ -6,6 +6,7 @@ import '../../../../shared/providers/auth_provider.dart';
 import '../../constants/notification_types.dart';
 import '../../data/datasources/notification_remote_datasource.dart';
 import '../../data/models/notification_model.dart';
+import '../../../../core/notifications/app_icon_badge_service.dart';
 
 final notificationDataSourceProvider = Provider<NotificationRemoteDataSource>((ref) {
   final supabase = ref.watch(supabaseClientProvider);
@@ -86,6 +87,7 @@ class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationMo
       }).toList());
     });
     _ref.invalidate(unreadNotificationCountProvider);
+    await _syncAppIconBadge(_ref);
   }
 
   Future<void> markAllAsRead() async {
@@ -105,6 +107,16 @@ class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationMo
       }).toList());
     });
     _ref.invalidate(unreadNotificationCountProvider);
+    await _syncAppIconBadge(_ref);
+  }
+}
+
+Future<void> _syncAppIconBadge(Ref ref) async {
+  try {
+    final count = await ref.read(unreadNotificationCountProvider.future);
+    await AppIconBadgeService.update(count);
+  } catch (_) {
+    await AppIconBadgeService.update(0);
   }
 }
 

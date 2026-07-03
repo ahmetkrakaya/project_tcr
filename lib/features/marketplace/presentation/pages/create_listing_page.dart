@@ -17,6 +17,8 @@ import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/listing_model.dart';
 import '../../utils/listing_price_utils.dart';
 import '../providers/marketplace_provider.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Create Listing Page
 class CreateListingPage extends ConsumerStatefulWidget {
@@ -267,7 +269,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                 Text(
                   'TCR ürünleri sadece adminler tarafından oluşturulabilir.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -280,7 +282,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final pageBackground =
-        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+        ThemeBrightnessHolder.scaffoldBackground;
 
     return Scaffold(
       backgroundColor: pageBackground,
@@ -297,7 +299,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                   ),
                 )
               : IconButton(
-                  icon: const Icon(Icons.check),
+                  icon: Icon(Icons.check),
                   tooltip: isEdit ? 'Güncelle' : 'Oluştur',
                   onPressed: _handleSubmit,
                 ),
@@ -409,14 +411,15 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
               final shouldShow = priceHasFocus || stockHasFocus;
               
               if (shouldShow) {
+                final cs = Theme.of(context).colorScheme;
                 return Positioned(
                   bottom: keyboardBottom + 16,
                   right: 20,
                   child: Material(
-                    color: AppColors.primary,
+                    color: cs.primary,
                     borderRadius: BorderRadius.circular(20),
                     elevation: 8,
-                    shadowColor: AppColors.primary.withValues(alpha: 0.5),
+                    shadowColor: cs.primary.withValues(alpha: 0.5),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(20),
                       onTap: () {
@@ -431,10 +434,10 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                         width: 44,
                         height: 44,
                         alignment: Alignment.center,
-                        child: const Icon(
+                        child: Icon(
                           Icons.keyboard_hide,
                           size: 24,
-                          color: Colors.white,
+                          color: cs.onPrimary,
                         ),
                       ),
                     ),
@@ -454,12 +457,9 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
     String? subtitle,
     required Widget child,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panelColor =
-        isDark ? AppColors.backgroundDark : AppColors.neutral200;
-    final borderColor = isDark
-        ? AppColors.neutral400.withValues(alpha: 0.15)
-        : AppColors.neutral300;
+    final cs = Theme.of(context).colorScheme;
+    final panelColor = cs.surfaceContainerHighest;
+    final borderColor = cs.outlineVariant;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -467,7 +467,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
         Text(
           title.toUpperCase(),
           style: AppTypography.labelSmall.copyWith(
-            color: AppColors.neutral500,
+            color: cs.onSurfaceVariant,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.0,
           ),
@@ -477,7 +477,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
           Text(
             subtitle,
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral500,
+              color: cs.onSurfaceVariant,
             ),
           ),
         ],
@@ -506,9 +506,9 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceDark : AppColors.neutral100,
+          color: ThemeBrightnessHolder.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
         ),
         child: Row(
           children: [
@@ -519,7 +519,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                   Text(
                     'Kategori',
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -532,9 +532,9 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ],
         ),
@@ -576,7 +576,9 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
           title: const Text('İndirim uygula'),
           subtitle: const Text('Süreli kampanya fiyatı tanımlayın'),
           value: _discountEnabled,
-          activeThumbColor: AppColors.primary,
+          activeThumbColor: Theme.of(context).colorScheme.primary,
+          activeTrackColor:
+              Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
           onChanged: (value) {
             setState(() {
               _discountEnabled = value;
@@ -657,9 +659,9 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceDark : AppColors.neutral100,
+          color: ThemeBrightnessHolder.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
         ),
         child: Row(
           children: [
@@ -670,7 +672,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                   Text(
                     label,
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -683,7 +685,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                 ],
               ),
             ),
-            const Icon(Icons.calendar_today_outlined, size: 18),
+            Icon(Icons.calendar_today_outlined, size: 18),
           ],
         ),
       ),
@@ -760,7 +762,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
         Text(
           'Stok tipi',
           style: AppTypography.labelMedium.copyWith(
-            color: AppColors.neutral600,
+            color: ThemeBrightnessHolder.onSurfaceVariant,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -768,9 +770,9 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
         Container(
           height: 48,
           decoration: BoxDecoration(
-            color: AppColors.neutral100,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.neutral300),
+            border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
           ),
           padding: const EdgeInsets.all(3),
           child: Row(
@@ -818,7 +820,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
           Text(
             'Beden bazlı stok',
             style: AppTypography.labelMedium.copyWith(
-              color: AppColors.neutral600,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -869,7 +871,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
           Text(
             'Beden + cinsiyet stoku',
             style: AppTypography.labelMedium.copyWith(
-              color: AppColors.neutral600,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -947,6 +949,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
     required ListingGenderMode mode,
     required String label,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final isSelected = _stockGenderMode == mode;
     return Expanded(
       child: Material(
@@ -962,13 +965,13 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
             duration: const Duration(milliseconds: 180),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: isSelected ? AppColors.primary : Colors.transparent,
+              color: isSelected ? cs.primary : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               label,
               style: AppTypography.titleSmall.copyWith(
-                color: isSelected ? Colors.white : AppColors.neutral700,
+                color: isSelected ? cs.onPrimary : cs.onSurface,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -979,14 +982,14 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
   }
 
   void _showCategoryMenu() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (context) {
+        final cs = Theme.of(context).colorScheme;
+        return Container(
         decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceDark : Colors.white,
+          color: cs.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
@@ -999,7 +1002,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: cs.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1012,11 +1015,12 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                       'Kategori Seçin',
                       style: AppTypography.titleMedium.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
                       ),
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: Icon(Icons.close, color: cs.onSurfaceVariant),
                       onPressed: () => Navigator.pop(context),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -1042,13 +1046,13 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                         _getCategoryName(category),
                         style: AppTypography.bodyLarge.copyWith(
                           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                          color: isSelected ? AppColors.primary : AppColors.onSurfaceLight,
+                          color: isSelected ? cs.primary : cs.onSurface,
                         ),
                       ),
                       trailing: isSelected
                           ? Icon(
                               Icons.check_circle,
-                              color: AppColors.primary,
+                              color: cs.primary,
                             )
                           : null,
                       onTap: () {
@@ -1065,7 +1069,8 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
             ],
           ),
         ),
-      ),
+      );
+      },
     );
   }
 
@@ -1073,7 +1078,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
   Widget _buildImagePicker() {
     final hasImages =
         _imageUrls.isNotEmpty || _selectedImageFiles.isNotEmpty;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1114,15 +1119,14 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: _isSubmitting ? null : _pickImages,
-            icon: const Icon(Icons.add_photo_alternate_outlined),
+            icon: Icon(Icons.add_photo_alternate_outlined),
             label: Text(hasImages ? 'Görsel Ekle' : 'İlk görseli ekle'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
+              foregroundColor: cs.primary,
               side: BorderSide(
-                color: AppColors.primary.withValues(alpha: 0.4),
+                color: cs.primary.withValues(alpha: 0.4),
               ),
-              backgroundColor:
-                  isDark ? AppColors.surfaceDark : AppColors.neutral100,
+              backgroundColor: cs.surfaceContainerHighest,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -1136,7 +1140,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
             child: Text(
               '${_selectedImageFiles.length} görsel kayıt sırasında yüklenecek',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ),
@@ -1155,7 +1159,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
       margin: const EdgeInsets.only(right: 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.neutral300),
+        border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
       ),
       child: Stack(
         children: [
@@ -1169,7 +1173,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: AppColors.neutral200,
-                      child: const Icon(Icons.broken_image),
+                      child: Icon(Icons.broken_image),
                     ),
                   )
                 : kIsWeb
@@ -1195,7 +1199,7 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: const Icon(Icons.close, size: 18, color: Colors.white),
+                icon: Icon(Icons.close, size: 18, color: Colors.white),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
                 onPressed: onDelete,
@@ -1214,12 +1218,12 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_library),
+              leading: Icon(Icons.photo_library),
               title: const Text('Galeriden Seç'),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             ListTile(
-              leading: const Icon(Icons.camera_alt),
+              leading: Icon(Icons.camera_alt),
               title: const Text('Kamera ile Çek'),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),

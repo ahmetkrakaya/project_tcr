@@ -125,6 +125,17 @@ serve(async (req) => {
         return new Response('OK', { headers: corsHeaders, status: 200 });
       }
 
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('is_active, user_status')
+        .eq('id', integration.user_id)
+        .maybeSingle();
+
+      if (!userRow || userRow.is_active !== true || userRow.user_status !== 'active') {
+        console.log(`[Webhook] Skipping sync for inactive/banned user ${integration.user_id}`);
+        return new Response('OK', { headers: corsHeaders, status: 200 });
+      }
+
       console.log(`[Webhook] Found integration for user ${integration.user_id}`);
 
       // Token süresi dolmuşsa yenile

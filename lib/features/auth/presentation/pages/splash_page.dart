@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/app_shortcuts/app_shortcuts_handler.dart';
 import '../../../../core/deep_link/deep_link_handler.dart';
 import '../../../../core/notifications/notification_handler.dart';
+import '../../../../core/notifications/notification_open_handler.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/services/update_check_service.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -176,6 +179,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final message = getPendingInitialMessage();
       if (message != null) {
+        unawaited(handleNotificationOpen(ref, message));
         navigateFromNotification(router, message);
       }
     });

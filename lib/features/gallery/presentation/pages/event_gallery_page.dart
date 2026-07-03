@@ -4,6 +4,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Event Gallery Page
 class EventGalleryPage extends ConsumerWidget {
@@ -18,7 +19,7 @@ class EventGalleryPage extends ConsumerWidget {
         title: const Text('Fotoğraflar'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_photo_alternate),
+            icon: Icon(Icons.add_photo_alternate),
             onPressed: () {
               // Add photo
             },
@@ -67,7 +68,7 @@ class EventGalleryPage extends ConsumerWidget {
                   child: Icon(
                     Icons.photo,
                     size: 40,
-                    color: AppColors.neutral400,
+                    color: ThemeBrightnessHolder.outline,
                   ),
                 ),
               ),
@@ -89,7 +90,7 @@ class EventGalleryPage extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.photo_library,
                         size: 14,
                         color: Colors.white,
@@ -168,19 +169,19 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.download),
+            icon: Icon(Icons.download),
             onPressed: () {
               // Download photo
             },
           ),
           IconButton(
-            icon: const Icon(Icons.share),
+            icon: Icon(Icons.share),
             onPressed: () {
               // Share photo
             },
           ),
           IconButton(
-            icon: const Icon(Icons.more_vert),
+            icon: Icon(Icons.more_vert),
             onPressed: () {
               // More options
             },
@@ -201,11 +202,11 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
                 AppColors.secondaryContainer,
                 index / widget.totalPhotos,
               ),
-              child: const Center(
+              child: Center(
                 child: Icon(
                   Icons.photo,
                   size: 100,
-                  color: AppColors.neutral400,
+                  color: ThemeBrightnessHolder.outline,
                 ),
               ),
             ),
@@ -219,12 +220,12 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
-                icon: const Icon(Icons.favorite_border, color: Colors.white),
+                icon: Icon(Icons.favorite_border, color: Colors.white),
                 onPressed: () {},
               ),
               const SizedBox(width: 32),
               IconButton(
-                icon: const Icon(Icons.comment_outlined, color: Colors.white),
+                icon: Icon(Icons.comment_outlined, color: Colors.white),
                 onPressed: () {},
               ),
             ],

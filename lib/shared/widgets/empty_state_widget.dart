@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../core/utils/extensions.dart';
 import 'app_button.dart';
+import '../../core/theme/theme_brightness_holder.dart';
 
 /// Empty State Widget
 class EmptyStateWidget extends StatelessWidget {
@@ -26,6 +28,7 @@ class EmptyStateWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = context.colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -43,20 +46,20 @@ class EmptyStateWidget extends StatelessWidget {
                 width: iconSize + 40,
                 height: iconSize + 40,
                 decoration: BoxDecoration(
-                  color: AppColors.primaryContainer.withValues(alpha: 0.3),
+                  color: cs.primaryContainer.withValues(alpha: 0.3),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   icon,
                   size: iconSize,
-                  color: AppColors.primary.withValues(alpha: 0.7),
+                  color: cs.primary.withValues(alpha: 0.7),
                 ),
               ),
             const SizedBox(height: 24),
             Text(
               title,
               style: AppTypography.titleLarge.copyWith(
-                color: AppColors.neutral700,
+                color: cs.onSurface,
               ),
               textAlign: TextAlign.center,
             ),
@@ -65,7 +68,7 @@ class EmptyStateWidget extends StatelessWidget {
               Text(
                 description!,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral500,
+                  color: cs.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -102,6 +105,7 @@ class ErrorStateWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = context.colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -125,7 +129,7 @@ class ErrorStateWidget extends StatelessWidget {
             Text(
               title ?? 'Bir Hata Oluştu',
               style: AppTypography.titleLarge.copyWith(
-                color: AppColors.neutral700,
+                color: cs.onSurface,
               ),
               textAlign: TextAlign.center,
             ),
@@ -134,7 +138,7 @@ class ErrorStateWidget extends StatelessWidget {
               Text(
                 message!,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral500,
+                  color: cs.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -189,6 +193,7 @@ class ContentNotFoundWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = context.colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -199,20 +204,20 @@ class ContentNotFoundWidget extends StatelessWidget {
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: AppColors.neutral200,
+                color: cs.surfaceContainerHighest,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.search_off,
                 size: 56,
-                color: AppColors.neutral500,
+                color: cs.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 24),
             Text(
               'İçerik Bulunamadı',
               style: AppTypography.titleLarge.copyWith(
-                color: AppColors.neutral700,
+                color: cs.onSurface,
               ),
               textAlign: TextAlign.center,
             ),
@@ -220,7 +225,7 @@ class ContentNotFoundWidget extends StatelessWidget {
             Text(
               'Bu içerik artık mevcut değil veya silinmiş olabilir.',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),

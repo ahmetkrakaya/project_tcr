@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_brightness_holder.dart';
 
 /// TCR Custom Card Widget
 class AppCard extends StatelessWidget {
@@ -29,22 +30,21 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     Widget card = Container(
       padding: padding ?? const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: gradient == null
-            ? (backgroundColor ??
-                (isDark ? AppColors.surfaceDark : AppColors.surfaceLight))
-            : null,
+        color: gradient == null ? (backgroundColor ?? cs.surface) : null,
         gradient: gradient,
         borderRadius: borderRadius ?? BorderRadius.circular(AppTheme.radiusMd),
         border: border,
         boxShadow: elevation != null && elevation! > 0
             ? [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: Colors.black.withValues(
+                    alpha: cs.brightness == Brightness.dark ? 0.25 : 0.05,
+                  ),
                   blurRadius: elevation! * 2,
                   offset: Offset(0, elevation!),
                 ),
@@ -151,7 +151,7 @@ class EventCard extends StatelessWidget {
                     Text(
                       time,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                     ),
                     const Spacer(),
@@ -168,7 +168,7 @@ class EventCard extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.check,
                               size: 12,
                               color: AppColors.success,
@@ -197,7 +197,7 @@ class EventCard extends StatelessWidget {
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -205,16 +205,16 @@ class EventCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.people_outline,
                       size: 16,
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       '$participantCount katılımcı',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                     ),
                   ],
@@ -285,7 +285,7 @@ class StatCard extends StatelessWidget {
                   child: Text(
                     unit!,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                   ),
                 ),
@@ -296,7 +296,7 @@ class StatCard extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
           ),
         ],

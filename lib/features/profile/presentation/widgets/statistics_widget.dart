@@ -8,6 +8,7 @@ import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/providers/auth_provider.dart';
 import '../../domain/entities/period_statistics_entity.dart';
 import '../providers/statistics_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// İstatistikler Widget
 /// Strava benzeri haftalık/aylık istatistik gösterimi
@@ -201,7 +202,7 @@ class _StatisticsWidgetState extends ConsumerState<StatisticsWidget> {
           Text(
             label,
             style: AppTypography.labelSmall.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
             textAlign: TextAlign.center,
           ),
@@ -220,13 +221,13 @@ class _StatisticsWidgetState extends ConsumerState<StatisticsWidget> {
               Icon(
                 Icons.bar_chart_outlined,
                 size: 48,
-                color: AppColors.neutral400,
+                color: ThemeBrightnessHolder.outline,
               ),
               const SizedBox(height: 8),
               Text(
                 'Henüz aktivite yok',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
               ),
             ],
@@ -289,7 +290,7 @@ class _StatisticsWidgetState extends ConsumerState<StatisticsWidget> {
                           child: Text(
                             _isWeekly ? dayStats.dayName : dayStats.dayOfMonth.toString(),
                             style: AppTypography.labelSmall.copyWith(
-                              color: AppColors.neutral500,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                           ),
                         );
@@ -306,7 +307,7 @@ class _StatisticsWidgetState extends ConsumerState<StatisticsWidget> {
                         return Text(
                           value.toStringAsFixed(0),
                           style: AppTypography.labelSmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                         );
                       },
@@ -325,7 +326,7 @@ class _StatisticsWidgetState extends ConsumerState<StatisticsWidget> {
                   horizontalInterval: maxDistance > 0 ? maxDistance / 4 : 2.5,
                   getDrawingHorizontalLine: (value) {
                     return FlLine(
-                      color: AppColors.neutral300,
+                      color: ThemeBrightnessHolder.outlineVariant,
                       strokeWidth: 1,
                     );
                   },
@@ -334,11 +335,11 @@ class _StatisticsWidgetState extends ConsumerState<StatisticsWidget> {
                   show: true,
                   border: Border(
                     bottom: BorderSide(
-                      color: AppColors.neutral300,
+                      color: ThemeBrightnessHolder.outlineVariant,
                       width: 1,
                     ),
                     left: BorderSide(
-                      color: AppColors.neutral300,
+                      color: ThemeBrightnessHolder.outlineVariant,
                       width: 1,
                     ),
                   ),

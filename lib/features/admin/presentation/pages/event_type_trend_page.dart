@@ -117,7 +117,14 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
   }
 
   Widget _rangeSelector() {
+    final cs = Theme.of(context).colorScheme;
     return SegmentedButton<int>(
+      style: SegmentedButton.styleFrom(
+        selectedBackgroundColor: cs.primary.withValues(alpha: 0.2),
+        selectedForegroundColor: cs.primary,
+        foregroundColor: cs.onSurfaceVariant,
+        side: BorderSide(color: cs.outlineVariant),
+      ),
       segments: const [
         ButtonSegment(value: 3, label: Text('3 Ay')),
         ButtonSegment(value: 6, label: Text('6 Ay')),
@@ -130,6 +137,7 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
   }
 
   Widget _typeTotals(List<EventTypeTrendItem> items) {
+    final cs = Theme.of(context).colorScheme;
     final byType = <String, ({int events, int participants})>{};
     for (final i in items) {
       final cur = byType[i.eventType] ?? (events: 0, participants: 0);
@@ -144,13 +152,21 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Türe Göre Toplam',
-            style: AppTypography.titleSmall
-                .copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          'Türe Göre Toplam',
+          style: AppTypography.titleSmall.copyWith(
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
+        ),
         const SizedBox(height: 12),
         ...entries.map((e) {
-          final color = _eventTypeColors[e.key] ?? AppColors.neutral500;
+          final color = _eventTypeColors[e.key] ?? cs.onSurfaceVariant;
           final label = _eventTypeLabels[e.key] ?? e.key;
+          final displayColor = cs.brightness == Brightness.dark &&
+                  color.computeLuminance() < 0.45
+              ? Color.lerp(color, Colors.white, 0.45)!
+              : color;
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: AppCard(
@@ -160,22 +176,35 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
                   Container(
                     width: 10,
                     height: 10,
-                    decoration:
-                        BoxDecoration(color: color, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: displayColor,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(label,
-                        style: AppTypography.bodyMedium
-                            .copyWith(fontWeight: FontWeight.w600)),
+                    child: Text(
+                      label,
+                      style: AppTypography.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
+                    ),
                   ),
-                  Text('${e.value.events} etkinlik',
-                      style: AppTypography.labelMedium
-                          .copyWith(color: AppColors.neutral600)),
+                  Text(
+                    '${e.value.events} etkinlik',
+                    style: AppTypography.labelMedium.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(width: 12),
-                  Text('${e.value.participants} katılım',
-                      style: AppTypography.titleSmall
-                          .copyWith(fontWeight: FontWeight.w700, color: color)),
+                  Text(
+                    '${e.value.participants} katılım',
+                    style: AppTypography.titleSmall.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: displayColor,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -186,6 +215,7 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
   }
 
   Widget _monthlyChart(List<EventTypeTrendItem> items) {
+    final cs = Theme.of(context).colorScheme;
     // Ay bazinda toplam katilim
     final months = <String>{for (final i in items) i.month}.toList()..sort();
     final monthTotals = <String, int>{};
@@ -203,9 +233,13 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Aylık Katılım',
-              style: AppTypography.titleSmall
-                  .copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            'Aylık Katılım',
+            style: AppTypography.titleSmall.copyWith(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: 16),
           SizedBox(
             height: 200,
@@ -216,10 +250,12 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
                 barTouchData: BarTouchData(
                   enabled: true,
                   touchTooltipData: BarTouchTooltipData(
-                    getTooltipColor: (_) => AppColors.primary,
+                    getTooltipColor: (_) => cs.inverseSurface,
                     getTooltipItem: (group, _, rod, __) => BarTooltipItem(
                       '${months[group.x.toInt()]}\n${rod.toY.round()} katılım',
-                      AppTypography.labelSmall.copyWith(color: Colors.white),
+                      AppTypography.labelSmall.copyWith(
+                        color: cs.onInverseSurface,
+                      ),
                     ),
                   ),
                 ),
@@ -236,7 +272,7 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
                         if (value == meta.max) return const SizedBox.shrink();
                         return Text(value.toInt().toString(),
                             style: AppTypography.labelSmall
-                                .copyWith(color: AppColors.neutral500));
+                                .copyWith(color: cs.onSurfaceVariant));
                       },
                     ),
                   ),
@@ -255,7 +291,7 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(parts.length > 1 ? parts[1] : months[idx],
                               style: AppTypography.labelSmall
-                                  .copyWith(color: AppColors.neutral500)),
+                                  .copyWith(color: cs.onSurfaceVariant)),
                         );
                       },
                     ),
@@ -265,7 +301,7 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
                   show: true,
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (_) =>
-                      FlLine(color: AppColors.neutral300, strokeWidth: 1),
+                      FlLine(color: cs.outlineVariant, strokeWidth: 1),
                 ),
                 borderData: FlBorderData(show: false),
                 barGroups: [
@@ -275,7 +311,7 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
                       barRods: [
                         BarChartRodData(
                           toY: monthTotals[months[i]]!.toDouble(),
-                          color: AppColors.primary.withValues(alpha: 0.7),
+                          color: cs.primary.withValues(alpha: 0.85),
                           width: 16,
                           borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(4)),
@@ -291,32 +327,47 @@ class _EventTypeTrendPageState extends ConsumerState<EventTypeTrendPage> {
     );
   }
 
-  Widget _noAccess() => Center(
+  Widget _noAccess() {
+    final cs = Theme.of(context).colorScheme;
+    return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text('Bu sayfaya erişim yetkiniz yok.',
-              style: AppTypography.bodyMedium
-                  .copyWith(color: AppColors.neutral500),
-              textAlign: TextAlign.center),
+          child: Text(
+            'Bu sayfaya erişim yetkiniz yok.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ),
       );
+  }
 
-  Widget _error(Object e, VoidCallback onRetry) => Center(
+  Widget _error(Object e, VoidCallback onRetry) {
+    final cs = Theme.of(context).colorScheme;
+    return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Rapor yüklenemedi', style: AppTypography.titleSmall),
+              Text(
+                'Rapor yüklenemedi',
+                style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
+              ),
               const SizedBox(height: 8),
-              Text(e.toString(),
-                  style: AppTypography.bodySmall
-                      .copyWith(color: AppColors.neutral500),
-                  textAlign: TextAlign.center),
+              Text(
+                e.toString(),
+                style: AppTypography.bodySmall.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 16),
               FilledButton(onPressed: onRetry, child: const Text('Tekrar Dene')),
             ],
           ),
         ),
       );
+  }
 }

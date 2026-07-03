@@ -9,6 +9,7 @@ import '../../../../core/utils/vdot_calculator.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../domain/entities/workout_entity.dart';
 import '../../utils/segment_target_resolver.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Sadece rakam girilen pace alanını otomatik `m:ss` formatına çevirir.
 /// Kullanım: kullanıcı "730" yazarsa "7:30", "1030" yazarsa "10:30".
@@ -358,7 +359,7 @@ class _WorkoutSegmentEditorState extends ConsumerState<WorkoutSegmentEditor> {
                           style: AppTypography.titleMedium,
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close),
+                          icon: Icon(Icons.close),
                           onPressed: () => Navigator.pop(context, null),
                         ),
                       ],
@@ -404,7 +405,7 @@ class _WorkoutSegmentEditorState extends ConsumerState<WorkoutSegmentEditor> {
                           subtitle: Text(
                             _StepRowState._buildSegmentSummary(segment),
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral600,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                           ),
                         );
@@ -660,7 +661,7 @@ class _WorkoutSegmentEditorState extends ConsumerState<WorkoutSegmentEditor> {
             Flexible(
               child: Text(
                 'Antrenman adımları',
-                style: AppTypography.labelMedium.copyWith(color: AppColors.neutral600),
+                style: AppTypography.labelMedium.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -671,7 +672,7 @@ class _WorkoutSegmentEditorState extends ConsumerState<WorkoutSegmentEditor> {
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
                   onPressed: _addSegment,
-                  icon: const Icon(Icons.add, size: 18),
+                  icon: Icon(Icons.add, size: 18),
                   label: const Text('Segment'),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -688,7 +689,7 @@ class _WorkoutSegmentEditorState extends ConsumerState<WorkoutSegmentEditor> {
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
                   onPressed: _addRepeat,
-                  icon: const Icon(Icons.repeat, size: 18),
+                  icon: Icon(Icons.repeat, size: 18),
                   label: const Text('Tekrar'),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -710,12 +711,12 @@ class _WorkoutSegmentEditorState extends ConsumerState<WorkoutSegmentEditor> {
             ),
             child: Row(
               children: [
-                Icon(Icons.fitness_center, color: AppColors.neutral400, size: 24),
+                Icon(Icons.fitness_center, color: ThemeBrightnessHolder.outline, size: 24),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Segment veya Tekrar ekleyerek antrenmanı oluşturun. FIT/TCX export için yapılandırılmış antrenman kullanılır.',
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+                    style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                   ),
                 ),
               ],
@@ -1047,10 +1048,10 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
                         width: 24,
                         height: 24,
                         alignment: Alignment.center,
-                        child: const Icon(
+                        child: Icon(
                           Icons.close,
                           size: 20,
-                          color: AppColors.neutral600,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -1064,7 +1065,7 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
             const SizedBox(height: 8),
             Text(
               _StepRowState._buildSegmentSummary(s),
-              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+              style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
           ] else ...[
             const SizedBox(height: 12),
@@ -1208,7 +1209,7 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
                             _formatDuration(s.durationSeconds ?? 300),
                             style: AppTypography.bodyMedium,
                           ),
-                          Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+                          Icon(Icons.arrow_drop_down, color: ThemeBrightnessHolder.onSurfaceVariant),
                         ],
                       ),
                     ),
@@ -1261,7 +1262,7 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
                             _formatDistance(s.distanceMeters ?? 1000),
                             style: AppTypography.bodyMedium,
                           ),
-                          Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+                          Icon(Icons.arrow_drop_down, color: ThemeBrightnessHolder.onSurfaceVariant),
                         ],
                       ),
                     ),
@@ -1914,7 +1915,7 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
       children: [
         Text(
           'Performans hedefi',
-          style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600),
+          style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
         ),
         const SizedBox(height: 6),
         Container(
@@ -1981,7 +1982,7 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
       children: [
         Text(
           'Hedef süre (split)',
-          style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600),
+          style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
         ),
         const SizedBox(height: 6),
         if (hasRange)
@@ -2103,9 +2104,9 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500)),
+            Text(label, style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant)),
             Text(_formatDuration(seconds), style: AppTypography.bodyMedium),
-            Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+            Icon(Icons.arrow_drop_down, color: ThemeBrightnessHolder.onSurfaceVariant),
           ],
         ),
       ),
@@ -2150,7 +2151,7 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
           children: [
             Row(
               children: [
-                const Icon(Icons.repeat, size: 20, color: AppColors.primary),
+                Icon(Icons.repeat, size: 20, color: AppColors.primary),
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
@@ -2195,7 +2196,7 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, size: 20),
+                  icon: Icon(Icons.close, size: 20),
                   onPressed: widget.onRemove,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -2373,7 +2374,7 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
                           style: AppTypography.titleMedium,
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close),
+                          icon: Icon(Icons.close),
                           onPressed: () => Navigator.pop(context, null),
                         ),
                       ],
@@ -2419,7 +2420,7 @@ class _StepRowState extends ConsumerState<_StepRow> with WidgetsBindingObserver 
                           subtitle: Text(
                             _buildSegmentSummaryForRepeat(segment),
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral600,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                           ),
                         );
@@ -2760,10 +2761,10 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> with
                         width: 24,
                         height: 24,
                         alignment: Alignment.center,
-                        child: const Icon(
+                        child: Icon(
                           Icons.close,
                           size: 20,
-                          color: AppColors.neutral600,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -2776,7 +2777,7 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> with
             const SizedBox(height: 8),
             Text(
               _StepRowState._buildSegmentSummary(s),
-              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+              style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
           ] else ...[
             const SizedBox(height: 12),
@@ -2920,7 +2921,7 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> with
                               _formatDuration(s.durationSeconds ?? 300),
                               style: AppTypography.bodyMedium,
                             ),
-                            Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+                            Icon(Icons.arrow_drop_down, color: ThemeBrightnessHolder.onSurfaceVariant),
                           ],
                         ),
                       ),
@@ -2969,7 +2970,7 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> with
                               _formatDistance(s.distanceMeters ?? 1000),
                               style: AppTypography.bodyMedium,
                             ),
-                            Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+                            Icon(Icons.arrow_drop_down, color: ThemeBrightnessHolder.onSurfaceVariant),
                           ],
                         ),
                       ),
@@ -3211,7 +3212,7 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> with
       children: [
         Text(
           'Performans hedefi',
-          style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600),
+          style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
         ),
         const SizedBox(height: 6),
         Container(
@@ -3266,7 +3267,7 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> with
       children: [
         Text(
           'Hedef süre (split)',
-          style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600),
+          style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
         ),
         const SizedBox(height: 6),
         if (hasRange)
@@ -3362,9 +3363,9 @@ class _RepeatSegmentEditorState extends ConsumerState<_RepeatSegmentEditor> with
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500)),
+            Text(label, style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant)),
             Text(_formatDuration(seconds), style: AppTypography.bodyMedium),
-            Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+            Icon(Icons.arrow_drop_down, color: ThemeBrightnessHolder.onSurfaceVariant),
           ],
         ),
       ),

@@ -9,6 +9,7 @@ import '../../../../shared/widgets/full_screen_image_viewer.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Admin için başka kullanıcının profil bilgilerini salt okunur gösterir.
 class ProfileDetailsPage extends ConsumerWidget {
@@ -210,7 +211,7 @@ class _InfoRow extends StatelessWidget {
                 child: Text(
                   label,
                   style: AppTypography.labelMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
               ),

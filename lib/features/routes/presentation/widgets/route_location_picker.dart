@@ -111,11 +111,13 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final center = (widget.selectedLat != null && widget.selectedLng != null)
         ? LatLng(widget.selectedLat!, widget.selectedLng!)
         : RouteLocationPicker._defaultCenter;
     final initialZoom =
         (widget.selectedLat != null && widget.selectedLng != null) ? 14.0 : 10.0;
+    final hasSelection = widget.selectedLat != null && widget.selectedLng != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,12 +126,15 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
         if (widget.showLabel) ...[
           Text(
             'Konum',
-            style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600),
+            style: AppTypography.labelLarge.copyWith(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
             'Haritada rota konumunu seçmek için haritaya dokunun veya arama yapın',
-            style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
         ],
@@ -139,9 +144,7 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
             height: widget.height,
             decoration: BoxDecoration(
               border: Border.all(
-                color: (widget.selectedLat != null && widget.selectedLng != null)
-                    ? AppColors.success
-                    : AppColors.neutral300,
+                color: hasSelection ? AppColors.success : cs.outlineVariant,
                 width: 2,
               ),
               borderRadius: BorderRadius.circular(16),
@@ -179,9 +182,9 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
                                 widget.selectedLat!, widget.selectedLng!),
                             width: 40,
                             height: 40,
-                            builder: (context) => const Icon(
+                            builder: (context) => Icon(
                               Icons.location_on,
-                              color: AppColors.primary,
+                              color: cs.primary,
                               size: 40,
                             ),
                           ),
@@ -201,11 +204,11 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
                       // Arama input
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: cs.surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(10),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
+                              color: Colors.black.withValues(alpha: 0.2),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -213,11 +216,11 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
                         ),
                         child: Row(
                           children: [
-                            const Padding(
-                              padding: EdgeInsets.only(left: 10),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 10),
                               child: Icon(
                                 Icons.search,
-                                color: AppColors.neutral500,
+                                color: cs.onSurfaceVariant,
                                 size: 20,
                               ),
                             ),
@@ -227,12 +230,12 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
                                 focusNode: _searchFocusNode,
                                 onChanged: _onSearchChanged,
                                 style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.neutral900,
+                                  color: cs.onSurface,
                                 ),
                                 decoration: InputDecoration(
                                   hintText: 'Mekan, mahalle, sokak ara...',
                                   hintStyle: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.neutral400,
+                                    color: cs.outline,
                                   ),
                                   border: InputBorder.none,
                                   contentPadding: const EdgeInsets.symmetric(
@@ -244,25 +247,25 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
                               ),
                             ),
                             if (_isSearching)
-                              const Padding(
-                                padding: EdgeInsets.only(right: 8),
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
                                 child: SizedBox(
                                   width: 16,
                                   height: 16,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: AppColors.primary,
+                                    color: cs.primary,
                                   ),
                                 ),
                               )
                             else if (_searchController.text.isNotEmpty)
                               GestureDetector(
                                 onTap: _clearSearch,
-                                child: const Padding(
-                                  padding: EdgeInsets.only(right: 8),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 8),
                                   child: Icon(
                                     Icons.close,
-                                    color: AppColors.neutral500,
+                                    color: cs.onSurfaceVariant,
                                     size: 18,
                                   ),
                                 ),
@@ -277,11 +280,11 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
                           margin: const EdgeInsets.only(top: 4),
                           constraints: const BoxConstraints(maxHeight: 180),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: cs.surfaceContainerHigh,
                             borderRadius: BorderRadius.circular(10),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.12),
+                                color: Colors.black.withValues(alpha: 0.18),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
@@ -291,10 +294,10 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
                             padding: EdgeInsets.zero,
                             shrinkWrap: true,
                             itemCount: _searchResults.length,
-                            separatorBuilder: (_, __) => const Divider(
+                            separatorBuilder: (_, __) => Divider(
                               height: 1,
                               indent: 36,
-                              color: AppColors.neutral200,
+                              color: cs.outlineVariant,
                             ),
                             itemBuilder: (context, index) {
                               final place = _searchResults[index];
@@ -312,9 +315,9 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
                                   ),
                                   child: Row(
                                     children: [
-                                      const Icon(
+                                      Icon(
                                         Icons.place_outlined,
-                                        color: AppColors.primary,
+                                        color: cs.primary,
                                         size: 18,
                                       ),
                                       const SizedBox(width: 8),
@@ -322,7 +325,7 @@ class _RouteLocationPickerState extends State<RouteLocationPicker> {
                                         child: Text(
                                           place.shortName,
                                           style: AppTypography.bodySmall.copyWith(
-                                            color: AppColors.neutral800,
+                                            color: cs.onSurface,
                                           ),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,

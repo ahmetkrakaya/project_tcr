@@ -49,17 +49,14 @@ class _UserEngagementReportsPageState
   @override
   Widget build(BuildContext context) {
     final reportsAsync = ref.watch(userEngagementReportsProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor =
-        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text('Kullanıcı Analizleri'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.fact_check_outlined),
+            icon: Icon(Icons.fact_check_outlined),
             tooltip: 'Mazaretler',
             onPressed: () {
               Navigator.of(context).push(
@@ -84,12 +81,11 @@ class _UserEngagementReportsPageState
               Text(
                 'Uygulama kullanımı ve etkinlik katılımına göre özet listeler.',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral500,
+                  color: cs.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 20),
               _LeaderboardSection(
-                isDark: isDark,
                 icon: Icons.smartphone_outlined,
                 iconColor: AppColors.info,
                 title: 'Uygulamayı En Çok Açanlar',
@@ -99,7 +95,6 @@ class _UserEngagementReportsPageState
               ),
               const SizedBox(height: 12),
               _InactiveUsersSection(
-                isDark: isDark,
                 icon: Icons.person_off_outlined,
                 iconColor: AppColors.warning,
                 title: 'Uygulamaya Girmeyenler',
@@ -111,7 +106,6 @@ class _UserEngagementReportsPageState
               ),
               const SizedBox(height: 12),
               _TopEventParticipantsSection(
-                isDark: isDark,
                 selectedEventType: _selectedEventType,
                 onEventTypeChanged: (value) {
                   setState(() => _selectedEventType = value);
@@ -119,7 +113,6 @@ class _UserEngagementReportsPageState
               ),
               const SizedBox(height: 12),
               _InactiveUsersSection(
-                isDark: isDark,
                 icon: Icons.event_busy_outlined,
                 iconColor: AppColors.error,
                 title: 'Etkinliğe Katılmayanlar',
@@ -133,18 +126,23 @@ class _UserEngagementReportsPageState
           ),
         ),
         loading: () => const Center(child: LoadingWidget()),
-        error: (error, _) => Center(
+        error: (error, _) {
+          final cs = Theme.of(context).colorScheme;
+          return Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Rapor yüklenemedi', style: AppTypography.titleSmall),
+                Text(
+                  'Rapor yüklenemedi',
+                  style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   error.toString(),
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: cs.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -157,7 +155,8 @@ class _UserEngagementReportsPageState
               ],
             ),
           ),
-        ),
+        );
+        },
       ),
     );
   }
@@ -165,7 +164,6 @@ class _UserEngagementReportsPageState
 
 class _SectionShell extends StatelessWidget {
   const _SectionShell({
-    required this.isDark,
     required this.icon,
     required this.iconColor,
     required this.title,
@@ -177,7 +175,6 @@ class _SectionShell extends StatelessWidget {
     required this.child,
   });
 
-  final bool isDark;
   final IconData icon;
   final Color iconColor;
   final String title;
@@ -190,15 +187,14 @@ class _SectionShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
-    final borderColor =
-        isDark ? AppColors.surfaceVariantDark : AppColors.neutral300;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
 
     return Container(
       decoration: BoxDecoration(
-        color: cardColor,
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,7 +210,7 @@ class _SectionShell extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: 0.12),
+                      color: iconColor.withValues(alpha: isDark ? 0.2 : 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(icon, color: iconColor, size: 22),
@@ -228,13 +224,14 @@ class _SectionShell extends StatelessWidget {
                           title,
                           style: AppTypography.titleSmall.copyWith(
                             fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           subtitle,
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -244,7 +241,7 @@ class _SectionShell extends StatelessWidget {
                   const SizedBox(width: 4),
                   Icon(
                     isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.neutral400,
+                    color: cs.outline,
                   ),
                 ],
               ),
@@ -253,7 +250,7 @@ class _SectionShell extends StatelessWidget {
           if (isExpanded) ...[
             Divider(
               height: 1,
-              color: borderColor,
+              color: cs.outlineVariant,
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -282,16 +279,17 @@ class _CountChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.1),
+        color: cs.primary.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         count.toString(),
         style: AppTypography.labelSmall.copyWith(
-          color: AppColors.primary,
+          color: cs.primary,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -301,7 +299,6 @@ class _CountChip extends StatelessWidget {
 
 class _LeaderboardSection extends StatefulWidget {
   const _LeaderboardSection({
-    required this.isDark,
     required this.icon,
     required this.iconColor,
     required this.title,
@@ -310,7 +307,6 @@ class _LeaderboardSection extends StatefulWidget {
     required this.valueBuilder,
   });
 
-  final bool isDark;
   final IconData icon;
   final Color iconColor;
   final String title;
@@ -328,7 +324,6 @@ class _LeaderboardSectionState extends State<_LeaderboardSection> {
   @override
   Widget build(BuildContext context) {
     return _SectionShell(
-      isDark: widget.isDark,
       icon: widget.icon,
       iconColor: widget.iconColor,
       title: widget.title,
@@ -354,7 +349,6 @@ class _LeaderboardSectionState extends State<_LeaderboardSection> {
 
 class _InactiveUsersSection extends ConsumerStatefulWidget {
   const _InactiveUsersSection({
-    required this.isDark,
     required this.icon,
     required this.iconColor,
     required this.title,
@@ -365,7 +359,6 @@ class _InactiveUsersSection extends ConsumerStatefulWidget {
     required this.dateValue,
   });
 
-  final bool isDark;
   final IconData icon;
   final Color iconColor;
   final String title;
@@ -455,7 +448,6 @@ class _InactiveUsersSectionState extends ConsumerState<_InactiveUsersSection> {
   @override
   Widget build(BuildContext context) {
     return _SectionShell(
-      isDark: widget.isDark,
       icon: widget.icon,
       iconColor: widget.iconColor,
       title: widget.title,
@@ -479,7 +471,7 @@ class _InactiveUsersSectionState extends ConsumerState<_InactiveUsersSection> {
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.send_outlined, size: 18),
+                    : Icon(Icons.send_outlined, size: 18),
                 label: const Text('Tümüne bildir'),
               ),
             ),
@@ -512,12 +504,10 @@ class _InactiveUsersSectionState extends ConsumerState<_InactiveUsersSection> {
 
 class _TopEventParticipantsSection extends ConsumerStatefulWidget {
   const _TopEventParticipantsSection({
-    required this.isDark,
     required this.selectedEventType,
     required this.onEventTypeChanged,
   });
 
-  final bool isDark;
   final String? selectedEventType;
   final ValueChanged<String?> onEventTypeChanged;
 
@@ -538,7 +528,6 @@ class _TopEventParticipantsSectionState
     final count = participantsAsync.valueOrNull?.length ?? 0;
 
     return _SectionShell(
-      isDark: widget.isDark,
       icon: Icons.event_available_outlined,
       iconColor: AppColors.tertiary,
       title: 'En Çok Etkinliğe Katılanlar',
@@ -588,6 +577,7 @@ class _EventTypeChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final options = <({String? value, String label})>[
       (value: null, label: 'Tümü'),
       (value: EventType.training.name, label: 'Antrenman'),
@@ -609,11 +599,13 @@ class _EventTypeChips extends StatelessWidget {
           onSelected: (_) => onChanged(option.value),
           labelStyle: AppTypography.labelSmall.copyWith(
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            color: isSelected ? cs.primary : cs.onSurfaceVariant,
           ),
-          selectedColor: AppColors.primary.withValues(alpha: 0.12),
-          checkmarkColor: AppColors.primary,
+          selectedColor: cs.primary.withValues(alpha: 0.2),
+          backgroundColor: cs.surfaceContainerHighest,
+          checkmarkColor: cs.primary,
           side: BorderSide(
-            color: isSelected ? AppColors.primary : AppColors.neutral300,
+            color: isSelected ? cs.primary : cs.outlineVariant,
           ),
         );
       }).toList(),
@@ -638,6 +630,7 @@ class _UserListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Padding(
@@ -658,6 +651,7 @@ class _UserListTile extends StatelessWidget {
                       name,
                       style: AppTypography.bodyMedium.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -667,7 +661,7 @@ class _UserListTile extends StatelessWidget {
                       Text(
                         subtitle!,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: cs.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -684,7 +678,7 @@ class _UserListTile extends StatelessWidget {
         if (showDivider)
           Divider(
             height: 1,
-            color: AppColors.neutral300.withValues(alpha: 0.6),
+            color: cs.outlineVariant.withValues(alpha: 0.6),
           ),
       ],
     );
@@ -696,7 +690,7 @@ class _RankIndicator extends StatelessWidget {
 
   final int rank;
 
-  Color get _color {
+  Color _color(BuildContext context) {
     switch (rank) {
       case 1:
         return const Color(0xFFFFB300);
@@ -705,7 +699,7 @@ class _RankIndicator extends StatelessWidget {
       case 3:
         return const Color(0xFFCD7F32);
       default:
-        return AppColors.primary;
+        return Theme.of(context).colorScheme.primary;
     }
   }
 
@@ -716,7 +710,7 @@ class _RankIndicator extends StatelessWidget {
       child: Text(
         '#$rank',
         style: AppTypography.labelSmall.copyWith(
-          color: _color,
+          color: _color(context),
           fontWeight: FontWeight.w700,
         ),
         textAlign: TextAlign.center,
@@ -732,10 +726,11 @@ class _ValueLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Text(
       text,
       style: AppTypography.labelSmall.copyWith(
-        color: AppColors.neutral600,
+        color: cs.onSurfaceVariant,
         fontWeight: FontWeight.w600,
       ),
       textAlign: TextAlign.right,
@@ -754,8 +749,9 @@ class _SendButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Material(
-      color: AppColors.primary.withValues(alpha: 0.08),
+      color: cs.primary.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onPressed,
@@ -764,17 +760,17 @@ class _SendButton extends StatelessWidget {
           width: 36,
           height: 36,
           child: isLoading
-              ? const Padding(
-                  padding: EdgeInsets.all(8),
+              ? Padding(
+                  padding: const EdgeInsets.all(8),
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: AppColors.primary,
+                    color: cs.primary,
                   ),
                 )
-              : const Icon(
+              : Icon(
                   Icons.send_outlined,
                   size: 18,
-                  color: AppColors.primary,
+                  color: cs.primary,
                 ),
         ),
       ),

@@ -13,6 +13,7 @@ import '../../garmin/garmin_provider.dart';
 import '../../health_connect/health_connect_provider.dart';
 import '../../health_connect/health_connect_workout_sync_service.dart';
 import '../providers/strava_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Integrations Page - Harici servis bağlantıları
 class IntegrationsPage extends ConsumerWidget {
@@ -44,7 +45,7 @@ class IntegrationsPage extends ConsumerWidget {
               Text(
                 'Koşu ve antrenman verilerinizi otomatik olarak senkronize etmek için harici uygulamalarınızı bağlayın.',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 24),
@@ -98,7 +99,7 @@ class IntegrationsPage extends ConsumerWidget {
                     width: 28,
                     height: 28,
                     fit: BoxFit.contain,
-                    placeholderBuilder: (context) => const Icon(
+                    placeholderBuilder: (context) => Icon(
                       Icons.directions_run,
                       color: Color(0xFFFC4C02),
                       size: 28,
@@ -132,7 +133,7 @@ class IntegrationsPage extends ConsumerWidget {
                       Text(
                         'Koşu, bisiklet ve yüzme aktiviteleri',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -167,7 +168,7 @@ class IntegrationsPage extends ConsumerWidget {
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.sync),
+                          : Icon(Icons.sync),
                       tooltip: 'Senkronize Et',
                     ),
                     IconButton(
@@ -200,7 +201,7 @@ class IntegrationsPage extends ConsumerWidget {
                           : () {
                               context.pushNamed(RouteNames.stravaActivityList);
                             },
-                      icon: const Icon(Icons.list),
+                      icon: Icon(Icons.list),
                       tooltip: 'Aktiviteleri Görüntüle',
                     ),
                   ],
@@ -225,7 +226,7 @@ class IntegrationsPage extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.error_outline,
                       color: AppColors.error,
                       size: 20,
@@ -243,7 +244,7 @@ class IntegrationsPage extends ConsumerWidget {
                       onPressed: () {
                         ref.read(stravaNotifierProvider.notifier).clearError();
                       },
-                      icon: const Icon(Icons.close, size: 18),
+                      icon: Icon(Icons.close, size: 18),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
@@ -265,13 +266,13 @@ class IntegrationsPage extends ConsumerWidget {
           Icon(
             icon,
             size: 18,
-            color: AppColors.neutral400,
+            color: ThemeBrightnessHolder.outline,
           ),
           const SizedBox(width: 8),
           Text(
             '$label:',
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
           const SizedBox(width: 8),
@@ -343,13 +344,13 @@ class IntegrationsPage extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.06),
+                    color: ThemeBrightnessHolder.onSurface.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     Icons.apple,
                     size: 26,
-                    color: Theme.of(context).colorScheme.onSurface,
+                    color: ThemeBrightnessHolder.onSurface,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -376,7 +377,7 @@ class IntegrationsPage extends ConsumerWidget {
                       const SizedBox(height: 2),
                       Text(
                         'Antrenmanları Apple Watch Workout uygulamasına gönder',
-                        style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                        style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -420,7 +421,7 @@ class IntegrationsPage extends ConsumerWidget {
                                 height: 20,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Icon(Icons.sync),
+                            : Icon(Icons.sync),
                         tooltip: 'Şimdi Senkronla',
                       ),
                       IconButton(
@@ -447,14 +448,14 @@ class IntegrationsPage extends ConsumerWidget {
             if (!isSupported) ...[
               Text(
                 'Bu özellik iOS 17+ gerektirir. Cihazınız desteklemiyorsa antrenmanları FIT/TCX/JSON ile manuel export edebilirsiniz.',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+                style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
             ] else ...[
               const Divider(),
               const SizedBox(height: 8),
               Text(
                 'Bu bağlantı Apple Health / HealthKit API\'lerini kullanır ve oluşturduğunuz antrenman programlarını Apple Fitness / Health uygulamalarına planlı antrenman olarak aktarır.',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+                style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
               const SizedBox(height: 8),
               _buildInfoRow(
@@ -472,7 +473,7 @@ class IntegrationsPage extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                      Icon(Icons.error_outline, color: AppColors.error, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -482,7 +483,7 @@ class IntegrationsPage extends ConsumerWidget {
                       ),
                       IconButton(
                         onPressed: notifier.clearError,
-                        icon: const Icon(Icons.close, size: 18),
+                        icon: Icon(Icons.close, size: 18),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
@@ -583,7 +584,7 @@ class IntegrationsPage extends ConsumerWidget {
                       Text(
                         'Antrenmanları Android fitness uygulamalarına gönder',
                         style: AppTypography.bodySmall
-                            .copyWith(color: AppColors.neutral500),
+                            .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -633,7 +634,7 @@ class IntegrationsPage extends ConsumerWidget {
                                 height: 20,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Icon(Icons.sync),
+                            : Icon(Icons.sync),
                         tooltip: 'Şimdi Senkronla',
                       ),
                       IconButton(
@@ -664,7 +665,7 @@ class IntegrationsPage extends ConsumerWidget {
                 'Bu özellik Health Connect uygulamasını gerektirir. '
                 'Health Connect\'i yükleyip güncelleyin.',
                 style: AppTypography.bodySmall
-                    .copyWith(color: AppColors.neutral600),
+                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
             ] else ...[
               const Divider(),
@@ -675,7 +676,7 @@ class IntegrationsPage extends ConsumerWidget {
                 'uygulamalarına (Samsung Health, Pixel Fit vb.) planlı '
                 'antrenman olarak aktarır.',
                 style: AppTypography.bodySmall
-                    .copyWith(color: AppColors.neutral600),
+                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
               const SizedBox(height: 8),
               _buildInfoRow(
@@ -693,7 +694,7 @@ class IntegrationsPage extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline,
+                      Icon(Icons.error_outline,
                           color: AppColors.error, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
@@ -705,7 +706,7 @@ class IntegrationsPage extends ConsumerWidget {
                       ),
                       IconButton(
                         onPressed: notifier.clearError,
-                        icon: const Icon(Icons.close, size: 18),
+                        icon: Icon(Icons.close, size: 18),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
@@ -781,7 +782,7 @@ class IntegrationsPage extends ConsumerWidget {
                       width: 36,
                       height: 36,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      errorBuilder: (_, __, ___) => Icon(
                         Icons.watch,
                         size: 36,
                       ),
@@ -817,7 +818,7 @@ class IntegrationsPage extends ConsumerWidget {
                       Text(
                         'Antrenmanları Garmin saatine otomatik gönder',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -893,7 +894,7 @@ class IntegrationsPage extends ConsumerWidget {
                       child: Text(
                         'Antrenmanlar her gün otomatik olarak Garmin\'e gönderilir',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral600,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -911,7 +912,7 @@ class IntegrationsPage extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.error_outline,
                       color: AppColors.error,
                       size: 20,
@@ -927,7 +928,7 @@ class IntegrationsPage extends ConsumerWidget {
                     ),
                     IconButton(
                       onPressed: notifier.clearError,
-                      icon: const Icon(Icons.close, size: 18),
+                      icon: Icon(Icons.close, size: 18),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),

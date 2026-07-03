@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/user_avatar.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Leaderboard Page
 class LeaderboardPage extends ConsumerStatefulWidget {
@@ -169,7 +170,7 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage>
         Text(
           distance,
           style: AppTypography.bodySmall.copyWith(
-            color: AppColors.neutral500,
+            color: ThemeBrightnessHolder.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 8),
@@ -257,7 +258,7 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage>
                 Text(
                   '${15 - rank % 10} koşu',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
               ],

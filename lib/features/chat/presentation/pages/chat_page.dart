@@ -7,6 +7,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/user_avatar.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Chat Page - Chat Room List
 class ChatPage extends ConsumerWidget {
@@ -21,7 +22,7 @@ class ChatPage extends ConsumerWidget {
           title: const Text('Sohbet'),
           actions: [
             IconButton(
-              icon: const Icon(Icons.search),
+              icon: Icon(Icons.search),
               onPressed: () {
                 // Search chats
               },
@@ -70,7 +71,7 @@ class ChatPage extends ConsumerWidget {
           child: Text(
             'Antrenman Grupları',
             style: AppTypography.labelLarge.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
         ),
@@ -122,7 +123,7 @@ class ChatPage extends ConsumerWidget {
           child: Text(
             'Aktif Etkinlik Sohbetleri',
             style: AppTypography.labelLarge.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
         ),
@@ -151,7 +152,7 @@ class ChatPage extends ConsumerWidget {
           child: Text(
             'Arşiv (Salt Okunur)',
             style: AppTypography.labelLarge.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
         ),
@@ -191,7 +192,7 @@ class ChatPage extends ConsumerWidget {
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.help_outline,
                       color: Colors.white,
                     ),
@@ -216,7 +217,7 @@ class ChatPage extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  const Icon(
+                  Icon(
                     Icons.chevron_right,
                     color: Colors.white,
                   ),
@@ -237,12 +238,14 @@ class ChatPage extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         _buildQACard(
+          context: context,
           question: 'Tempo koşusu yaparken kalp atış hızım ne kadar olmalı?',
           answer: 'Tempo koşularında maksimum kalp atış hızınızın %85-90\'ı...',
           answeredBy: 'Koç Ali',
         ),
         const SizedBox(height: 12),
         _buildQACard(
+          context: context,
           question: 'Koşu öncesi ve sonrası beslenme nasıl olmalı?',
           answer: 'Koşudan 2-3 saat önce hafif karbonhidrat ağırlıklı bir öğün...',
           answeredBy: 'Koç Ayşe',
@@ -313,7 +316,7 @@ class ChatPage extends ConsumerWidget {
                 Text(
                   lastMessage,
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -404,7 +407,7 @@ class ChatPage extends ConsumerWidget {
                   ),
                 ),
               if (isArchived)
-                const Icon(Icons.lock_outline, size: 16, color: AppColors.neutral400),
+                Icon(Icons.lock_outline, size: 16, color: ThemeBrightnessHolder.outline),
             ],
           ),
           const SizedBox(height: 8),
@@ -412,12 +415,12 @@ class ChatPage extends ConsumerWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              const Icon(Icons.people_outline, size: 14, color: AppColors.neutral500),
+              Icon(Icons.people_outline, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 '$participantCount katılımcı',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
               ),
             ],
@@ -426,7 +429,7 @@ class ChatPage extends ConsumerWidget {
           Text(
             lastMessage,
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -437,6 +440,7 @@ class ChatPage extends ConsumerWidget {
   }
 
   Widget _buildQACard({
+    required BuildContext context,
     required String question,
     required String answer,
     required String answeredBy,
@@ -447,7 +451,7 @@ class ChatPage extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.help_outline, size: 18, color: AppColors.primary),
+              Icon(Icons.help_outline, size: 18, color: AppColors.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -461,7 +465,7 @@ class ChatPage extends ConsumerWidget {
           Text(
             answer,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.neutral600,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -512,7 +516,7 @@ class ChatPage extends ConsumerWidget {
                 Text(
                   'Sorunuz anonim olarak koçlara iletilecek.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 20),

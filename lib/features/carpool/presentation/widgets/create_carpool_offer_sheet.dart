@@ -8,6 +8,7 @@ import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../events/domain/entities/event_entity.dart';
 import '../../../events/presentation/providers/event_provider.dart';
+import '../../data/carpool_vehicle_prefs_storage.dart';
 import '../../data/datasources/carpool_remote_datasource.dart';
 import '../../domain/entities/carpool_entity.dart';
 import '../providers/carpool_provider.dart';
@@ -37,19 +38,22 @@ class CreateCarpoolOfferSheet extends ConsumerStatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
+      builder: (context) {
+        final cs = Theme.of(context).colorScheme;
+        return DraggableScrollableSheet(
         initialChildSize: 0.9,
         minChildSize: 0.5,
         maxChildSize: 0.95,
         expand: false,
         builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: CreateCarpoolOfferSheet(eventId: eventId),
         ),
-      ),
+      );
+      },
     );
   }
 
@@ -75,12 +79,35 @@ class _CreateCarpoolOfferSheetState
   // Her waypoint için custom location controller'ları
   final Map<int, TextEditingController> _waypointControllers = {};
 
+  final _vehiclePrefsStorage = CarpoolVehiclePrefsStorage();
+
   @override
   void initState() {
     super.initState();
     // İlk noktayı ekle
     _waypoints.add(_WaypointData(sortOrder: 0));
     _waypointControllers[0] = TextEditingController();
+    _loadSavedVehiclePrefs();
+  }
+
+  Future<void> _loadSavedVehiclePrefs() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    final prefs = await _vehiclePrefsStorage.load(userId);
+    if (!mounted || prefs.isEmpty) return;
+
+    setState(() {
+      if (prefs.carModel != null && prefs.carModel!.isNotEmpty) {
+        _carModelController.text = prefs.carModel!;
+      }
+      if (prefs.carColor != null && prefs.carColor!.isNotEmpty) {
+        _carColorController.text = prefs.carColor!;
+      }
+      if (prefs.notes != null && prefs.notes!.isNotEmpty) {
+        _notesController.text = prefs.notes!;
+      }
+    });
   }
 
   @override
@@ -98,6 +125,7 @@ class _CreateCarpoolOfferSheetState
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final locationsAsync = ref.watch(pickupLocationsProvider);
     final isLoading = ref.watch(carpoolNotifierProvider).isLoading;
     final eventAsync = ref.watch(eventByIdProvider(widget.eventId));
@@ -110,7 +138,7 @@ class _CreateCarpoolOfferSheetState
           width: 40,
           height: 4,
           decoration: BoxDecoration(
-            color: AppColors.neutral300,
+            color: cs.outlineVariant,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -124,12 +152,12 @@ class _CreateCarpoolOfferSheetState
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: cs.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.directions_car,
-                  color: AppColors.primary,
+                  color: cs.primary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -139,12 +167,14 @@ class _CreateCarpoolOfferSheetState
                   children: [
                     Text(
                       'Ortak Yolculuk İlanı Ver',
-                      style: AppTypography.titleLarge,
+                      style: AppTypography.titleLarge.copyWith(
+                        color: cs.onSurface,
+                      ),
                     ),
                     Text(
                       'Diğer katılımcılara yardımcı ol',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -152,7 +182,7 @@ class _CreateCarpoolOfferSheetState
               ),
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
+                icon: Icon(Icons.close, color: cs.onSurfaceVariant),
               ),
             ],
           ),
@@ -185,10 +215,10 @@ class _CreateCarpoolOfferSheetState
                             _waypointControllers[newIndex] = TextEditingController();
                           });
                         },
-                        icon: const Icon(Icons.add, size: 18),
+                        icon: Icon(Icons.add, size: 18),
                         label: const Text('Nokta Ekle'),
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.primary,
+                          foregroundColor: cs.primary,
                         ),
                       ),
                     ],
@@ -305,6 +335,7 @@ class _CreateCarpoolOfferSheetState
                     children: [
                       for (int i = 2; i <= 6; i++)
                         _SeatChip(
+                          context: context,
                           value: i,
                           selected: _totalSeats == i,
                           onTap: () => setState(() => _totalSeats = i),
@@ -359,18 +390,19 @@ class _CreateCarpoolOfferSheetState
     required TimeOfDay maxTime,
     required VoidCallback onTap,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: cs.outlineVariant),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
-            Icon(Icons.access_time, size: 20, color: AppColors.neutral500),
+            Icon(Icons.access_time, size: 20, color: cs.onSurfaceVariant),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -379,7 +411,7 @@ class _CreateCarpoolOfferSheetState
                   Text(
                     label,
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -407,18 +439,19 @@ class _CreateCarpoolOfferSheetState
         '${value.month.toString().padLeft(2, '0')}.'
         '${value.year}';
 
+    final cs = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: cs.outlineVariant),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
-            Icon(Icons.calendar_today, size: 20, color: AppColors.neutral500),
+            Icon(Icons.calendar_today, size: 20, color: cs.onSurfaceVariant),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -427,7 +460,7 @@ class _CreateCarpoolOfferSheetState
                   Text(
                     label,
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -513,6 +546,7 @@ class _CreateCarpoolOfferSheetState
     _WaypointData waypoint,
     int index,
   ) {
+    final cs = Theme.of(context).colorScheme;
     // Controller'ı state'ten al veya oluştur
     final customController = _waypointControllers.putIfAbsent(
       index,
@@ -553,7 +587,7 @@ class _CreateCarpoolOfferSheetState
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.neutral200),
+        border: Border.all(color: cs.outlineVariant),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -565,14 +599,14 @@ class _CreateCarpoolOfferSheetState
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: cs.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
                   child: Text(
                     '${index + 1}',
                     style: AppTypography.labelMedium.copyWith(
-                      color: AppColors.primary,
+                      color: cs.primary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -589,7 +623,7 @@ class _CreateCarpoolOfferSheetState
               ),
               if (_waypoints.length > 1)
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                  icon: Icon(Icons.delete_outline, color: AppColors.error),
                   onPressed: () {
                     setState(() {
                       // Controller'ı dispose et ve kaldır
@@ -625,7 +659,7 @@ class _CreateCarpoolOfferSheetState
                 child: Text(
                   'Konum seçin',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral400,
+                    color: cs.outline,
                   ),
                 ),
               ),
@@ -640,13 +674,13 @@ class _CreateCarpoolOfferSheetState
                     Icon(
                       Icons.add_location,
                       size: 18,
-                      color: AppColors.primary,
+                      color: cs.primary,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'Özel Konum Ekle',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.primary,
+                        color: cs.primary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -860,6 +894,13 @@ class _CreateCarpoolOfferSheetState
 
     if (mounted) {
       if (created != null) {
+        await _vehiclePrefsStorage.save(
+          userId,
+          carModel: _carModelController.text.trim(),
+          carColor: _carColorController.text.trim(),
+          notes: _notesController.text.trim(),
+        );
+
         Navigator.pop(context);
         messenger.showSnackBar(
           const SnackBar(
@@ -888,19 +929,21 @@ class _CreateCarpoolOfferSheetState
 
   // Seat chip - daha geniş ve okunaklı
   Widget _SeatChip({
+    required BuildContext context,
     required int value,
     required bool selected,
     required VoidCallback onTap,
   }) {
-    final bg = selected ? AppColors.primary : AppColors.neutral100;
-    final border = selected ? AppColors.primary : AppColors.neutral300;
-    final fg = selected ? Colors.white : AppColors.neutral800;
+    final cs = Theme.of(context).colorScheme;
+    final bg = selected ? cs.primary : cs.surfaceContainerHighest;
+    final border = selected ? cs.primary : cs.outlineVariant;
+    final fg = selected ? cs.onPrimary : cs.onSurface;
 
     return Material(
       color: bg,
       shape: StadiumBorder(side: BorderSide(color: border)),
       elevation: selected ? 2 : 0,
-      shadowColor: AppColors.primary.withValues(alpha: 0.25),
+      shadowColor: cs.primary.withValues(alpha: 0.25),
       child: InkWell(
         onTap: onTap,
         customBorder: const StadiumBorder(),
@@ -920,7 +963,9 @@ class _CreateCarpoolOfferSheetState
               Icon(
                 Icons.event_seat,
                 size: 18,
-                color: selected ? Colors.white.withValues(alpha: 0.95) : AppColors.neutral500,
+                color: selected
+                    ? cs.onPrimary.withValues(alpha: 0.95)
+                    : cs.onSurfaceVariant,
               ),
             ],
           ),

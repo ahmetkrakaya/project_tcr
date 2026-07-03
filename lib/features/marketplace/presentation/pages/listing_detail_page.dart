@@ -12,10 +12,13 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
+import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/listing_model.dart';
 import '../../utils/listing_price_utils.dart';
 import '../providers/marketplace_provider.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Listing Detail Page
 class ListingDetailPage extends ConsumerStatefulWidget {
@@ -30,6 +33,7 @@ class ListingDetailPage extends ConsumerStatefulWidget {
 class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   final PageController _pageController = PageController();
   bool _hasLoadedFavorite = false;
+  String? _autoSelectedForListingId;
   int _currentPageIndex = 0;
   String? _selectedSize;
   ListingGender? _selectedGender;
@@ -38,6 +42,17 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   void initState() {
     super.initState();
     _pageController.addListener(_onPageChanged);
+  }
+
+  @override
+  void didUpdateWidget(ListingDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.listingId != widget.listingId) {
+      _selectedSize = null;
+      _selectedGender = null;
+      _autoSelectedForListingId = null;
+      _hasLoadedFavorite = false;
+    }
   }
 
   void _onPageChanged() {
@@ -82,7 +97,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                 Text(
                   error.toString(),
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -102,6 +117,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   Widget _buildContent(BuildContext context, ListingModel listing) {
     // Favori durumunu cache'den kontrol et
     final favoriteIds = ref.watch(favoriteIdsProvider);
+    final currentUser = ref.watch(currentUserProfileProvider);
     final isFavorite = favoriteIds.contains(listing.id);
 
     // İlk kez render edildiğinde favori durumunu yükle (cache'de yoksa)
@@ -116,12 +132,24 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
       _hasLoadedFavorite = true;
     }
 
+    final hasAutoSelectOptions =
+        (listing.size != null && listing.size!.trim().isNotEmpty) ||
+            listing.stockGenderMode == ListingGenderMode.gendered;
+
+    if (_autoSelectedForListingId != listing.id && hasAutoSelectOptions) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _autoSelectOptionsFromProfile(listing, currentUser);
+        }
+      });
+    }
+
     final screenHeight = MediaQuery.sizeOf(context).height;
     final appBarHeight = (screenHeight * 0.34).clamp(240.0, 360.0);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pageBackground =
-        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+    final cs = Theme.of(context).colorScheme;
+    final pageBackground = cs.surface;
 
     return Scaffold(
       backgroundColor: pageBackground,
@@ -140,7 +168,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(Icons.arrow_back),
                 onPressed: () => context.pop(),
               ),
             ),
@@ -148,11 +176,11 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
               background: listing.imageUrls.isEmpty
                   ? Container(
                       color: AppColors.neutral200,
-                      child: const Center(
+                      child: Center(
                         child: Icon(
                           Icons.image,
                           size: 80,
-                          color: AppColors.neutral400,
+                          color: ThemeBrightnessHolder.outline,
                         ),
                       ),
                     )
@@ -172,10 +200,10 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                                   errorBuilder: (context, error, stackTrace) =>
                                       Container(
                                         color: AppColors.neutral200,
-                                        child: const Icon(
+                                        child: Icon(
                                           Icons.image,
                                           size: 80,
-                                          color: AppColors.neutral400,
+                                          color: ThemeBrightnessHolder.outline,
                                         ),
                                       ),
                                 );
@@ -194,13 +222,13 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                                   vertical: 8,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.92),
+                                  color: cs.surface.withValues(alpha: 0.92),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Text(
                                   'Stokta Yok',
                                   style: AppTypography.titleSmall.copyWith(
-                                    color: AppColors.neutral700,
+                                    color: cs.onSurface,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -266,7 +294,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.share, color: Colors.white),
+                      icon: Icon(Icons.share, color: Colors.white),
                       splashRadius: 24,
                       onPressed: () => _shareListing(context, listing),
                     ),
@@ -286,7 +314,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                     ),
                     child: PopupMenuButton<_ListingMenuAction>(
                       tooltip: 'Menü',
-                      icon: const Icon(Icons.more_vert, color: Colors.white),
+                      icon: Icon(Icons.more_vert, color: Colors.white),
                       onSelected: (action) {
                         switch (action) {
                           case _ListingMenuAction.edit:
@@ -357,7 +385,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
               offset: const Offset(0, -20),
               child: Container(
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.surfaceDark : Colors.white,
+                  color: ThemeBrightnessHolder.surface,
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                   boxShadow: [
                     BoxShadow(
@@ -372,11 +400,11 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildProductHeader(listing, isDark),
+                      _buildProductHeader(context, listing),
                       if (listing.size != null ||
                           listing.stockGenderMode == ListingGenderMode.gendered) ...[
                         const SizedBox(height: 28),
-                        _buildOptionsPanel(listing, isDark),
+                        _buildOptionsPanel(context, listing),
                       ],
                       if (listing.description != null &&
                           listing.description!.trim().isNotEmpty) ...[
@@ -396,9 +424,8 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
     );
   }
 
-  Widget _buildProductHeader(ListingModel listing, bool isDark) {
-    final metaColor =
-        isDark ? AppColors.neutral400 : AppColors.neutral500;
+  Widget _buildProductHeader(BuildContext context, ListingModel listing) {
+    final cs = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,7 +433,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
         Text(
           _getCategoryName(listing.category).toUpperCase(),
           style: AppTypography.labelSmall.copyWith(
-            color: metaColor,
+            color: cs.onSurfaceVariant,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.1,
           ),
@@ -418,6 +445,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
             fontWeight: FontWeight.w700,
             height: 1.2,
             letterSpacing: -0.3,
+            color: cs.onSurface,
           ),
         ),
         if (listing.brand != null) ...[
@@ -425,7 +453,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
           Text(
             listing.brand!,
             style: AppTypography.bodyLarge.copyWith(
-              color: metaColor,
+              color: cs.onSurfaceVariant,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -438,7 +466,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
             _buildCompactBadge(
               icon: Icons.verified,
               label: 'TCR Ürünü',
-              color: AppColors.primary,
+              color: cs.primary,
             ),
             if (isListingDiscountActive(listing))
               _buildCompactBadge(
@@ -453,12 +481,10 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
     );
   }
 
-  Widget _buildOptionsPanel(ListingModel listing, bool isDark) {
-    final panelColor =
-        isDark ? AppColors.backgroundDark : AppColors.neutral200;
-    final borderColor = isDark
-        ? AppColors.neutral400.withValues(alpha: 0.15)
-        : AppColors.neutral200;
+  Widget _buildOptionsPanel(BuildContext context, ListingModel listing) {
+    final cs = Theme.of(context).colorScheme;
+    final panelColor = cs.surfaceContainerHighest;
+    final borderColor = cs.outlineVariant;
 
     return Container(
       width: double.infinity,
@@ -490,13 +516,14 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   }
 
   Widget _buildDescriptionSection(ListingModel listing) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Açıklama',
           style: AppTypography.labelMedium.copyWith(
-            color: AppColors.neutral500,
+            color: cs.onSurfaceVariant,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.4,
           ),
@@ -505,7 +532,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
         Text(
           listing.description!,
           style: AppTypography.bodyLarge.copyWith(
-            color: AppColors.neutral700,
+            color: cs.onSurface,
             height: 1.65,
           ),
         ),
@@ -514,10 +541,11 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   }
 
   Widget _buildOptionLabel(String label) {
+    final cs = Theme.of(context).colorScheme;
     return Text(
       label,
       style: AppTypography.labelMedium.copyWith(
-        color: AppColors.neutral600,
+        color: cs.onSurfaceVariant,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.2,
       ),
@@ -525,9 +553,10 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   }
 
   Widget _buildStickyOrderBar(BuildContext context, ListingModel listing) {
+    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    final barColor = isDark ? AppColors.surfaceDark : Colors.white;
+    final barColor = cs.surface;
 
     if (currentUserId == null) {
       return SafeArea(
@@ -536,20 +565,18 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
           decoration: BoxDecoration(
             color: barColor,
             border: Border(
-              top: BorderSide(
-                color: isDark ? AppColors.neutral400.withValues(alpha: 0.2) : AppColors.neutral200,
-              ),
+              top: BorderSide(color: cs.outlineVariant),
             ),
           ),
           child: SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: () => context.pushNamed(RouteNames.login),
-              icon: const Icon(Icons.login_rounded),
+              icon: Icon(Icons.login_rounded),
               label: const Text('Sipariş için giriş yap'),
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+                backgroundColor: cs.primary,
+                foregroundColor: cs.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -600,7 +627,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                 priceStyle: AppTypography.headlineSmall.copyWith(
                   color: isListingDiscountActive(listing)
                       ? AppColors.error
-                      : AppColors.primary,
+                      : cs.primary,
                   fontWeight: FontWeight.w800,
                   height: 1,
                 ),
@@ -625,13 +652,12 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                         isSubscribed ? 'Haberdar Edileceksin' : 'Gelince Haber Ver',
                       ),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: isSubscribed
-                            ? AppColors.primary
-                            : AppColors.neutral800,
+                        foregroundColor:
+                            isSubscribed ? cs.primary : cs.onSurface,
                         side: BorderSide(
                           color: isSubscribed
-                              ? AppColors.primary
-                              : AppColors.neutral300,
+                              ? cs.primary
+                              : cs.outlineVariant,
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
@@ -646,10 +672,10 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                       icon: Icon(orderState.icon),
                       label: Text(orderState.label),
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        disabledBackgroundColor: AppColors.neutral200,
-                        disabledForegroundColor: AppColors.neutral500,
-                        foregroundColor: Colors.white,
+                        backgroundColor: cs.primary,
+                        disabledBackgroundColor: cs.surfaceContainerHigh,
+                        disabledForegroundColor: cs.onSurfaceVariant,
+                        foregroundColor: cs.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -898,7 +924,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
             Text(
               'Ürün: ${listing.title}',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.neutral600,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 16),
@@ -912,7 +938,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
             Text(
               'Not: Stok miktarını boş bırakırsanız stok sınırsız olur.',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
             ),
           ],
@@ -1090,27 +1116,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
         final stockForCombo = genderMap?[_selectedGender!] ?? 0;
 
         if (stockForCombo > 0) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.inventory_2, size: 14, color: AppColors.warning),
-                const SizedBox(width: 6),
-                Text(
-                  '$stockForCombo adet',
-                  style: AppTypography.labelSmall.copyWith(
-                    color: AppColors.warning,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          );
+          return _buildAvailableStockBadge(stockForCombo);
         } else {
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1145,12 +1151,12 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.info_outline, size: 14, color: AppColors.neutral500),
+              Icon(Icons.info_outline, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 6),
               Text(
                 'Cinsiyet seç',
                 style: AppTypography.labelSmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -1167,12 +1173,12 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.info_outline, size: 14, color: AppColors.neutral500),
+              Icon(Icons.info_outline, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 6),
               Text(
                 'Beden seç',
                 style: AppTypography.labelSmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -1187,27 +1193,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
       if (_selectedSize != null && listing.stockBySize!.containsKey(_selectedSize)) {
         final stockForSize = listing.stockBySize![_selectedSize]!;
         if (stockForSize > 0) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.inventory_2, size: 14, color: AppColors.warning),
-                const SizedBox(width: 6),
-                Text(
-                  '$stockForSize adet',
-                  style: AppTypography.labelSmall.copyWith(
-                    color: AppColors.warning,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          );
+          return _buildAvailableStockBadge(stockForSize);
         } else {
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1242,12 +1228,12 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.info_outline, size: 14, color: AppColors.neutral500),
+              Icon(Icons.info_outline, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 6),
               Text(
                 'Beden seç',
                 style: AppTypography.labelSmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -1283,27 +1269,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
         ),
       );
     } else if (stockQuantity > 0) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.warning.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.inventory_2, size: 14, color: AppColors.warning),
-            const SizedBox(width: 6),
-            Text(
-              '$stockQuantity adet',
-              style: AppTypography.labelSmall.copyWith(
-                color: AppColors.warning,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
+      return _buildAvailableStockBadge(stockQuantity);
     } else {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1329,7 +1295,106 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
     }
   }
 
+  Widget _buildAvailableStockBadge(int stock) {
+    if (!shouldShowListingLowStockWarning(stock)) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.inventory_2, size: 14, color: AppColors.warning),
+          const SizedBox(width: 6),
+          Text(
+            listingLowStockLabel(stock),
+            style: AppTypography.labelSmall.copyWith(
+              color: AppColors.warning,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _autoSelectOptionsFromProfile(ListingModel listing, UserEntity? user) {
+    if (_autoSelectedForListingId == listing.id) return;
+
+    final hasSizeOptions =
+        listing.size != null && listing.size!.trim().isNotEmpty;
+    final hasGenderOptions =
+        listing.stockGenderMode == ListingGenderMode.gendered;
+
+    if (!hasSizeOptions && !hasGenderOptions) {
+      _autoSelectedForListingId = listing.id;
+      return;
+    }
+
+    if (user == null) return;
+
+    final needsSize = hasSizeOptions && _selectedSize == null;
+    final needsGender = hasGenderOptions && _selectedGender == null;
+
+    if (!needsSize && !needsGender) {
+      _autoSelectedForListingId = listing.id;
+      return;
+    }
+
+    _autoSelectedForListingId = listing.id;
+
+    final matchedSize =
+        needsSize ? _findProfileSizeMatch(listing.size!, user) : null;
+    final matchedGender = needsGender ? _findProfileGenderMatch(user) : null;
+
+    if (matchedSize != null || matchedGender != null) {
+      setState(() {
+        if (matchedSize != null) _selectedSize = matchedSize;
+        if (matchedGender != null) _selectedGender = matchedGender;
+      });
+    }
+  }
+
+  ListingGender? _findProfileGenderMatch(UserEntity user) {
+    return switch (user.gender) {
+      Gender.male => ListingGender.male,
+      Gender.female => ListingGender.female,
+      Gender.unknown || null => null,
+    };
+  }
+
+  String? _findProfileSizeMatch(String listingSizes, UserEntity user) {
+    final availableSizes = listingSizes
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (availableSizes.isEmpty) return null;
+
+    final profileSizes = <String>[
+      if (user.tshirtSize != null) user.tshirtSize!.name.toUpperCase(),
+      if (user.shoeSize != null && user.shoeSize!.trim().isNotEmpty)
+        user.shoeSize!.trim(),
+    ];
+    if (profileSizes.isEmpty) return null;
+
+    for (final profileSize in profileSizes) {
+      for (final size in availableSizes) {
+        if (size.toUpperCase() == profileSize.toUpperCase()) {
+          return size;
+        }
+      }
+    }
+    return null;
+  }
+
   Widget _buildSizeSelector(String sizeString) {
+    final cs = Theme.of(context).colorScheme;
     final sizes = sizeString.split(',').map((s) => s.trim()).toList();
 
     return Column(
@@ -1366,21 +1431,21 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.primary
-                              : AppColors.neutral100,
+                              ? cs.primary
+                              : cs.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: isSelected
-                                ? AppColors.primary
-                                : AppColors.neutral300,
+                                ? cs.primary
+                                : cs.outlineVariant,
                           ),
                         ),
                         child: Text(
                           size,
                           style: AppTypography.titleSmall.copyWith(
                             color: isSelected
-                                ? Colors.white
-                                : AppColors.neutral800,
+                                ? cs.onPrimary
+                                : cs.onSurface,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1397,6 +1462,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   }
 
   Widget _buildGenderSelector(ListingModel listing) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1405,9 +1471,9 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
         Container(
           height: 48,
           decoration: BoxDecoration(
-            color: AppColors.neutral100,
+            color: cs.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.neutral300),
+            border: Border.all(color: cs.outlineVariant),
           ),
           padding: const EdgeInsets.all(3),
           child: Row(
@@ -1427,6 +1493,7 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   }
 
   Widget _buildGenderSegment(ListingGender gender, String label) {
+    final cs = Theme.of(context).colorScheme;
     final isSelected = _selectedGender == gender;
     return Material(
       color: Colors.transparent,
@@ -1441,13 +1508,13 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
           duration: const Duration(milliseconds: 180),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : Colors.transparent,
+            color: isSelected ? cs.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             label,
             style: AppTypography.titleSmall.copyWith(
-              color: isSelected ? Colors.white : AppColors.neutral700,
+              color: isSelected ? cs.onPrimary : cs.onSurface,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1562,6 +1629,32 @@ class _OrderDialogContent extends StatefulWidget {
 class _OrderDialogContentState extends State<_OrderDialogContent> {
   int selectedQuantity = 1;
 
+  String? _orderDialogLowStockLabel() {
+    int? stock;
+
+    if (widget.listing.stockGenderMode == ListingGenderMode.gendered &&
+        widget.listing.stockBySizeAndGender != null &&
+        widget.listing.stockBySizeAndGender!.isNotEmpty &&
+        widget.selectedSize != null &&
+        widget.selectedGender != null) {
+      final genderMap =
+          widget.listing.stockBySizeAndGender![widget.selectedSize!];
+      stock = genderMap?[widget.selectedGender!];
+    } else if (widget.listing.stockBySize != null &&
+        widget.listing.stockBySize!.isNotEmpty &&
+        widget.selectedSize != null) {
+      stock = widget.listing.stockBySize![widget.selectedSize];
+    } else {
+      stock = widget.listing.stockQuantity;
+    }
+
+    if (stock == null || !shouldShowListingLowStockWarning(stock)) {
+      return null;
+    }
+
+    return listingLowStockLabel(stock);
+  }
+
   String _formatPrice(double price) {
     // Binlik ayırıcı ile formatla (Türkçe format: 1.234.567)
     final priceString = price.toStringAsFixed(0);
@@ -1600,7 +1693,7 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                         color: AppColors.primaryContainer,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.shopping_cart,
                         color: AppColors.primary,
                         size: 24,
@@ -1632,7 +1725,7 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: Icon(Icons.close),
                       onPressed: () => Navigator.pop(context),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -1664,7 +1757,7 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                             Text(
                               'Beden: ',
                               style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.neutral600,
+                                color: ThemeBrightnessHolder.onSurfaceVariant,
                               ),
                             ),
                             Container(
@@ -1695,7 +1788,7 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                             Text(
                               'Cinsiyet: ',
                               style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.neutral600,
+                                color: ThemeBrightnessHolder.onSurfaceVariant,
                               ),
                             ),
                             Container(
@@ -1766,7 +1859,7 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                 const SizedBox(height: 12),
                 Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.neutral300),
+                    border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: DropdownButtonFormField<int>(
@@ -1796,41 +1889,13 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                     },
                   ),
                 ),
-                // Stok bilgisi göster
-                if (widget.listing.stockGenderMode == ListingGenderMode.gendered &&
-                    widget.listing.stockBySizeAndGender != null &&
-                    widget.listing.stockBySizeAndGender!.isNotEmpty &&
-                    widget.selectedSize != null &&
-                    widget.selectedGender != null) ...[
+                if (_orderDialogLowStockLabel() case final label?) ...[
                   const SizedBox(height: 8),
                   Text(
-                    () {
-                      final genderMap = widget
-                          .listing.stockBySizeAndGender![widget.selectedSize!];
-                      final qty =
-                          genderMap?[widget.selectedGender!] ?? 0;
-                      return 'Mevcut stok: $qty adet';
-                    }(),
+                    label,
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral500,
-                    ),
-                  ),
-                ] else if (widget.listing.stockBySize != null && 
-                    widget.listing.stockBySize!.isNotEmpty && 
-                    widget.selectedSize != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Mevcut stok: ${widget.listing.stockBySize![widget.selectedSize] ?? 0} adet',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral500,
-                    ),
-                  ),
-                ] else if (widget.listing.stockQuantity != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Mevcut stok: ${widget.listing.stockQuantity} adet',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: AppColors.warning,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -1859,7 +1924,7 @@ class _OrderDialogContentState extends State<_OrderDialogContent> {
                 Text(
                   'Not: Ödeme ve teslimat elden yapılacaktır.',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -2046,7 +2111,9 @@ class _StockBySizeDialogState extends ConsumerState<_StockBySizeDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Dialog(
+      backgroundColor: cs.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
@@ -2063,12 +2130,12 @@ class _StockBySizeDialogState extends ConsumerState<_StockBySizeDialog> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryContainer,
+                    color: cs.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.inventory_2,
-                    color: AppColors.primary,
+                    color: cs.primary,
                     size: 24,
                   ),
                 ),
@@ -2081,12 +2148,13 @@ class _StockBySizeDialogState extends ConsumerState<_StockBySizeDialog> {
                         'Stok Yönetimi',
                         style: AppTypography.titleLarge.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: cs.onSurface,
                         ),
                       ),
                       Text(
                         widget.listing.title,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral600,
+                          color: cs.onSurfaceVariant,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -2095,7 +2163,7 @@ class _StockBySizeDialogState extends ConsumerState<_StockBySizeDialog> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -2119,7 +2187,7 @@ class _StockBySizeDialogState extends ConsumerState<_StockBySizeDialog> {
                         suffix: Text(
                           'adet',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -2139,6 +2207,8 @@ class _StockBySizeDialogState extends ConsumerState<_StockBySizeDialog> {
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
+                      foregroundColor: cs.onSurface,
+                      side: BorderSide(color: cs.outlineVariant),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -2208,8 +2278,8 @@ class _StockBySizeDialogState extends ConsumerState<_StockBySizeDialog> {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      backgroundColor: cs.primary,
+                      foregroundColor: cs.onPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -2294,7 +2364,9 @@ class _StockBySizeModeDialogState
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Dialog(
+      backgroundColor: cs.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
@@ -2311,12 +2383,12 @@ class _StockBySizeModeDialogState
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryContainer,
+                    color: cs.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.inventory_2,
-                    color: AppColors.primary,
+                    color: cs.primary,
                     size: 24,
                   ),
                 ),
@@ -2329,12 +2401,13 @@ class _StockBySizeModeDialogState
                         'Stok Yönetimi',
                         style: AppTypography.titleLarge.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: cs.onSurface,
                         ),
                       ),
                       Text(
                         widget.listing.title,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral600,
+                          color: cs.onSurfaceVariant,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -2343,7 +2416,7 @@ class _StockBySizeModeDialogState
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close, color: cs.onSurfaceVariant),
                   onPressed: () => Navigator.pop(context),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -2357,6 +2430,7 @@ class _StockBySizeModeDialogState
               'Stok Tipi',
               style: AppTypography.labelMedium.copyWith(
                 fontWeight: FontWeight.w600,
+                color: cs.onSurface,
               ),
             ),
             const SizedBox(height: 12),
@@ -2396,7 +2470,7 @@ class _StockBySizeModeDialogState
                           suffix: Text(
                             'adet',
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral500,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -2428,7 +2502,7 @@ class _StockBySizeModeDialogState
                                       'adet',
                                       style:
                                           AppTypography.bodySmall.copyWith(
-                                        color: AppColors.neutral500,
+                                        color: ThemeBrightnessHolder.onSurfaceVariant,
                                       ),
                                     ),
                                   ),
@@ -2445,7 +2519,7 @@ class _StockBySizeModeDialogState
                                       'adet',
                                       style:
                                           AppTypography.bodySmall.copyWith(
-                                        color: AppColors.neutral500,
+                                        color: ThemeBrightnessHolder.onSurfaceVariant,
                                       ),
                                     ),
                                   ),
@@ -2471,6 +2545,8 @@ class _StockBySizeModeDialogState
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
+                      foregroundColor: cs.onSurface,
+                      side: BorderSide(color: cs.outlineVariant),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -2604,8 +2680,8 @@ class _StockBySizeModeDialogState
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      backgroundColor: cs.primary,
+                      foregroundColor: cs.onPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -2626,6 +2702,7 @@ class _StockBySizeModeDialogState
     required ListingGenderMode mode,
     required String label,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final isSelected = _mode == mode;
     return InkWell(
       onTap: () {
@@ -2638,10 +2715,10 @@ class _StockBySizeModeDialogState
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : AppColors.neutral100,
+          color: isSelected ? cs.primary : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.neutral300,
+            color: isSelected ? cs.primary : cs.outlineVariant,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -2649,7 +2726,7 @@ class _StockBySizeModeDialogState
           child: Text(
             label,
             style: AppTypography.bodyMedium.copyWith(
-              color: isSelected ? Colors.white : AppColors.neutral700,
+              color: isSelected ? cs.onPrimary : cs.onSurface,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
@@ -2738,7 +2815,7 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.error_outline,
                               size: 64,
                               color: Colors.white54,
@@ -2788,7 +2865,7 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
                             shape: BoxShape.circle,
                           ),
                           child: IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white),
+                            icon: Icon(Icons.close, color: Colors.white),
                             onPressed: () => Navigator.pop(context),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
@@ -3037,9 +3114,14 @@ class _QuickDiscountDialogState extends ConsumerState<_QuickDiscountDialog> {
         : null;
     final previewPrice =
         previewListing != null ? listingDisplayPrice(previewListing) : null;
+    final cs = Theme.of(context).colorScheme;
 
     return AlertDialog(
-      title: const Text('İndirim Uygula'),
+      backgroundColor: cs.surface,
+      title: Text(
+        'İndirim Uygula',
+        style: TextStyle(color: cs.onSurface),
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -3048,7 +3130,7 @@ class _QuickDiscountDialogState extends ConsumerState<_QuickDiscountDialog> {
             Text(
               listing.title,
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.neutral600,
+                color: cs.onSurfaceVariant,
               ),
             ),
             if (listing.price != null) ...[
@@ -3056,16 +3138,17 @@ class _QuickDiscountDialogState extends ConsumerState<_QuickDiscountDialog> {
               Text(
                 'Liste fiyatı: ₺${formatListingPrice(listing.price!)}',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: cs.onSurfaceVariant,
                 ),
               ),
             ],
             const SizedBox(height: 16),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('İndirim aktif'),
+              title: Text('İndirim aktif', style: TextStyle(color: cs.onSurface)),
               value: _enabled,
-              activeThumbColor: AppColors.primary,
+              activeThumbColor: cs.primary,
+              activeTrackColor: cs.primary.withValues(alpha: 0.35),
               onChanged: (value) {
                 setState(() {
                   _enabled = value;
@@ -3122,10 +3205,14 @@ class _QuickDiscountDialogState extends ConsumerState<_QuickDiscountDialog> {
       actions: [
         TextButton(
           onPressed: _isSaving ? null : () => Navigator.pop(context),
-          child: const Text('İptal'),
+          child: Text('İptal', style: TextStyle(color: cs.primary)),
         ),
         FilledButton(
           onPressed: _isSaving ? null : _save,
+          style: FilledButton.styleFrom(
+            backgroundColor: cs.primary,
+            foregroundColor: cs.onPrimary,
+          ),
           child: _isSaving
               ? const SizedBox(
                   width: 18,
@@ -3162,7 +3249,7 @@ class _DiscountDateTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
         ),
         child: Row(
           children: [
@@ -3173,7 +3260,7 @@ class _DiscountDateTile extends StatelessWidget {
                   Text(
                     label,
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -3186,7 +3273,7 @@ class _DiscountDateTile extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.calendar_today_outlined, size: 18),
+            Icon(Icons.calendar_today_outlined, size: 18),
           ],
         ),
       ),

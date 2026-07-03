@@ -16,6 +16,7 @@ class GroupRequestsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final requestsAsync = ref.watch(allPendingJoinRequestsProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -48,7 +49,7 @@ class GroupRequestsPage extends ConsumerWidget {
                     icon: Icons.group_add,
                     title: 'Katılım Talepleri',
                     count: joinRequests.length,
-                    iconColor: AppColors.primary,
+                    iconColor: cs.primary,
                   ),
                   const SizedBox(height: 12),
                   ...joinRequests.map(
@@ -68,7 +69,9 @@ class GroupRequestsPage extends ConsumerWidget {
                     icon: Icons.swap_horiz,
                     title: 'Grup Değişim Talepleri',
                     count: transferRequests.length,
-                    iconColor: AppColors.warning,
+                    iconColor: cs.brightness == Brightness.dark
+                        ? AppColors.warningLight
+                        : AppColors.warning,
                   ),
                   const SizedBox(height: 12),
                   ...transferRequests.map(
@@ -218,13 +221,33 @@ class _RequestCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final actionState = ref.watch(joinRequestActionProvider);
+    final isDark = cs.brightness == Brightness.dark;
+
+    final cardColor = request.isTransfer
+        ? (isDark
+            ? AppColors.warning.withValues(alpha: 0.14)
+            : AppColors.warningContainer)
+        : (isDark
+            ? cs.primary.withValues(alpha: 0.12)
+            : AppColors.primary.withValues(alpha: 0.06));
+
+    final borderColor = request.isTransfer
+        ? (isDark
+            ? AppColors.warning.withValues(alpha: 0.35)
+            : AppColors.warning.withValues(alpha: 0.2))
+        : (isDark
+            ? cs.primary.withValues(alpha: 0.28)
+            : cs.primary.withValues(alpha: 0.12));
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      color: request.isTransfer
-          ? AppColors.warningContainer
-          : AppColors.primary.withValues(alpha: 0.06),
+      color: cardColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: borderColor),
+      ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         leading: UserAvatar(
@@ -234,13 +257,18 @@ class _RequestCard extends ConsumerWidget {
         ),
         title: Text(
           request.userName,
-          style: AppTypography.titleSmall.copyWith(fontWeight: FontWeight.w600),
+          style: AppTypography.titleSmall.copyWith(
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(
           _subtitle(),
-          style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+          style: AppTypography.bodySmall.copyWith(
+            color: cs.onSurfaceVariant,
+          ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
@@ -254,13 +282,13 @@ class _RequestCard extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.cancel, color: AppColors.error),
+                    icon: Icon(Icons.cancel, color: AppColors.error),
                     tooltip: 'Reddet',
                     visualDensity: VisualDensity.compact,
                     onPressed: onReject,
                   ),
                   IconButton(
-                    icon: const Icon(Icons.check_circle, color: AppColors.success),
+                    icon: Icon(Icons.check_circle, color: AppColors.success),
                     tooltip: 'Onayla',
                     visualDensity: VisualDensity.compact,
                     onPressed: onApprove,

@@ -138,11 +138,10 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      backgroundColor: cs.surface,
       appBar: AppBar(
         title: const Text('TCR Market'),
         actions: [
@@ -152,7 +151,7 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
               if (isAdmin) {
                 return PopupMenuButton<_MarketMenuAction>(
                   tooltip: 'Menü',
-                  icon: const Icon(Icons.more_vert),
+                  icon: Icon(Icons.more_vert),
                   onSelected: (action) {
                     switch (action) {
                       case _MarketMenuAction.favorites:
@@ -227,12 +226,12 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.favorite),
+                    icon: Icon(Icons.favorite),
                     tooltip: 'Favorilerim',
                     onPressed: () => context.pushNamed(RouteNames.favorites),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.receipt_long_outlined),
+                    icon: Icon(Icons.receipt_long_outlined),
                     tooltip: 'Siparişlerim',
                     onPressed: () => context.pushNamed(RouteNames.myOrders),
                   ),
@@ -271,6 +270,7 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
   Widget _buildListingGrid(ListingType type) {
     final listingsState = ref.watch(listingsProvider);
     final filteredListings = _applyStockFilter(listingsState.listings);
+    final cs = Theme.of(context).colorScheme;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -321,7 +321,7 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
                     const SizedBox(height: 8),
                     Text(
                       listingsState.error!,
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                      style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
@@ -339,7 +339,7 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.shopping_bag_outlined, size: 64, color: AppColors.neutral400),
+                    Icon(Icons.shopping_bag_outlined, size: 64, color: cs.outline),
                     const SizedBox(height: 16),
                     Text(
                       'Henüz ilan yok',
@@ -348,7 +348,7 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
                     const SizedBox(height: 8),
                     Text(
                       'İlk ilanı sen oluştur!',
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                      style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -361,7 +361,7 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.inventory_2_outlined,
-                        size: 56, color: AppColors.neutral400),
+                        size: 56, color: cs.outline),
                     const SizedBox(height: 16),
                     Text(
                       'Bu filtrede ürün yok',
@@ -371,7 +371,7 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
                     Text(
                       'Filtreleri değiştirmeyi deneyin',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                     if (_hasActiveFilters) ...[
@@ -498,6 +498,7 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
   Widget _buildListingCard(BuildContext context, ListingModel listing) {
     final isTcrProduct = listing.listingType == ListingType.tcrProduct;
     final isOutOfStock = isListingOutOfStock(listing);
+    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AppCard(
@@ -505,12 +506,8 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
       borderRadius: BorderRadius.circular(16),
       border: Border.all(
         color: isOutOfStock
-            ? (isDark
-                ? AppColors.neutral400.withValues(alpha: 0.2)
-                : AppColors.neutral300)
-            : (isDark
-                ? AppColors.neutral400.withValues(alpha: 0.12)
-                : AppColors.neutral200),
+            ? cs.outlineVariant.withValues(alpha: isDark ? 0.5 : 1)
+            : cs.outlineVariant.withValues(alpha: isDark ? 0.35 : 0.6),
       ),
       elevation: isOutOfStock ? 0 : 1,
       onTap: () {
@@ -538,7 +535,7 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
                     width: double.infinity,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: AppColors.neutral200,
+                        color: cs.surfaceContainerHigh,
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(16),
                         ),
@@ -571,11 +568,11 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
                                       },
                                       errorBuilder:
                                           (context, error, stackTrace) =>
-                                              const Center(
+                                              Center(
                                         child: Icon(
                                           Icons.image,
                                           size: 48,
-                                          color: AppColors.neutral400,
+                                          color: cs.outline,
                                         ),
                                       ),
                                     ),
@@ -590,8 +587,7 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
                                           vertical: 5,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.92),
+                                          color: cs.surface.withValues(alpha: 0.92),
                                           borderRadius:
                                               BorderRadius.circular(8),
                                         ),
@@ -599,7 +595,7 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
                                           'Stokta Yok',
                                           style: AppTypography.labelSmall
                                               .copyWith(
-                                            color: AppColors.neutral700,
+                                            color: cs.onSurface,
                                             fontWeight: FontWeight.w700,
                                           ),
                                         ),
@@ -612,9 +608,7 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
                               child: Icon(
                                 Icons.image,
                                 size: 48,
-                                color: isOutOfStock
-                                    ? AppColors.neutral400
-                                    : AppColors.neutral400,
+                                color: cs.outline,
                               ),
                             ),
                     ),
@@ -629,22 +623,22 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.92),
+                          color: cs.primary.withValues(alpha: 0.92),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.verified,
                               size: 11,
-                              color: Colors.white,
+                              color: cs.onPrimary,
                             ),
                             const SizedBox(width: 3),
                             Text(
                               'TCR',
                               style: AppTypography.labelSmall.copyWith(
-                                color: Colors.white,
+                                color: cs.onPrimary,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 10,
                               ),
@@ -696,8 +690,8 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
                           style: AppTypography.titleSmall.copyWith(
                             fontWeight: FontWeight.w600,
                             color: isOutOfStock
-                                ? AppColors.neutral500
-                                : null,
+                                ? cs.onSurfaceVariant
+                                : cs.onSurface,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -708,7 +702,7 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
                         Text(
                           _buildSubtitle(listing),
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: cs.onSurfaceVariant,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -750,6 +744,7 @@ class _FavoriteButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final favoriteIds = ref.watch(favoriteIdsProvider);
     final isFavorite = favoriteIds.contains(listingId);
 
@@ -757,7 +752,7 @@ class _FavoriteButton extends ConsumerWidget {
       width: 32,
       height: 32,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
@@ -773,7 +768,7 @@ class _FavoriteButton extends ConsumerWidget {
           icon: Icon(
             isFavorite ? Icons.favorite : Icons.favorite_border,
             size: 16,
-            color: isFavorite ? AppColors.error : AppColors.neutral600,
+            color: isFavorite ? AppColors.error : cs.onSurfaceVariant,
           ),
           padding: EdgeInsets.zero,
           onPressed: () {
@@ -827,10 +822,10 @@ class _FilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Material(
-      color: isDark ? AppColors.surfaceDark : AppColors.neutral100,
+      color: cs.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -842,10 +837,8 @@ class _FilterButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: activeCount > 0
-                  ? AppColors.primary
-                  : (isDark
-                      ? AppColors.neutral400.withValues(alpha: 0.2)
-                      : AppColors.neutral300),
+                  ? cs.primary
+                  : cs.outlineVariant,
             ),
           ),
           child: Stack(
@@ -855,8 +848,8 @@ class _FilterButton extends StatelessWidget {
                 Icons.tune_rounded,
                 size: 22,
                 color: activeCount > 0
-                    ? AppColors.primary
-                    : AppColors.neutral700,
+                    ? cs.primary
+                    : cs.onSurfaceVariant,
               ),
               if (activeCount > 0)
                 Positioned(
@@ -896,6 +889,8 @@ class _ActiveFilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return SizedBox(
       height: 36,
       child: ListView(
@@ -927,7 +922,7 @@ class _ActiveFilterChips extends StatelessWidget {
             child: Text(
               'Temizle',
               style: AppTypography.labelMedium.copyWith(
-                color: AppColors.primary,
+                color: cs.primary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -949,15 +944,15 @@ class _ActiveFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : Colors.white,
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.35),
+          color: cs.primary.withValues(alpha: 0.35),
         ),
       ),
       child: Row(
@@ -966,7 +961,7 @@ class _ActiveFilterChip extends StatelessWidget {
           Text(
             label,
             style: AppTypography.labelMedium.copyWith(
-              color: AppColors.primary,
+              color: cs.primary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -974,12 +969,12 @@ class _ActiveFilterChip extends StatelessWidget {
           InkWell(
             onTap: onRemove,
             borderRadius: BorderRadius.circular(12),
-            child: const Padding(
-              padding: EdgeInsets.all(2),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
               child: Icon(
                 Icons.close,
                 size: 16,
-                color: AppColors.primary,
+                color: cs.primary,
               ),
             ),
           ),
@@ -1017,18 +1012,16 @@ class _MarketFilterSheetState extends State<_MarketFilterSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = isDark
-        ? AppColors.neutral400.withValues(alpha: 0.2)
-        : AppColors.neutral300;
-    final fieldFill = isDark ? AppColors.backgroundDark : AppColors.neutral100;
+    final cs = Theme.of(context).colorScheme;
+    final borderColor = cs.outlineVariant;
+    final fieldFill = cs.surfaceContainerHighest;
     final buttonShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(12),
     );
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : Colors.white,
+        color: cs.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
@@ -1043,7 +1036,7 @@ class _MarketFilterSheetState extends State<_MarketFilterSheet> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.neutral300,
+                    color: cs.outlineVariant,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1055,12 +1048,13 @@ class _MarketFilterSheetState extends State<_MarketFilterSheet> {
                     'Filtrele',
                     style: AppTypography.titleMedium.copyWith(
                       fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
                     ),
                   ),
                   const Spacer(),
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.close, size: 22),
+                    icon: Icon(Icons.close, size: 22, color: cs.onSurfaceVariant),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -1139,7 +1133,7 @@ class _MarketFilterSheetState extends State<_MarketFilterSheet> {
                         minimumSize: const Size(0, 48),
                         shape: buttonShape,
                         side: BorderSide(color: borderColor),
-                        foregroundColor: AppColors.neutral800,
+                        foregroundColor: cs.onSurface,
                       ),
                       child: const Text('Sıfırla'),
                     ),
@@ -1153,7 +1147,8 @@ class _MarketFilterSheetState extends State<_MarketFilterSheet> {
                       },
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(0, 48),
-                        backgroundColor: AppColors.primary,
+                        backgroundColor: cs.primary,
+                        foregroundColor: cs.onPrimary,
                         shape: buttonShape,
                       ),
                       child: const Text('Uygula'),
@@ -1188,6 +1183,7 @@ class _FilterDropdownField<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: BorderSide(color: borderColor),
@@ -1199,7 +1195,7 @@ class _FilterDropdownField<T> extends StatelessWidget {
         Text(
           label,
           style: AppTypography.labelMedium.copyWith(
-            color: AppColors.neutral600,
+            color: cs.onSurfaceVariant,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1209,12 +1205,10 @@ class _FilterDropdownField<T> extends StatelessWidget {
           isExpanded: true,
           icon: Icon(
             Icons.keyboard_arrow_down_rounded,
-            color: AppColors.neutral600,
+            color: cs.onSurfaceVariant,
           ),
           borderRadius: BorderRadius.circular(12),
-          dropdownColor: Theme.of(context).brightness == Brightness.dark
-              ? AppColors.surfaceDark
-              : Colors.white,
+          dropdownColor: cs.surfaceContainerHighest,
           items: items,
           onChanged: onChanged,
           decoration: InputDecoration(
@@ -1227,8 +1221,8 @@ class _FilterDropdownField<T> extends StatelessWidget {
             border: border,
             enabledBorder: border,
             focusedBorder: border.copyWith(
-              borderSide: const BorderSide(
-                color: AppColors.primary,
+              borderSide: BorderSide(
+                color: cs.primary,
                 width: 1.5,
               ),
             ),
@@ -1250,9 +1244,11 @@ class _FilterDropdownRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Row(
       children: [
-        Icon(icon, size: 20, color: AppColors.neutral700),
+        Icon(icon, size: 20, color: cs.onSurface),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
@@ -1260,6 +1256,7 @@ class _FilterDropdownRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: AppTypography.bodyMedium.copyWith(
               fontWeight: FontWeight.w500,
+              color: cs.onSurface,
             ),
           ),
         ),

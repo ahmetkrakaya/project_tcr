@@ -9,6 +9,7 @@ import '../../../../core/utils/vdot_calculator.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../data/models/admin_reports_models.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Kisi 360 detayinin yeniden kullanilabilir gorunumu.
 /// Hem admin "Kisi 360" hem de kullanicinin kendi istatistik sayfasinda kullanilir.
@@ -35,7 +36,7 @@ class Person360View extends StatelessWidget {
         const SizedBox(height: 12),
         _trainingLoad(person),
         const SizedBox(height: 12),
-        _recent(person),
+        _recent(context, person),
       ],
     );
   }
@@ -77,7 +78,7 @@ class Person360View extends StatelessWidget {
           if (showPerformanceLink)
             IconButton(
               tooltip: 'Performans detayı',
-              icon: const Icon(Icons.monitor_heart_outlined),
+              icon: Icon(Icons.monitor_heart_outlined),
               onPressed: () => context.pushNamed(
                 RouteNames.adminTrainingLoadDetail,
                 pathParameters: {'userId': p.userId},
@@ -132,13 +133,13 @@ class Person360View extends StatelessWidget {
             const Divider(height: 24),
             Row(
               children: [
-                const Icon(Icons.access_time,
-                    size: 14, color: AppColors.neutral500),
+                Icon(Icons.access_time,
+                    size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
                 const SizedBox(width: 6),
                 Text(
                   'Son uygulama açılışı: ${DateFormat('d MMM yyyy', 'tr').format(p.lastAppOpenAt!)}',
                   style: AppTypography.labelMedium
-                      .copyWith(color: AppColors.neutral600),
+                      .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                 ),
               ],
             ),
@@ -187,13 +188,13 @@ class Person360View extends StatelessWidget {
     return AppColors.success;
   }
 
-  Widget _recent(Person360 p) {
+  Widget _recent(BuildContext context, Person360 p) {
     if (p.recentActivities.isEmpty) {
       return AppCard(
         padding: const EdgeInsets.all(16),
         child: Text('Son aktivite yok',
             style: AppTypography.bodyMedium
-                .copyWith(color: AppColors.neutral500)),
+                .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant)),
       );
     }
     return AppCard(
@@ -205,42 +206,9 @@ class Person360View extends StatelessWidget {
               style: AppTypography.titleSmall
                   .copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          ...p.recentActivities.map((a) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
-                    const Icon(Icons.directions_run,
-                        size: 18, color: AppColors.neutral500),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(a.title ?? 'Koşu',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.bodyMedium
-                                  .copyWith(fontWeight: FontWeight.w500)),
-                          if (a.startTime != null)
-                            Text(
-                                DateFormat('d MMM', 'tr').format(a.startTime!),
-                                style: AppTypography.labelSmall
-                                    .copyWith(color: AppColors.neutral500)),
-                        ],
-                      ),
-                    ),
-                    Text('${a.distanceKm.toStringAsFixed(1)} km',
-                        style: AppTypography.bodyMedium
-                            .copyWith(fontWeight: FontWeight.w600)),
-                    if (a.paceSeconds != null) ...[
-                      const SizedBox(width: 10),
-                      Text('${VdotCalculator.formatPace(a.paceSeconds!)}/km',
-                          style: AppTypography.labelMedium
-                              .copyWith(color: AppColors.neutral600)),
-                    ],
-                  ],
-                ),
-              )),
+          ...p.recentActivities.map(
+            (a) => _RecentActivityRow(activity: a),
+          ),
         ],
       ),
     );
@@ -255,9 +223,81 @@ class Person360View extends StatelessWidget {
             const SizedBox(height: 2),
             Text(label,
                 style: AppTypography.labelSmall
-                    .copyWith(color: AppColors.neutral500),
+                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                 textAlign: TextAlign.center),
           ],
         ),
       );
+}
+
+class _RecentActivityRow extends StatelessWidget {
+  const _RecentActivityRow({required this.activity});
+
+  final Person360Activity activity;
+
+  @override
+  Widget build(BuildContext context) {
+    final activityId = activity.id;
+    final canOpen = activityId != null && activityId.isNotEmpty;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: canOpen
+            ? () => context.pushNamed(
+                  RouteNames.activityDetail,
+                  pathParameters: {'activityId': activityId},
+                )
+            : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Icon(Icons.directions_run,
+                  size: 18, color: ThemeBrightnessHolder.onSurfaceVariant),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(activity.title ?? 'Koşu',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.bodyMedium
+                            .copyWith(fontWeight: FontWeight.w500)),
+                    if (activity.startTime != null)
+                      Text(
+                        DateFormat('d MMM', 'tr').format(activity.startTime!),
+                        style: AppTypography.labelSmall
+                            .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
+                      ),
+                  ],
+                ),
+              ),
+              Text('${activity.distanceKm.toStringAsFixed(1)} km',
+                  style: AppTypography.bodyMedium
+                      .copyWith(fontWeight: FontWeight.w600)),
+              if (activity.paceSeconds != null) ...[
+                const SizedBox(width: 10),
+                Text(
+                  '${VdotCalculator.formatPace(activity.paceSeconds!)}/km',
+                  style: AppTypography.labelMedium
+                      .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
+                ),
+              ],
+              if (canOpen) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: ThemeBrightnessHolder.outline,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

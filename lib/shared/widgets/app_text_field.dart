@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/utils/extensions.dart';
 
 /// TCR Custom Text Field
 class AppTextField extends StatefulWidget {
@@ -144,7 +144,7 @@ class _AppTextFieldState extends State<AppTextField> {
         icon: Icon(
           _obscureText ? Icons.visibility_off : Icons.visibility,
           size: 20,
-          color: AppColors.neutral500,
+          color: context.colorScheme.onSurfaceVariant,
         ),
         onPressed: () {
           setState(() {

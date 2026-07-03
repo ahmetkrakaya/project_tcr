@@ -11,6 +11,7 @@ import '../../../workout/presentation/widgets/workout_segment_editor.dart';
 import '../../data/models/group_model.dart';
 import '../../domain/entities/group_entity.dart';
 import '../providers/group_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Performans grubu üye programı (kişiye özel)
 class EventMemberProgramItem {
@@ -359,7 +360,7 @@ class _EventGroupProgramsEditorState
             ),
             TextButton.icon(
               onPressed: () => _showAddGroupSheet(context, groupsAsync),
-              icon: const Icon(Icons.add, size: 20),
+              icon: Icon(Icons.add, size: 20),
               label: const Text('Grup Ekle'),
             ),
           ],
@@ -368,7 +369,7 @@ class _EventGroupProgramsEditorState
         Text(
           'Normal gruplar için tek program, performans grupları için her üyeye özel program oluşturun.',
           style: AppTypography.bodySmall.copyWith(
-            color: AppColors.neutral500,
+            color: ThemeBrightnessHolder.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 16),
@@ -406,20 +407,20 @@ class _EventGroupProgramsEditorState
           Icon(
             Icons.groups_outlined,
             size: 48,
-            color: AppColors.neutral400,
+            color: ThemeBrightnessHolder.outline,
           ),
           const SizedBox(height: 12),
           Text(
             'Henüz grup programı eklenmedi',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Gruplar için özel antrenman programları eklemek için "Grup Ekle" butonuna tıklayın.',
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral400,
+              color: ThemeBrightnessHolder.outline,
             ),
             textAlign: TextAlign.center,
           ),
@@ -491,7 +492,7 @@ class _EventGroupProgramsEditorState
                         Text(
                           'Hedef: ${program.group.targetDistance}',
                           style: AppTypography.labelSmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                         ),
                     ],
@@ -507,7 +508,7 @@ class _EventGroupProgramsEditorState
                             : Icons.keyboard_arrow_down,
                         size: 22,
                       ),
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                       onPressed: () {
                         setState(() {
                           _programExpandedStates[index] =
@@ -516,9 +517,9 @@ class _EventGroupProgramsEditorState
                       },
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, size: 20),
+                      icon: Icon(Icons.close, size: 20),
                       onPressed: () => _removeProgram(index),
-                      color: AppColors.neutral400,
+                      color: ThemeBrightnessHolder.outline,
                     ),
                   ],
                 ),
@@ -609,17 +610,17 @@ class _EventGroupProgramsEditorState
             ),
             if (program.trainingTypeId != null)
               IconButton(
-                icon: const Icon(Icons.close, size: 18),
+                icon: Icon(Icons.close, size: 18),
                 onPressed: () =>
                     _updateProgramTrainingType(index, null, null, null),
-                color: AppColors.neutral400,
+                color: ThemeBrightnessHolder.outline,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               )
             else
-              const Icon(
+              Icon(
                 Icons.chevron_right,
-                color: AppColors.neutral400,
+                color: ThemeBrightnessHolder.outline,
                 size: 20,
               ),
           ],
@@ -688,7 +689,7 @@ class _EventGroupProgramsEditorState
                       ),
                       Text(
                         '${groupMembers.length} üye - Her üyeye özel program',
-                        style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500),
+                        style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -703,7 +704,7 @@ class _EventGroupProgramsEditorState
                             : Icons.keyboard_arrow_down,
                         size: 22,
                       ),
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                       onPressed: () {
                         setState(() {
                           _performanceExpandedStates[groupId] = !isExpanded;
@@ -711,9 +712,9 @@ class _EventGroupProgramsEditorState
                       },
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, size: 20),
+                      icon: Icon(Icons.close, size: 20),
                       onPressed: () => _removePerformanceGroup(groupId),
-                      color: AppColors.neutral400,
+                      color: ThemeBrightnessHolder.outline,
                     ),
                   ],
                 ),
@@ -784,7 +785,7 @@ class _EventGroupProgramsEditorState
                           : Icons.keyboard_arrow_down,
                       size: 20,
                     ),
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                     onPressed: () {
@@ -794,7 +795,7 @@ class _EventGroupProgramsEditorState
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.copy, size: 18),
+                    icon: Icon(Icons.copy, size: 18),
                     tooltip: 'Programı Kopyala',
                     onPressed: () => _copyMemberProgram(memberIndex),
                     color: AppColors.primary,
@@ -868,10 +869,10 @@ class _EventGroupProgramsEditorState
             if (memberProgram.trainingTypeId != null)
               GestureDetector(
                 onTap: () => _updateMemberProgramTrainingType(memberIndex, null, null, null),
-                child: const Icon(Icons.close, size: 16, color: AppColors.neutral400),
+                child: Icon(Icons.close, size: 16, color: ThemeBrightnessHolder.outline),
               )
             else
-              const Icon(Icons.chevron_right, color: AppColors.neutral400, size: 18),
+              Icon(Icons.chevron_right, color: ThemeBrightnessHolder.outline, size: 18),
           ],
         ),
       ),
@@ -903,7 +904,7 @@ class _EventGroupProgramsEditorState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: ThemeBrightnessHolder.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -913,7 +914,7 @@ class _EventGroupProgramsEditorState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Antrenman Türü Seç', style: AppTypography.titleLarge),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                    IconButton(icon: Icon(Icons.close), onPressed: () => Navigator.pop(context)),
                   ],
                 ),
               ),
@@ -923,7 +924,7 @@ class _EventGroupProgramsEditorState
                   data: (types) {
                     if (types.isEmpty) {
                       return Center(
-                        child: Text('Antrenman türü bulunamadı', style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral500)),
+                        child: Text('Antrenman türü bulunamadı', style: AppTypography.bodyMedium.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant)),
                       );
                     }
                     return ListView.builder(
@@ -961,7 +962,7 @@ class _EventGroupProgramsEditorState
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(type.displayName, style: AppTypography.titleSmall.copyWith(fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, color: isSelected ? typeColor : null)),
-                                      Text(type.description, style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                      Text(type.description, style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant), maxLines: 2, overflow: TextOverflow.ellipsis),
                                     ],
                                   ),
                                 ),
@@ -1014,7 +1015,7 @@ class _EventGroupProgramsEditorState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: ThemeBrightnessHolder.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1025,7 +1026,7 @@ class _EventGroupProgramsEditorState
                   children: [
                     Text('Grup Seç', style: AppTypography.titleLarge),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: Icon(Icons.close),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -1053,7 +1054,7 @@ class _EventGroupProgramsEditorState
                             Text(
                               'Tüm gruplar eklendi',
                               style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.neutral500,
+                                color: ThemeBrightnessHolder.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -1095,7 +1096,7 @@ class _EventGroupProgramsEditorState
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          trailing: const Icon(Icons.add_circle_outline),
+                          trailing: Icon(Icons.add_circle_outline),
                           onTap: () {
                             Navigator.pop(context);
                             _addProgram(group);
@@ -1144,7 +1145,7 @@ class _EventGroupProgramsEditorState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: ThemeBrightnessHolder.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1155,7 +1156,7 @@ class _EventGroupProgramsEditorState
                   children: [
                     Text('Antrenman Türü Seç', style: AppTypography.titleLarge),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: Icon(Icons.close),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -1170,7 +1171,7 @@ class _EventGroupProgramsEditorState
                         child: Text(
                           'Antrenman türü bulunamadı',
                           style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                         ),
                       );
@@ -1244,7 +1245,7 @@ class _EventGroupProgramsEditorState
                                       Text(
                                         type.description,
                                         style: AppTypography.bodySmall.copyWith(
-                                          color: AppColors.neutral600,
+                                          color: ThemeBrightnessHolder.onSurfaceVariant,
                                         ),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,

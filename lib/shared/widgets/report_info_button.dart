@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 
 /// Terim - anlam cifti (kucuk sozluk).
@@ -15,7 +14,10 @@ class ReportInfo {
   const ReportInfo({
     required this.title,
     required this.summary,
+    this.dataSources = const [],
+    this.calculations = const [],
     this.terms = const [],
+    this.riskLogic = const [],
     this.takeaways = const [],
   });
 
@@ -25,8 +27,17 @@ class ReportInfo {
   /// Ne gosterir / amac - 1-2 kisa cumle.
   final String summary;
 
+  /// Hangi veriler kullanilir.
+  final List<String> dataSources;
+
+  /// Metriklerin nasil hesaplandigi.
+  final List<ReportInfoTerm> calculations;
+
   /// Terim sozlugu.
   final List<ReportInfoTerm> terms;
+
+  /// Risk / durum renklerinin nasil belirlendigi.
+  final List<String> riskLogic;
 
   /// Cikarimlar / nasil okunur (kisa maddeler).
   final List<String> takeaways;
@@ -42,31 +53,31 @@ class ReportInfoButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       tooltip: 'Bilgi',
-      icon: const Icon(Icons.info_outline),
+      icon: Icon(Icons.info_outline),
       onPressed: () => _showReportInfoSheet(context, info),
     );
   }
 }
 
 Future<void> _showReportInfoSheet(BuildContext context, ReportInfo info) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  final surface = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
-
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (context) {
+    builder: (sheetContext) {
+      final cs = Theme.of(sheetContext).colorScheme;
+
       return DraggableScrollableSheet(
-        initialChildSize: 0.55,
+        initialChildSize: 0.65,
         minChildSize: 0.35,
         maxChildSize: 0.9,
         expand: false,
         builder: (context, scrollController) {
           return Container(
             decoration: BoxDecoration(
-              color: surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              color: cs.surface,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               children: [
@@ -75,7 +86,7 @@ Future<void> _showReportInfoSheet(BuildContext context, ReportInfo info) {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.neutral400,
+                    color: cs.outline,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -90,18 +101,23 @@ Future<void> _showReportInfoSheet(BuildContext context, ReportInfo info) {
                             width: 42,
                             height: 42,
                             decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.12),
+                              color: cs.primary.withValues(alpha: 0.14),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.insights_rounded,
-                                color: AppColors.primary, size: 22),
+                            child: Icon(
+                              Icons.insights_rounded,
+                              color: cs.primary,
+                              size: 22,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               info.title,
-                              style: AppTypography.titleMedium
-                                  .copyWith(fontWeight: FontWeight.w700),
+                              style: AppTypography.titleMedium.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: cs.onSurface,
+                              ),
                             ),
                           ),
                         ],
@@ -109,20 +125,56 @@ Future<void> _showReportInfoSheet(BuildContext context, ReportInfo info) {
                       const SizedBox(height: 14),
                       Text(
                         info.summary,
-                        style: AppTypography.bodyMedium
-                            .copyWith(color: AppColors.neutral700, height: 1.4),
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: cs.onSurface,
+                          height: 1.4,
+                        ),
                       ),
+                      if (info.dataSources.isNotEmpty) ...[
+                        const SizedBox(height: 22),
+                        _sectionTitle(
+                          cs,
+                          'Hangi veriler kullanılır?',
+                          Icons.dataset_outlined,
+                        ),
+                        const SizedBox(height: 10),
+                        ...info.dataSources.map((t) => _bulletRow(cs, t)),
+                      ],
+                      if (info.calculations.isNotEmpty) ...[
+                        const SizedBox(height: 22),
+                        _sectionTitle(
+                          cs,
+                          'Nasıl hesaplanır?',
+                          Icons.calculate_outlined,
+                        ),
+                        const SizedBox(height: 10),
+                        ...info.calculations.map((t) => _termRow(cs, t)),
+                      ],
                       if (info.terms.isNotEmpty) ...[
                         const SizedBox(height: 22),
-                        _sectionTitle('Terimler', Icons.menu_book_outlined),
+                        _sectionTitle(cs, 'Terimler', Icons.menu_book_outlined),
                         const SizedBox(height: 10),
-                        ...info.terms.map(_termRow),
+                        ...info.terms.map((t) => _termRow(cs, t)),
+                      ],
+                      if (info.riskLogic.isNotEmpty) ...[
+                        const SizedBox(height: 22),
+                        _sectionTitle(
+                          cs,
+                          'Güvenli / Dikkat / Risk',
+                          Icons.shield_outlined,
+                        ),
+                        const SizedBox(height: 10),
+                        ...info.riskLogic.map((t) => _bulletRow(cs, t)),
                       ],
                       if (info.takeaways.isNotEmpty) ...[
                         const SizedBox(height: 22),
-                        _sectionTitle('Nasıl okunur', Icons.lightbulb_outline),
+                        _sectionTitle(
+                          cs,
+                          'Nasıl okunur',
+                          Icons.lightbulb_outline,
+                        ),
                         const SizedBox(height: 10),
-                        ...info.takeaways.map(_takeawayRow),
+                        ...info.takeaways.map((t) => _takeawayRow(cs, t)),
                       ],
                     ],
                   ),
@@ -136,20 +188,23 @@ Future<void> _showReportInfoSheet(BuildContext context, ReportInfo info) {
   );
 }
 
-Widget _sectionTitle(String title, IconData icon) {
+Widget _sectionTitle(ColorScheme cs, String title, IconData icon) {
   return Row(
     children: [
-      Icon(icon, size: 18, color: AppColors.neutral600),
+      Icon(icon, size: 18, color: cs.onSurfaceVariant),
       const SizedBox(width: 8),
       Text(
         title,
-        style: AppTypography.titleSmall.copyWith(fontWeight: FontWeight.w700),
+        style: AppTypography.titleSmall.copyWith(
+          fontWeight: FontWeight.w700,
+          color: cs.onSurface,
+        ),
       ),
     ],
   );
 }
 
-Widget _termRow(ReportInfoTerm t) {
+Widget _termRow(ColorScheme cs, ReportInfoTerm t) {
   return Padding(
     padding: const EdgeInsets.only(bottom: 10),
     child: Column(
@@ -159,21 +214,23 @@ Widget _termRow(ReportInfoTerm t) {
           t.term,
           style: AppTypography.bodyMedium.copyWith(
             fontWeight: FontWeight.w700,
-            color: AppColors.primary,
+            color: cs.primary,
           ),
         ),
         const SizedBox(height: 2),
         Text(
           t.meaning,
-          style: AppTypography.bodySmall
-              .copyWith(color: AppColors.neutral600, height: 1.35),
+          style: AppTypography.bodySmall.copyWith(
+            color: cs.onSurfaceVariant,
+            height: 1.35,
+          ),
         ),
       ],
     ),
   );
 }
 
-Widget _takeawayRow(String text) {
+Widget _bulletRow(ColorScheme cs, String text) {
   return Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Row(
@@ -184,8 +241,8 @@ Widget _takeawayRow(String text) {
           child: Container(
             width: 6,
             height: 6,
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
+            decoration: BoxDecoration(
+              color: cs.onSurfaceVariant,
               shape: BoxShape.circle,
             ),
           ),
@@ -194,8 +251,42 @@ Widget _takeawayRow(String text) {
         Expanded(
           child: Text(
             text,
-            style: AppTypography.bodySmall
-                .copyWith(color: AppColors.neutral700, height: 1.35),
+            style: AppTypography.bodySmall.copyWith(
+              color: cs.onSurface,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _takeawayRow(ColorScheme cs, String text) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: cs.primary,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: AppTypography.bodySmall.copyWith(
+              color: cs.onSurface,
+              height: 1.35,
+            ),
           ),
         ),
       ],

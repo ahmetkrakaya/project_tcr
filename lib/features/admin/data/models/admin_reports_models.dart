@@ -90,6 +90,7 @@ class GroupStatusItem {
 /// Kisi 360 - son aktivite ozeti
 class Person360Activity {
   const Person360Activity({
+    this.id,
     required this.title,
     required this.startTime,
     required this.distanceKm,
@@ -97,6 +98,7 @@ class Person360Activity {
     required this.paceSeconds,
   });
 
+  final String? id;
   final String? title;
   final DateTime? startTime;
   final double distanceKm;
@@ -105,6 +107,7 @@ class Person360Activity {
 
   factory Person360Activity.fromJson(Map<String, dynamic> json) {
     return Person360Activity(
+      id: json['id'] as String?,
       title: json['title'] as String?,
       startTime: _toDate(json['start_time']),
       distanceKm: _toDouble(json['distance_km']),

@@ -7,6 +7,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/entities/integration_entity.dart';
 import '../providers/strava_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Strava Activity List Page - Liste görünümü ile aktiviteleri göster ve tek tek import et
 class StravaActivityListPage extends ConsumerStatefulWidget {
@@ -303,12 +304,12 @@ class _StravaActivityListPageState extends ConsumerState<StravaActivityListPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.fitness_center, size: 64, color: AppColors.neutral400),
+            Icon(Icons.fitness_center, size: 64, color: ThemeBrightnessHolder.outline),
             const SizedBox(height: 16),
             Text(
               'Aktivite bulunamadı',
               style: AppTypography.titleMedium.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
             ),
           ],
@@ -332,7 +333,7 @@ class _StravaActivityListPageState extends ConsumerState<StravaActivityListPage>
               Text(
                 'SON 90 GÜNDEKİ AKTİVİTELER',
                 style: AppTypography.labelSmall.copyWith(
-                  color: AppColors.neutral600,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -340,7 +341,7 @@ class _StravaActivityListPageState extends ConsumerState<StravaActivityListPage>
               Text(
                 '${listState.activities.length}',
                 style: AppTypography.labelSmall.copyWith(
-                  color: AppColors.neutral600,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -418,14 +419,14 @@ class _StravaActivityListPageState extends ConsumerState<StravaActivityListPage>
             Text(
               _formatActivityType(activity.type),
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral600,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               _formatDate(activity.startDate),
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
             ),
             if (activity.distance > 0) ...[
@@ -433,7 +434,7 @@ class _StravaActivityListPageState extends ConsumerState<StravaActivityListPage>
               Text(
                 '${(activity.distance / 1000).toStringAsFixed(2)} km',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
               ),
             ],

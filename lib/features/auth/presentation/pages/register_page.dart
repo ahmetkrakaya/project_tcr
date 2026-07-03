@@ -12,6 +12,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/responsive.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Her kelimenin ilk harfini büyük yapan Türkçe karakter duyarlı formatter.
 class _TurkishTitleCaseFormatter extends TextInputFormatter {
@@ -150,7 +151,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.neutral800),
+          icon: Icon(Icons.arrow_back, color: ThemeBrightnessHolder.onSurface),
           onPressed: () => context.goNamed(RouteNames.login),
         ),
         title: const Text('Kayıt Ol'),
@@ -185,7 +186,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       Text(
                         'Bilgilerini girerek hemen başla',
                         style: AppTypography.bodyLarge.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -381,7 +382,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         TextSpan(
                           text: 'Kayıt olarak ',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral600,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                           children: [
                             TextSpan(
@@ -471,7 +472,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           Text(
                             'Zaten hesabın var mı? ',
                             style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.neutral500,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                           ),
                           TextButton(

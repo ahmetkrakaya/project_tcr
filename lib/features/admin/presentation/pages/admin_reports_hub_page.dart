@@ -6,6 +6,8 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class AdminReportsHubPage extends ConsumerWidget {
   const AdminReportsHubPage({super.key});
@@ -15,7 +17,7 @@ class AdminReportsHubPage extends ConsumerWidget {
     final isAdmin = ref.watch(isAdminProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor =
-        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+        ThemeBrightnessHolder.scaffoldBackground;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -29,7 +31,7 @@ class AdminReportsHubPage extends ConsumerWidget {
                 child: Text(
                   'Bu sayfaya erişim yetkiniz yok.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -41,7 +43,7 @@ class AdminReportsHubPage extends ConsumerWidget {
                 Text(
                   'Araçlar, kullanıcı ve uygulama ayarlarına buradan ulaşabilirsiniz.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -108,7 +110,7 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         title,
         style: AppTypography.titleMedium.copyWith(
-          color: AppColors.neutral500,
+          color: ThemeBrightnessHolder.onSurfaceVariant,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -134,7 +136,7 @@ class _MenuCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cardColor = ThemeBrightnessHolder.surface;
 
     return Material(
       color: cardColor,
@@ -170,15 +172,15 @@ class _MenuCard extends StatelessWidget {
                     Text(
                       subtitle,
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right,
-                color: AppColors.neutral400,
+                color: ThemeBrightnessHolder.outline,
               ),
             ],
           ),

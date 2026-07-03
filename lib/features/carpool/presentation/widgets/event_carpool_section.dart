@@ -187,7 +187,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
         hasActiveOffer: hasActiveOffer,
         canCreateOffer: canCreateOffer,
       ),
-      loading: () => _buildProminentCardSkeleton(),
+      loading: () => _buildProminentCardSkeleton(context),
       error: (_, __) => Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -196,7 +196,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.error_outline, color: AppColors.error),
+            Icon(Icons.error_outline, color: AppColors.error),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -210,11 +210,12 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
     );
   }
 
-  Widget _buildProminentCardSkeleton() {
+  Widget _buildProminentCardSkeleton(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       height: 140,
       decoration: BoxDecoration(
-        color: AppColors.neutral100,
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       alignment: Alignment.center,
@@ -236,6 +237,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
     required bool hasActiveOffer,
     required bool canCreateOffer,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final offerCount = offers.length;
 
     return Container(
@@ -243,13 +245,13 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
         borderRadius: BorderRadius.circular(16),
         gradient: LinearGradient(
           colors: [
-            AppColors.primary.withValues(alpha: 0.1),
-            AppColors.tertiary.withValues(alpha: 0.06),
+            cs.primary.withValues(alpha: 0.12),
+            AppColors.tertiary.withValues(alpha: 0.08),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.22)),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -261,12 +263,12 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.85),
+                  color: cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.directions_car,
-                  color: AppColors.primary,
+                  color: cs.primary,
                   size: 28,
                 ),
               ),
@@ -279,13 +281,14 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                       'Ortak Yolculuk',
                       style: AppTypography.titleMedium.copyWith(
                         fontWeight: FontWeight.bold,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Arabanı paylaş veya etkinliğe giden yol arkadaşlarını bul',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral600,
+                        color: cs.onSurfaceVariant,
                         height: 1.35,
                       ),
                     ),
@@ -297,13 +300,13 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: cs.primary,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     '$offerCount ilan',
                     style: AppTypography.labelSmall.copyWith(
-                      color: Colors.white,
+                      color: cs.onPrimary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -316,24 +319,26 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.75),
+                color: cs.surfaceContainerHigh,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 'Katıldıktan sonra yolculuk ilanı verebilir veya mevcut ilanlara başvurabilirsin.',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.neutral600,
+                  color: cs.onSurfaceVariant,
                 ),
               ),
             )
           else if (hasActiveOffer)
             _buildStatusBanner(
+              context,
               'Aktif araç ilanın var. İlanını listeden yönetebilirsin.',
               Icons.check_circle,
               AppColors.success,
             )
           else if (hasAcceptedRequest)
             _buildStatusBanner(
+              context,
               'Onaylanmış bir yolculuğun var.',
               Icons.check_circle,
               AppColors.success,
@@ -357,7 +362,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                     onPressed: canCreateOffer ? openCreateOfferSheet : null,
                     icon: Icons.add_road,
                     label: 'İlan Ver',
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: cs.primary,
                   ),
                 ),
               ],
@@ -367,12 +372,18 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
     );
   }
 
-  Widget _buildStatusBanner(String text, IconData icon, Color color) {
+  Widget _buildStatusBanner(
+    BuildContext context,
+    String text,
+    IconData icon,
+    Color color,
+  ) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.75),
+        color: cs.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -382,7 +393,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
           Expanded(
             child: Text(
               text,
-              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral700),
+              style: AppTypography.bodySmall.copyWith(color: cs.onSurface),
             ),
           ),
           TextButton(
@@ -404,6 +415,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
     required bool hasAcceptedRequest,
     required bool hasActiveOffer,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final isDriver = offer.driverId == currentUserId;
     final hasRequest = offer.requests.any(
       (r) => r.passengerId == currentUserId && r.isPending,
@@ -445,6 +457,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                             offer.driverName,
                             style: AppTypography.titleSmall.copyWith(
                               fontWeight: FontWeight.w600,
+                              color: cs.onSurface,
                             ),
                           ),
                           if (isDriver) ...[
@@ -455,13 +468,13 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.primary,
+                                color: cs.primary,
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 'Sen',
                                 style: AppTypography.labelSmall.copyWith(
-                                  color: Colors.white,
+                                  color: cs.onPrimary,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -473,7 +486,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                       Text(
                         offer.carInfo,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: cs.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -488,7 +501,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                   decoration: BoxDecoration(
                     color: offer.isFull
                         ? AppColors.errorContainer
-                        : AppColors.neutral100,
+                        : cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -496,7 +509,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                     style: AppTypography.labelMedium.copyWith(
                       color: offer.isFull
                           ? AppColors.error
-                          : AppColors.neutral700,
+                          : cs.onSurface,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -510,6 +523,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
             // Bilgiler - Güzergah
             if (offer.waypoints.isNotEmpty) ...[
               _buildInfoRow(
+                context,
                 icon: Icons.route,
                 label: 'Güzergah',
                 value: offer.waypoints
@@ -518,6 +532,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
               ),
             ] else ...[
               _buildInfoRow(
+                context,
                 icon: Icons.location_on_outlined,
                 label: 'Kalkış',
                 value: offer.pickupLocationDisplay,
@@ -525,12 +540,14 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
             ],
             const SizedBox(height: 12),
             _buildInfoRow(
+              context,
               icon: Icons.calendar_today,
               label: 'Kalkış Tarihi',
               value: DateFormat('d MMMM yyyy', 'tr_TR').format(offer.departureTime),
             ),
             const SizedBox(height: 12),
             _buildInfoRow(
+              context,
               icon: Icons.access_time,
               label: 'Kalkış Saati',
               value: DateFormat('HH:mm').format(offer.departureTime),
@@ -538,6 +555,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
             if (offer.notes != null && offer.notes!.isNotEmpty) ...[
               const SizedBox(height: 12),
               _buildInfoRow(
+                context,
                 icon: Icons.note_outlined,
                 label: 'Not',
                 value: offer.notes!,
@@ -645,19 +663,21 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
     );
   }
 
-  Widget _buildInfoRow({
+  Widget _buildInfoRow(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required String value,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Icon(icon, size: 18, color: AppColors.neutral500),
+        Icon(icon, size: 18, color: cs.onSurfaceVariant),
         const SizedBox(width: 8),
         Text(
           '$label: ',
           style: AppTypography.bodySmall.copyWith(
-            color: AppColors.neutral500,
+            color: cs.onSurfaceVariant,
           ),
         ),
         Expanded(
@@ -665,6 +685,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
             value,
             style: AppTypography.bodySmall.copyWith(
               fontWeight: FontWeight.w500,
+              color: cs.onSurface,
             ),
           ),
         ),
@@ -678,11 +699,12 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
     CarpoolRequestEntity request,
     CarpoolOfferEntity offer,
   ) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.neutral100,
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -708,7 +730,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                   Text(
                     request.message!,
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral600,
+                      color: cs.onSurfaceVariant,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -720,12 +742,12 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
           Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.check, color: AppColors.success),
+                icon: Icon(Icons.check, color: AppColors.success),
                 onPressed: () => _acceptRequest(context, ref, request, offer),
                 tooltip: 'Kabul Et',
               ),
               IconButton(
-                icon: const Icon(Icons.close, color: AppColors.error),
+                icon: Icon(Icons.close, color: AppColors.error),
                 onPressed: () => _rejectRequest(context, ref, request, offer),
                 tooltip: 'Reddet',
               ),
@@ -750,29 +772,29 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
+      builder: (sheetContext) {
+        final cs = Theme.of(sheetContext).colorScheme;
+        return DraggableScrollableSheet(
         initialChildSize: 0.9,
         minChildSize: 0.5,
         maxChildSize: 0.95,
         expand: false,
         builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
-              // Handle bar
               Container(
                 margin: const EdgeInsets.only(top: 12),
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: cs.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              // Header
               Padding(
                 padding: const EdgeInsets.all(20),
                 child: Row(
@@ -781,12 +803,12 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
+                        color: cs.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.directions_car,
-                        color: AppColors.primary,
+                        color: cs.primary,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -796,12 +818,15 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                         children: [
                           Text(
                             'Ortak Yolculuk İlanları',
-                            style: AppTypography.titleLarge,
+                            style: AppTypography.titleLarge.copyWith(
+                              color: cs.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           Text(
                             '${offers.length} yolculuk ilanı',
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral500,
+                              color: cs.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -809,12 +834,12 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
+                      icon: Icon(Icons.close, color: cs.onSurfaceVariant),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 1),
+              Divider(height: 1, color: cs.outlineVariant),
               // İlan Ver butonu (eğer uygunsa)
               if (!isEventFinished && isParticipating && !hasAcceptedRequest && !hasActiveOffer)
                 Padding(
@@ -839,7 +864,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                           Icon(
                             Icons.directions_car_outlined,
                             size: 56,
-                            color: AppColors.neutral300,
+                            color: cs.outlineVariant,
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -847,7 +872,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                             textAlign: TextAlign.center,
                             style: AppTypography.titleSmall.copyWith(
                               fontWeight: FontWeight.w600,
-                              color: AppColors.neutral700,
+                              color: cs.onSurface,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -856,7 +881,7 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
                             'Daha sonra tekrar bakabilirsin.',
                             textAlign: TextAlign.center,
                             style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.neutral500,
+                              color: cs.onSurfaceVariant,
                               height: 1.4,
                             ),
                           ),
@@ -886,7 +911,8 @@ class _EventCarpoolSectionState extends ConsumerState<EventCarpoolSection> {
             ],
           ),
         ),
-      ),
+      );
+      },
     );
   }
 
@@ -1098,13 +1124,14 @@ class EventCarpoolActions {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
+        final cs = Theme.of(sheetContext).colorScheme;
         final bottomInset = MediaQuery.paddingOf(sheetContext).bottom;
         return Padding(
           padding: EdgeInsets.only(bottom: bottomInset),
           child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            decoration: BoxDecoration(
+              color: cs.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             ),
             padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
             child: SingleChildScrollView(
@@ -1115,7 +1142,7 @@ class EventCarpoolActions {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: cs.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1123,13 +1150,13 @@ class EventCarpoolActions {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: cs.primary.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.directions_car,
                   size: 36,
-                  color: AppColors.primary,
+                  color: cs.primary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -1137,6 +1164,7 @@ class EventCarpoolActions {
                 'Ortak Yolculuk',
                 style: AppTypography.titleLarge.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
@@ -1145,7 +1173,7 @@ class EventCarpoolActions {
                 'katılımcıların araç ilanlarına başvurabilirsin.',
                 textAlign: TextAlign.center,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral600,
+                  color: cs.onSurfaceVariant,
                   height: 1.4,
                 ),
               ),
@@ -1160,7 +1188,8 @@ class EventCarpoolActions {
                   },
                   icon: Icons.add_road,
                   label: 'İlan Ver',
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: cs.primary,
+                  foregroundColor: cs.onPrimary,
                 ),
               ),
               const SizedBox(height: 10),
@@ -1174,6 +1203,7 @@ class EventCarpoolActions {
                   icon: Icons.search,
                   label: 'İlanlara Bak',
                   backgroundColor: AppColors.tertiary,
+                  foregroundColor: cs.onPrimary,
                 ),
               ),
               const SizedBox(height: 8),

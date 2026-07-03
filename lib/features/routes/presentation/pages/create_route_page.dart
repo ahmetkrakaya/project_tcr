@@ -16,6 +16,7 @@ import '../../domain/entities/route_entity.dart';
 import '../../data/datasources/route_remote_datasource.dart';
 import '../providers/route_provider.dart';
 import '../widgets/route_location_picker.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Rota Ekleme / Düzenleme Sayfası
 class CreateRoutePage extends ConsumerStatefulWidget {
@@ -185,7 +186,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
             )
           else
             IconButton(
-              icon: const Icon(Icons.check),
+              icon: Icon(Icons.check),
               onPressed: _canSubmit(creationState) ? _submitRoute : null,
               tooltip: _isEditMode ? 'Kaydet' : 'Oluştur',
             ),
@@ -275,17 +276,17 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
             ),
             child: Row(
               children: [
-                Icon(Icons.route_outlined, color: AppColors.neutral500),
+                Icon(Icons.route_outlined, color: ThemeBrightnessHolder.onSurfaceVariant),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Farklı mesafeler için birden fazla GPX ekleyebilirsiniz.',
-                    style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral600),
+                    style: AppTypography.bodyMedium.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                   ),
                 ),
                 IconButton(
                   tooltip: 'Mesafe ekle',
-                  icon: const Icon(Icons.add_circle_outline),
+                  icon: Icon(Icons.add_circle_outline),
                   color: AppColors.primary,
                   onPressed: () {
                     setState(() {
@@ -359,8 +360,8 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                             ),
                             IconButton(
                               tooltip: 'Varyantı kaldır',
-                              icon: const Icon(Icons.delete_outline),
-                              color: AppColors.neutral500,
+                              icon: Icon(Icons.delete_outline),
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                               onPressed: () {
                                 setState(() {
                                   _gpxVariants.removeAt(i);
@@ -379,7 +380,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppColors.neutral300),
+                              border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -391,7 +392,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                                 const SizedBox(width: 8),
                                 Text(
                                   hasFile ? (v.fileName ?? 'GPX yüklendi') : 'GPX seçin',
-                                  style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral700),
+                                  style: AppTypography.bodyMedium.copyWith(color: ThemeBrightnessHolder.onSurface),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -410,7 +411,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                           const SizedBox(height: 8),
                           Text(
                             'İsteğe bağlı. Desteklenen format: .gpx',
-                            style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500),
+                            style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                           ),
                         ],
                       ],
@@ -429,7 +430,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                       ));
                     });
                   },
-                  icon: const Icon(Icons.add),
+                  icon: Icon(Icons.add),
                   label: const Text('Varyant Ekle'),
                 ),
               ),
@@ -498,21 +499,21 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                       if (!hasLocation)
                         IconButton(
                           tooltip: 'Konum Seç',
-                          icon: const Icon(Icons.add_location_alt),
+                          icon: Icon(Icons.add_location_alt),
                           color: AppColors.primary,
                           onPressed: _showLocationPickerSheet,
                         ),
                       if (hasLocation) ...[
                         IconButton(
                           tooltip: 'Değiştir',
-                          icon: const Icon(Icons.edit_location_alt),
+                          icon: Icon(Icons.edit_location_alt),
                           color: AppColors.primary,
                           onPressed: _showLocationPickerSheet,
                         ),
                         IconButton(
                           tooltip: 'Kaldır',
-                          icon: const Icon(Icons.clear),
-                          color: AppColors.neutral500,
+                          icon: Icon(Icons.clear),
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                           onPressed: () {
                             setState(() {
                               _locationLat = null;
@@ -636,7 +637,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                   ),
                   child: Column(
                     children: [
-                      const Icon(Icons.emoji_events, size: 26),
+                      Icon(Icons.emoji_events, size: 26),
                       const SizedBox(height: 6),
                       Text(
                         'Yarış Rotası',
@@ -668,7 +669,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                   ),
                   child: Column(
                     children: [
-                      const Icon(Icons.map_outlined, size: 26),
+                      Icon(Icons.map_outlined, size: 26),
                       const SizedBox(height: 6),
                       Text(
                         'Normal Rota',
@@ -739,11 +740,11 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
           children: [
             Text(
               'Çok Kolay',
-              style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500),
+              style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
             Text(
               'Çok Zor',
-              style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500),
+              style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
           ],
         ),
@@ -976,7 +977,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close),
+                        icon: Icon(Icons.close),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
@@ -987,7 +988,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                   child: Text(
                     'Haritada dokunarak veya arama yaparak konum seçin',
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                 ),

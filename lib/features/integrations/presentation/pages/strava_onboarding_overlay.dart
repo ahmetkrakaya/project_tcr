@@ -12,6 +12,8 @@ import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../../auth/presentation/widgets/onboarding_group_selection.dart';
 import '../../../auth/presentation/widgets/onboarding_profile_form.dart';
 import '../providers/strava_provider.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 enum AppOnboardingFlowMode { full, stravaOnly }
 
@@ -310,7 +312,7 @@ class _AppOnboardingFlowState extends ConsumerState<AppOnboardingFlow> {
         }
       },
       child: Material(
-        color: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        color: ThemeBrightnessHolder.scaffoldBackground,
         child: DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -735,7 +737,7 @@ class _InfoPageState extends State<_InfoPage>
               Text(
                 widget.body,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                   height: 1.55,
                 ),
                 textAlign: TextAlign.center,
@@ -920,7 +922,7 @@ class _ActionPageState extends State<_ActionPage>
             Text(
               'Strava hesabın yoksa önce uygulamayı indir, ardından bağlantıyı tamamla.',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
                 height: 1.45,
               ),
               textAlign: TextAlign.center,
@@ -930,7 +932,7 @@ class _ActionPageState extends State<_ActionPage>
               height: _ActionPage.buttonHeight,
               radius: _ActionPage.buttonRadius,
               onTap: widget.onDownload,
-              border: Border.all(color: AppColors.neutral300),
+              border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1000,7 +1002,7 @@ class _ActionPageButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: backgroundColor ?? Theme.of(context).colorScheme.surface,
+        color: backgroundColor ?? ThemeBrightnessHolder.surface,
         borderRadius: BorderRadius.circular(radius),
         border: border,
       ),

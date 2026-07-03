@@ -16,6 +16,7 @@ import '../../../chat/presentation/providers/chat_provider.dart';
 import '../../domain/entities/group_entity.dart';
 import '../providers/group_provider.dart';
 import '../widgets/group_avatar.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Grup Detay Sayfası
 class GroupDetailPage extends ConsumerWidget {
@@ -47,7 +48,7 @@ class GroupDetailPage extends ConsumerWidget {
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.arrow_back),
+                  icon: Icon(Icons.arrow_back),
                   onPressed: () => context.pop(),
                 ),
               ),
@@ -111,7 +112,7 @@ class GroupDetailPage extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Grup bilgileri
-                    _buildInfoSection(group),
+                    _buildInfoSection(context, group),
                     const SizedBox(height: 24),
 
                     // Katıl/Ayrıl butonu
@@ -126,7 +127,7 @@ class GroupDetailPage extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _buildMembersList(membersAsync, isAdmin, ref),
+                    _buildMembersList(context, membersAsync, isAdmin, ref),
                   ],
                 ),
               ),
@@ -234,7 +235,7 @@ class GroupDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildInfoSection(TrainingGroupEntity group) {
+  Widget _buildInfoSection(BuildContext context, TrainingGroupEntity group) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -242,25 +243,29 @@ class GroupDetailPage extends ConsumerWidget {
           Text(
             'Açıklama',
             style: AppTypography.titleSmall.copyWith(
-              color: AppColors.neutral500,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             group.description!,
-            style: AppTypography.bodyMedium,
+            style: AppTypography.bodyMedium.copyWith(
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 16),
         ],
         Row(
           children: [
             _buildStatCard(
+              context,
               icon: Icons.people_outline,
               value: '${group.memberCount}',
               label: 'Üye',
             ),
             const SizedBox(width: 12),
             _buildStatCard(
+              context,
               icon: Icons.speed,
               value: group.difficultyText,
               label: 'Zorluk',
@@ -268,6 +273,7 @@ class GroupDetailPage extends ConsumerWidget {
             if (group.targetDistance != null) ...[
               const SizedBox(width: 12),
               _buildStatCard(
+                context,
                 icon: Icons.straighten,
                 value: '${group.targetDistance} km',
                 label: 'Mesafe',
@@ -279,32 +285,37 @@ class GroupDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatCard({
+  Widget _buildStatCard(
+    BuildContext context, {
     required IconData icon,
     required String value,
     required String label,
   }) {
+    final cs = Theme.of(context).colorScheme;
+
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.neutral100,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant),
         ),
         child: Column(
           children: [
-            Icon(icon, color: AppColors.neutral600),
+            Icon(icon, color: cs.primary),
             const SizedBox(height: 8),
             Text(
               value,
               style: AppTypography.titleMedium.copyWith(
                 fontWeight: FontWeight.bold,
+                color: cs.onSurface,
               ),
             ),
             Text(
               label,
               style: AppTypography.labelSmall.copyWith(
-                color: AppColors.neutral500,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ],
@@ -363,7 +374,7 @@ class GroupDetailPage extends ConsumerWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.hourglass_top, color: AppColors.warning, size: 20),
+            Icon(Icons.hourglass_top, color: AppColors.warning, size: 20),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -430,10 +441,12 @@ class GroupDetailPage extends ConsumerWidget {
   }
 
   Widget _buildMembersList(
+    BuildContext context,
     AsyncValue<List<GroupMemberEntity>> membersAsync,
     bool isAdmin,
     WidgetRef ref,
   ) {
+    final cs = Theme.of(context).colorScheme;
     final blockedIds = ref.watch(blockedUserIdsProvider).valueOrNull ?? [];
 
     return membersAsync.when(
@@ -445,13 +458,14 @@ class GroupDetailPage extends ConsumerWidget {
           return Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: AppColors.neutral100,
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: cs.outlineVariant),
             ),
-            child: const Center(
+            child: Center(
               child: Text(
                 'Henüz üye yok',
-                style: TextStyle(color: AppColors.neutral500),
+                style: TextStyle(color: cs.onSurfaceVariant),
               ),
             ),
           );
@@ -485,7 +499,7 @@ class GroupDetailPage extends ConsumerWidget {
               subtitle: Text(
                 'Katılım: ${_formatDate(member.joinedAt)}',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
               ),
               trailing: isAdmin
@@ -493,12 +507,12 @@ class GroupDetailPage extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.swap_horiz, color: AppColors.primary),
+                          icon: Icon(Icons.swap_horiz, color: cs.primary),
                           tooltip: 'Gruba Taşı',
                           onPressed: () => _showTransferMemberDialog(context, ref, member),
                         ),
                         IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.remove_circle_outline,
                             color: AppColors.error,
                           ),
@@ -555,10 +569,12 @@ class GroupDetailPage extends ConsumerWidget {
         minChildSize: 0.3,
         maxChildSize: 0.8,
         expand: false,
-        builder: (ctx, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        builder: (ctx, scrollController) {
+          final sheetCs = Theme.of(ctx).colorScheme;
+          return Container(
+          decoration: BoxDecoration(
+            color: sheetCs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
@@ -567,7 +583,7 @@ class GroupDetailPage extends ConsumerWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: sheetCs.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -632,7 +648,8 @@ class GroupDetailPage extends ConsumerWidget {
               ),
             ],
           ),
-        ),
+        );
+        },
       ),
     );
   }
@@ -719,7 +736,7 @@ class GroupDetailPage extends ConsumerWidget {
       final hex = colorHex.replaceFirst('#', '');
       return Color(int.parse('FF$hex', radix: 16));
     } catch (_) {
-      return AppColors.primary;
+      return ThemeBrightnessHolder.primary;
     }
   }
 

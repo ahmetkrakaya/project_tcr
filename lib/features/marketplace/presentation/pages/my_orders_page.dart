@@ -10,6 +10,7 @@ import '../../../../shared/widgets/app_card.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/order_model.dart';
 import '../providers/marketplace_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Kullanıcının kendi siparişlerini (alıcı + satıcı) gördüğü sayfa. Sadece kendi siparişleri, durum takibi.
 class MyOrdersPage extends ConsumerWidget {
@@ -39,7 +40,7 @@ class MyOrdersPage extends ConsumerWidget {
                         Icon(
                           Icons.shopping_cart_outlined,
                           size: 64,
-                          color: AppColors.neutral400,
+                          color: ThemeBrightnessHolder.outline,
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -50,14 +51,14 @@ class MyOrdersPage extends ConsumerWidget {
                         Text(
                           'TCR Market\'ten ürün sipariş verebilir veya ilan açarak satıcı olabilirsiniz.',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
                         OutlinedButton.icon(
                           onPressed: () => context.goNamed(RouteNames.marketplace),
-                          icon: const Icon(Icons.shopping_bag_outlined),
+                          icon: Icon(Icons.shopping_bag_outlined),
                           label: const Text('Market\'e Git'),
                         ),
                       ],
@@ -100,7 +101,7 @@ class MyOrdersPage extends ConsumerWidget {
                       child: Text(
                         error.toString().replaceFirst('Exception: ', ''),
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -129,6 +130,7 @@ class _OrderCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final statusColor = _getStatusColor(order.status);
     final statusText = _getStatusText(order.status);
     final listingAsync = ref.watch(listingByIdProvider(order.listingId));
@@ -157,19 +159,19 @@ class _OrderCard extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: isBuyer
-                              ? AppColors.primary.withOpacity(0.1)
-                              : AppColors.tertiary.withOpacity(0.1),
+                              ? cs.primary.withValues(alpha: 0.12)
+                              : cs.tertiary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: isBuyer
-                                ? AppColors.primary.withOpacity(0.3)
-                                : AppColors.tertiary.withOpacity(0.3),
+                                ? cs.primary.withValues(alpha: 0.35)
+                                : cs.tertiary.withValues(alpha: 0.35),
                           ),
                         ),
                         child: Text(
                           isBuyer ? 'Alıcı' : 'Satıcı',
                           style: AppTypography.labelSmall.copyWith(
-                            color: isBuyer ? AppColors.primary : AppColors.tertiary,
+                            color: isBuyer ? cs.primary : cs.tertiary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -178,9 +180,11 @@ class _OrderCard extends ConsumerWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.1),
+                          color: statusColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: statusColor.withOpacity(0.3)),
+                          border: Border.all(
+                            color: statusColor.withValues(alpha: 0.35),
+                          ),
                         ),
                         child: Text(
                           statusText,
@@ -193,7 +197,7 @@ class _OrderCard extends ConsumerWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: AppColors.neutral400),
+                Icon(Icons.chevron_right, color: ThemeBrightnessHolder.outline),
               ],
             ),
             const SizedBox(height: 8),
@@ -201,7 +205,7 @@ class _OrderCard extends ConsumerWidget {
               data: (listing) => Text(
                 listing.title,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral700,
+                  color: ThemeBrightnessHolder.onSurface,
                   fontWeight: FontWeight.w500,
                 ),
                 maxLines: 2,
@@ -209,21 +213,21 @@ class _OrderCard extends ConsumerWidget {
               ),
               loading: () => Text(
                 'Ürün yükleniyor...',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
               error: (_, __) => Text(
                 'Ürün bilgisi alınamadı',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
             ),
             const SizedBox(height: 6),
             Row(
               children: [
-                Icon(Icons.access_time, size: 14, color: AppColors.neutral500),
+                Icon(Icons.access_time, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
                 const SizedBox(width: 4),
                 Text(
                   DateFormat('dd MMM yyyy, HH:mm', 'tr_TR').format(order.createdAt),
-                  style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                  style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -231,7 +235,7 @@ class _OrderCard extends ConsumerWidget {
                       ? '${order.quantity} adet • ${order.selectedSize} • ₺${order.totalPrice.toStringAsFixed(0)}'
                       : '${order.quantity} adet • ₺${order.totalPrice.toStringAsFixed(0)}',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.primary,
+                    color: cs.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -348,7 +352,7 @@ class _OrderCard extends ConsumerWidget {
             child: Text(
               '$label:',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
             ),

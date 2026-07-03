@@ -35,8 +35,16 @@ final themeModeProvider =
 });
 
 class ThemeModeNotifier extends StateNotifier<ThemeMode> {
-  ThemeModeNotifier() : super(ThemeMode.system) {
-    _load();
+  ThemeModeNotifier({ThemeMode? initialMode})
+      : super(initialMode ?? ThemeMode.system) {
+    if (initialMode == null) {
+      _load();
+    }
+  }
+
+  static Future<ThemeMode> loadSavedThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return _themeModeFromString(prefs.getString(_kThemeModeKey));
   }
 
   Future<void> _load() async {

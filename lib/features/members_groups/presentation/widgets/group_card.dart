@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/entities/group_entity.dart';
 import 'group_avatar.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Grup listesi satırı
 class GroupCard extends StatelessWidget {
@@ -68,7 +69,7 @@ class GroupCard extends StatelessWidget {
                       Text(
                         subtitle,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

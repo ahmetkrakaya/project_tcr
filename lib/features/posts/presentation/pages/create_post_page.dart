@@ -16,6 +16,7 @@ import 'dart:io' if (dart.library.html) 'dart:io';
 
 import '../../data/models/post_block_model.dart';
 import '../../data/models/post_model.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// XFile'dan hem web hem mobil uyumlu Image widget'ı oluşturur.
 Widget _buildXFileImage(XFile xFile, {BoxFit? fit, double? width, double? height}) {
@@ -335,6 +336,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? 'Postu Düzenle' : 'Yeni Post Oluştur'),
@@ -350,7 +352,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
             )
           else
             IconButton(
-              icon: const Icon(Icons.check),
+              icon: Icon(Icons.check),
               onPressed: _savePost,
             ),
         ],
@@ -389,7 +391,9 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                       children: [
                         Text(
                           'Kapak Görseli',
-                          style: AppTypography.titleMedium,
+                          style: AppTypography.titleMedium.copyWith(
+                            color: cs.onSurface,
+                          ),
                         ),
                         if (_coverImageUrl != null || _coverImageFile != null)
                           TextButton.icon(
@@ -399,7 +403,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                 _coverImageFile = null;
                               });
                             },
-                            icon: const Icon(Icons.delete_outline, size: 18),
+                            icon: Icon(Icons.delete_outline, size: 18),
                             label: const Text('Sil'),
                             style: TextButton.styleFrom(
                               foregroundColor: AppColors.error,
@@ -416,7 +420,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                               child: Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.neutral300),
+                                border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                               ),
                               child: Stack(
                                 fit: StackFit.expand,
@@ -439,7 +443,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                         shape: BoxShape.circle,
                                       ),
                                       child: IconButton(
-                                        icon: const Icon(Icons.close, color: Colors.white),
+                                        icon: Icon(Icons.close, color: Colors.white),
                                         onPressed: () {
                                           setState(() {
                                             _coverImageFile = null;
@@ -458,7 +462,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                   child: Container(
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppColors.neutral300),
+                                    border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                                   ),
                                   child: Stack(
                                     fit: StackFit.expand,
@@ -470,7 +474,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                           fit: BoxFit.cover,
                                           width: double.infinity,
                                           height: double.infinity,
-                                          errorBuilder: (_, __, ___) => const Icon(Icons.image, size: 48),
+                                          errorBuilder: (_, __, ___) => Icon(Icons.image, size: 48),
                                         ),
                                       ),
                                       Positioned(
@@ -482,7 +486,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                             shape: BoxShape.circle,
                                           ),
                                           child: IconButton(
-                                            icon: const Icon(Icons.close, color: Colors.white),
+                                            icon: Icon(Icons.close, color: Colors.white),
                                             onPressed: () {
                                               setState(() {
                                                 _coverImageUrl = null;
@@ -503,7 +507,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                         Icon(
                                           Icons.add_photo_alternate,
                                           size: 40,
-                                          color: AppColors.neutral400,
+                                          color: cs.primary,
                                         ),
                                         const SizedBox(width: 16),
                                         Expanded(
@@ -514,7 +518,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                               Text(
                                                 'Kapak görseli ekle',
                                                 style: AppTypography.bodyMedium.copyWith(
-                                                  color: AppColors.neutral600,
+                                                  color: ThemeBrightnessHolder.onSurfaceVariant,
                                                   fontWeight: FontWeight.w500,
                                                 ),
                                               ),
@@ -522,7 +526,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                               Text(
                                                 'Tıklayarak görsel seçin',
                                                 style: AppTypography.bodySmall.copyWith(
-                                                  color: AppColors.neutral400,
+                                                  color: ThemeBrightnessHolder.outline,
                                                 ),
                                               ),
                                             ],
@@ -541,12 +545,14 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                       children: [
                         Text(
                           'İçerik Blokları',
-                          style: AppTypography.titleMedium,
+                          style: AppTypography.titleMedium.copyWith(
+                            color: cs.onSurface,
+                          ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.add_circle_outline),
+                          icon: Icon(Icons.add_circle_outline),
                           onPressed: _showAddBlockDialog,
-                          color: AppColors.primary,
+                          color: cs.primary,
                         ),
                       ],
                     ),
@@ -566,19 +572,19 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                       padding: const EdgeInsets.all(24),
                       child: Column(
                         children: [
-                          Icon(Icons.article_outlined, size: 48, color: AppColors.neutral400),
+                          Icon(Icons.article_outlined, size: 48, color: ThemeBrightnessHolder.outline),
                           const SizedBox(height: 12),
                           Text(
                             'Henüz içerik bloğu eklenmedi',
                             style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.neutral500,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Yukarıdaki + butonuna tıklayarak blok ekleyebilirsiniz',
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral400,
+                              color: ThemeBrightnessHolder.outline,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -625,6 +631,7 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
   }
 
   Widget _buildBlockCard(PostBlockModel block, int index) {
+    final cs = Theme.of(context).colorScheme;
     return AppCard(
       key: ValueKey(block.id.isNotEmpty ? block.id : 'block_$index'),
       margin: const EdgeInsets.only(bottom: 12),
@@ -636,20 +643,20 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
               index: index,
               child: Icon(
                 Icons.drag_handle,
-                color: AppColors.neutral400,
+                color: ThemeBrightnessHolder.outline,
                 size: 20,
               ),
             ),
             const SizedBox(width: 8),
             Icon(
               _getBlockIcon(PostBlockType.fromString(block.type)),
-              color: AppColors.primary,
+              color: cs.primary,
             ),
           ],
         ),
         title: Text(
           PostBlockType.fromString(block.type).displayName,
-          style: AppTypography.titleSmall,
+          style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
         ),
         subtitle: Text(
           PostBlockType.fromString(block.type) == PostBlockType.link
@@ -659,19 +666,21 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
               : block.content,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: AppTypography.bodySmall,
+          style: AppTypography.bodySmall.copyWith(
+            color: cs.onSurfaceVariant,
+          ),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.edit, size: 20),
+              icon: Icon(Icons.edit, size: 20),
               onPressed: () {
                 _editBlock(index, block);
               },
             ),
             IconButton(
-              icon: const Icon(Icons.delete, size: 20),
+              icon: Icon(Icons.delete, size: 20),
               onPressed: () {
                 setState(() {
                   final key = index < _blockPendingImageKeys.length ? _blockPendingImageKeys[index] : null;
@@ -759,7 +768,9 @@ class _AddBlockSheet extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               child: Text(
                 'Blok Türü Seç',
-                style: AppTypography.titleLarge,
+                style: AppTypography.titleLarge.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
             ),
             Flexible(
@@ -784,19 +795,20 @@ class _AddBlockSheet extends StatelessWidget {
   }
 
   Widget _buildBlockTypeCard(BuildContext context, PostBlockType type) {
+    final cs = Theme.of(context).colorScheme;
     return InkWell(
       onTap: () {
-        Navigator.pop(context); // Close block type selector first
-        onBlockSelected(type); // Then show block editor
+        Navigator.pop(context);
+        onBlockSelected(type);
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
         width: (MediaQuery.of(context).size.width - 64) / 3,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.neutral100,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: cs.outlineVariant),
         ),
         child: Column(
           children: [
@@ -807,7 +819,10 @@ class _AddBlockSheet extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               type.displayName,
-              style: AppTypography.labelMedium,
+              style: AppTypography.labelMedium.copyWith(
+                color: cs.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -953,7 +968,7 @@ class _BlockEditorSheetState extends State<_BlockEditorSheet> {
               children: [
                 if (widget.onBack != null) ...[
                   IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                    icon: Icon(Icons.arrow_back),
                     onPressed: () {
                       Navigator.pop(context);
                       widget.onBack!();
@@ -983,7 +998,7 @@ class _BlockEditorSheetState extends State<_BlockEditorSheet> {
                         height: 200,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.neutral300),
+                          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
@@ -998,14 +1013,14 @@ class _BlockEditorSheetState extends State<_BlockEditorSheet> {
                             height: 200,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.neutral300),
+                              border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(12),
                               child: Image.network(
                                 _imageUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.image, size: 48),
+                                errorBuilder: (_, __, ___) => Icon(Icons.image, size: 48),
                               ),
                             ),
                           )
@@ -1017,7 +1032,7 @@ class _BlockEditorSheetState extends State<_BlockEditorSheet> {
                                   Icon(
                                     Icons.add_photo_alternate,
                                     size: 40,
-                                    color: AppColors.neutral400,
+                                    color: ThemeBrightnessHolder.outline,
                                   ),
                                   const SizedBox(width: 16),
                                   Expanded(
@@ -1028,7 +1043,7 @@ class _BlockEditorSheetState extends State<_BlockEditorSheet> {
                                         Text(
                                           'Görsel seç',
                                           style: AppTypography.bodyMedium.copyWith(
-                                            color: AppColors.neutral600,
+                                            color: ThemeBrightnessHolder.onSurfaceVariant,
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
@@ -1036,7 +1051,7 @@ class _BlockEditorSheetState extends State<_BlockEditorSheet> {
                                         Text(
                                           'Tıklayarak görsel seçin',
                                           style: AppTypography.bodySmall.copyWith(
-                                            color: AppColors.neutral400,
+                                            color: ThemeBrightnessHolder.outline,
                                           ),
                                         ),
                                       ],

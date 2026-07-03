@@ -75,6 +75,7 @@ import '../../features/integrations/presentation/pages/integrations_page.dart';
 import '../../features/integrations/presentation/pages/strava_activity_list_page.dart';
 import '../../features/auth/presentation/providers/auth_notifier.dart';
 import '../../features/members_groups/presentation/providers/group_provider.dart';
+import '../notifications/app_icon_badge_sync.dart';
 import '../../features/notifications/presentation/providers/notification_provider.dart';
 import '../../features/notifications/presentation/pages/admin_create_notification_page.dart';
 import '../../features/posts/presentation/pages/create_post_page.dart';
@@ -812,6 +813,8 @@ class MainShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.read(notificationRealtimeProvider.notifier).start();
+    ref.watch(appIconBadgeSyncProvider);
+    ref.watch(unreadNotificationCountProvider);
     return Scaffold(
       body: child,
       bottomNavigationBar: const MainBottomNavigation(),
@@ -897,12 +900,10 @@ class _MainBottomNavigationState extends ConsumerState<MainBottomNavigation>
       (icon: Icons.volunteer_activism_outlined, selectedIcon: Icons.volunteer_activism, label: 'Bağışlar'),
     ];
 
-    final barColor = isDark ? AppColors.surfaceDark : Colors.white;
-    final selectedColor = AppColors.primary;
-    final unselectedColor = isDark ? AppColors.onSurfaceVariantDark : AppColors.neutral800;
-    final selectedBgColor = isDark 
-        ? AppColors.primary.withValues(alpha: 0.15) 
-        : AppColors.primary.withValues(alpha: 0.08);
+    final barColor = theme.colorScheme.surface;
+    final selectedColor = theme.colorScheme.primary;
+    final unselectedColor = theme.colorScheme.onSurfaceVariant;
+    final selectedBgColor = theme.colorScheme.primary.withValues(alpha: isDark ? 0.15 : 0.08);
 
     return SafeArea(
       top: false,

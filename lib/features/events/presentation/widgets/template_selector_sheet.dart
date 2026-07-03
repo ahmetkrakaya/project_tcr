@@ -17,6 +17,7 @@ class TemplateSelectorSheet extends ConsumerWidget {
   });
 
   static Future<EventTemplateEntity?> show(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return showModalBottomSheet<EventTemplateEntity>(
       context: context,
       isScrollControlled: true,
@@ -27,9 +28,9 @@ class TemplateSelectorSheet extends ConsumerWidget {
         maxChildSize: 0.9,
         expand: false,
         builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: TemplateSelectorSheet(
             onTemplateSelected: (template) {
@@ -43,6 +44,7 @@ class TemplateSelectorSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final templatesAsync = ref.watch(eventTemplatesProvider);
 
     return Column(
@@ -53,7 +55,7 @@ class TemplateSelectorSheet extends ConsumerWidget {
           width: 40,
           height: 4,
           decoration: BoxDecoration(
-            color: AppColors.neutral300,
+            color: cs.outlineVariant,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -67,12 +69,12 @@ class TemplateSelectorSheet extends ConsumerWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: cs.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.bookmark_outline,
-                  color: AppColors.primary,
+                  color: cs.primary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -82,12 +84,14 @@ class TemplateSelectorSheet extends ConsumerWidget {
                   children: [
                     Text(
                       'Şablondan Oluştur',
-                      style: AppTypography.titleLarge,
+                      style: AppTypography.titleLarge.copyWith(
+                        color: cs.onSurface,
+                      ),
                     ),
                     Text(
                       'Kayıtlı şablonlardan birini seç',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -95,20 +99,20 @@ class TemplateSelectorSheet extends ConsumerWidget {
               ),
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
+                icon: Icon(Icons.close, color: cs.onSurfaceVariant),
               ),
             ],
           ),
         ),
 
-        const Divider(height: 1),
+        Divider(height: 1, color: cs.outlineVariant),
 
         // Template list
         Expanded(
           child: templatesAsync.when(
             data: (templates) {
               if (templates.isEmpty) {
-                return _buildEmptyState();
+                return _buildEmptyState(cs);
               }
               return ListView.separated(
                 padding: const EdgeInsets.all(16),
@@ -134,7 +138,7 @@ class TemplateSelectorSheet extends ConsumerWidget {
                   Text(
                     'Şablonlar yüklenemedi',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.neutral600,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -146,7 +150,7 @@ class TemplateSelectorSheet extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(ColorScheme cs) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -156,13 +160,13 @@ class TemplateSelectorSheet extends ConsumerWidget {
             Icon(
               Icons.bookmark_border,
               size: 64,
-              color: AppColors.neutral300,
+              color: cs.outlineVariant,
             ),
             const SizedBox(height: 16),
             Text(
               'Henüz şablon yok',
               style: AppTypography.titleMedium.copyWith(
-                color: AppColors.neutral600,
+                color: cs.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 8),
@@ -170,7 +174,7 @@ class TemplateSelectorSheet extends ConsumerWidget {
               'Bir etkinlik oluşturduktan sonra "Şablon Olarak Kaydet" seçeneğiyle şablon oluşturabilirsin.',
               textAlign: TextAlign.center,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ],
@@ -180,7 +184,9 @@ class TemplateSelectorSheet extends ConsumerWidget {
   }
 
   Widget _buildTemplateCard(BuildContext context, EventTemplateEntity template) {
-    final typeColor = _parseColor(template.trainingTypeColor);
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
+    final typeColor = _parseColor(template.trainingTypeColor, cs.primary);
 
     return InkWell(
       onTap: () => onTemplateSelected(template),
@@ -188,28 +194,29 @@ class TemplateSelectorSheet extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: AppColors.neutral200,
+            color: cs.outlineVariant,
             width: 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Row(
           children: [
-            // Icon
             Container(
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: typeColor.withValues(alpha: 0.1),
+                color: typeColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -219,8 +226,6 @@ class TemplateSelectorSheet extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 16),
-
-            // Content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,13 +234,14 @@ class TemplateSelectorSheet extends ConsumerWidget {
                     template.name,
                     style: AppTypography.titleSmall.copyWith(
                       fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     template.shortDescription,
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: cs.onSurfaceVariant,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -247,13 +253,13 @@ class TemplateSelectorSheet extends ConsumerWidget {
                         Icon(
                           Icons.group_outlined,
                           size: 14,
-                          color: AppColors.neutral400,
+                          color: cs.outline,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           '${template.groupPrograms.length} grup programı',
                           style: AppTypography.labelSmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -262,11 +268,9 @@ class TemplateSelectorSheet extends ConsumerWidget {
                 ],
               ),
             ),
-
-            // Arrow
-            const Icon(
+            Icon(
               Icons.chevron_right,
-              color: AppColors.neutral400,
+              color: cs.outline,
             ),
           ],
         ),
@@ -274,15 +278,15 @@ class TemplateSelectorSheet extends ConsumerWidget {
     );
   }
 
-  Color _parseColor(String? colorHex) {
+  Color _parseColor(String? colorHex, Color fallback) {
     if (colorHex == null || colorHex.isEmpty) {
-      return AppColors.primary;
+      return fallback;
     }
     try {
       final hex = colorHex.replaceFirst('#', '');
       return Color(int.parse('FF$hex', radix: 16));
     } catch (_) {
-      return AppColors.primary;
+      return fallback;
     }
   }
 

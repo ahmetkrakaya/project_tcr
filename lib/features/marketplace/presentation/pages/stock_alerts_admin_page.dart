@@ -10,6 +10,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/stock_alert_model.dart';
 import '../providers/marketplace_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class StockAlertsAdminPage extends ConsumerWidget {
   const StockAlertsAdminPage({super.key});
@@ -25,6 +26,7 @@ class StockAlertsAdminPage extends ConsumerWidget {
     }
 
     final alertsAsync = ref.watch(pendingStockAlertGroupsProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -49,7 +51,7 @@ class StockAlertsAdminPage extends ConsumerWidget {
                   error.toString(),
                   textAlign: TextAlign.center,
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -70,13 +72,13 @@ class StockAlertsAdminPage extends ConsumerWidget {
                   Icon(
                     Icons.notifications_none_rounded,
                     size: 56,
-                    color: AppColors.neutral400,
+                    color: ThemeBrightnessHolder.outline,
                   ),
                   const SizedBox(height: 12),
                   Text(
                     'Bekleyen stok talebi yok',
                     style: AppTypography.titleMedium.copyWith(
-                      color: AppColors.neutral600,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -84,7 +86,7 @@ class StockAlertsAdminPage extends ConsumerWidget {
                     'Kullanıcılar stokta olmayan ürünler için\n“Gelince Haber Ver” dediğinde burada görünür.',
                     textAlign: TextAlign.center,
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -106,12 +108,15 @@ class StockAlertsAdminPage extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
+                    color: cs.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: cs.primary.withValues(alpha: 0.25),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
+                      Icon(Icons.inventory_2_outlined, color: cs.primary),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -142,6 +147,7 @@ class _StockAlertGroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final dateFormat = DateFormat('dd.MM.yyyy HH:mm');
 
     return Card(
@@ -171,8 +177,11 @@ class _StockAlertGroupCard extends StatelessWidget {
                         : Container(
                             width: 56,
                             height: 56,
-                            color: AppColors.neutral200,
-                            child: const Icon(Icons.image_outlined),
+                            color: cs.surfaceContainerHighest,
+                            child: Icon(
+                              Icons.image_outlined,
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                   ),
                   const SizedBox(width: 12),
@@ -192,14 +201,14 @@ class _StockAlertGroupCard extends StatelessWidget {
                         Text(
                           '${group.alertCount} kullanıcı bekliyor',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.primary,
+                            color: cs.primary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right, color: AppColors.neutral400),
+                  Icon(Icons.chevron_right, color: ThemeBrightnessHolder.outline),
                 ],
               ),
               const SizedBox(height: 12),
@@ -240,7 +249,7 @@ class _StockAlertGroupCard extends StatelessWidget {
                                 Text(
                                   '${request.scopeLabel} · ${dateFormat.format(request.createdAt.toLocal())}',
                                   style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.neutral500,
+                                    color: ThemeBrightnessHolder.onSurfaceVariant,
                                   ),
                                 ),
                               ],
@@ -254,7 +263,7 @@ class _StockAlertGroupCard extends StatelessWidget {
                 Text(
                   '+${group.requests.length - 4} talep daha',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
                 ),

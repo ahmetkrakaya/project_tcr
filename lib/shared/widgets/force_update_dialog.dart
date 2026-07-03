@@ -4,6 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import 'app_button.dart';
+import '../../core/utils/extensions.dart';
+import '../../core/theme/theme_brightness_holder.dart';
 
 /// Force update dialog widget
 /// Shows a dialog that cannot be dismissed, forcing user to update the app
@@ -82,7 +84,7 @@ class ForceUpdateDialog extends StatelessWidget {
                   color: AppColors.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.system_update,
                   size: 32,
                   color: AppColors.primary,
@@ -95,7 +97,7 @@ class ForceUpdateDialog extends StatelessWidget {
                 'Güncelleme Gerekli',
                 style: AppTypography.headlineSmall.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.onSurfaceLight,
+                  color: ThemeBrightnessHolder.onSurface,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -107,7 +109,7 @@ class ForceUpdateDialog extends StatelessWidget {
                     ? message
                     : 'Uygulamayı kullanmaya devam etmek için lütfen en son sürüme güncelleyin.',
                 style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.onSurfaceVariantLight,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),

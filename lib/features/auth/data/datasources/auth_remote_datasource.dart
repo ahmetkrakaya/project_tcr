@@ -87,6 +87,13 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       if (!userProfile.isActive) {
         // Önce oturumu kapat ki router home'a yönlendirmesin
         await _supabase.auth.signOut();
+        if (userProfile.userStatus == 'banned') {
+          throw const AppAuthException(
+            message:
+                'Hesabınız askıya alınmış. Devam etmek için yönetici ile iletişime geçin.',
+            code: 'USER_BANNED',
+          );
+        }
         throw const AppAuthException(
           message:
               'Hesabınız henüz onaylanmadı. Lütfen yetkili bir kişi tarafından onaylanmanızı bekleyin.',

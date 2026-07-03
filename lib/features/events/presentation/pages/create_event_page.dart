@@ -21,6 +21,7 @@ import '../../domain/entities/event_template_entity.dart';
 import '../providers/event_provider.dart';
 import '../widgets/event_location_picker_sheet.dart';
 import '../widgets/template_selector_sheet.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Create/Edit Event Page
 class CreateEventPage extends ConsumerStatefulWidget {
@@ -331,6 +332,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? 'Etkinlik Düzenle' : 'Yeni Etkinlik'),
@@ -338,7 +340,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           // Şablondan oluştur butonu (sadece yeni etkinlik oluştururken)
           if (!_isEditing && !_isLoading)
             IconButton(
-              icon: const Icon(Icons.bookmark_outline),
+              icon: Icon(Icons.bookmark_outline),
               tooltip: 'Şablondan Oluştur',
               onPressed: _showTemplateSelector,
             ),
@@ -352,7 +354,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                   ),
                 )
               : IconButton(
-                  icon: const Icon(Icons.check),
+                  icon: Icon(Icons.check),
                   tooltip: _isEditing ? 'Güncelle' : 'Kaydet',
                   onPressed: _submitForm,
                 ),
@@ -461,23 +463,23 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.08),
+                      color: cs.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.2),
+                        color: cs.primary.withValues(alpha: 0.25),
                       ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.info_outline, size: 20, color: AppColors.primary),
+                        Icon(Icons.info_outline, size: 20, color: cs.primary),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             'Yalnızca bu etkinlik düzenlenir. Tekrar kuralını veya seriyi '
                             'değiştirmek için Etkinlikler → Tekrar Eden Etkinlikler sayfasını kullanın.',
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral700,
+                              color: ThemeBrightnessHolder.onSurface,
                               height: 1.4,
                             ),
                           ),
@@ -509,7 +511,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                             'Değişiklikler serinin tüm etkinliklerine uygulanır. '
                             'Tekrar kuralını değiştirirseniz gelecek tarihler yeniden planlanır.',
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral700,
+                              color: ThemeBrightnessHolder.onSurface,
                               height: 1.4,
                             ),
                           ),
@@ -533,7 +535,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                   _selectedEventType == EventType.training
                       ? 'Antrenman birden fazla rotada yapılıyorsa tümünü seçin.'
                       : 'Konum adı ve adres seçilen rotadan alınır.',
-                  style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                  style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                 ),
                 const SizedBox(height: 12),
                 _buildRouteSelector(),
@@ -547,7 +549,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 const SizedBox(height: 4),
                 Text(
                   'Haritadan buluşma noktası seçin (örn. kafe, toplanma yeri). Rota eklemenize gerek yok.',
-                  style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                  style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                 ),
                 const SizedBox(height: 12),
                 _buildLocationPicker(),
@@ -583,6 +585,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   }
 
   Widget _buildVisibilitySection() {
+    final cs = Theme.of(context).colorScheme;
     final isAdminOrCoach = ref.watch(isAdminOrCoachProvider);
     if (!isAdminOrCoach) {
       return const SizedBox.shrink();
@@ -602,16 +605,16 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
               child: Text(
                 'Sadece seçili kullanıcılar bu etkinliği görebilsin',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.neutral600,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
               ),
             ),
             if (_isRestrictedEvent && _selectedVisibleUserIds.isNotEmpty)
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.edit,
                   size: 20,
-                  color: AppColors.primary,
+                  color: cs.primary,
                 ),
                 tooltip: 'Kullanıcıları düzenle',
                 onPressed: () {
@@ -632,7 +635,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                   await _openVisibleUsersSelector();
                 }
               },
-              activeColor: AppColors.primary,
+              activeColor: cs.primary,
             ),
           ],
         ),
@@ -687,7 +690,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           return Text(
             'Aktif kullanıcı bulunamadı.',
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           );
         }
@@ -711,16 +714,16 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                         child: Text(
                           u.fullName,
                           style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.neutral800,
+                            color: ThemeBrightnessHolder.onSurface,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.close,
                           size: 18,
-                          color: AppColors.neutral400,
+                          color: ThemeBrightnessHolder.outline,
                         ),
                         onPressed: () {
                           setState(() {
@@ -938,13 +941,13 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           borderRadius: BorderRadius.circular(12),
         ),
         filled: true,
-        fillColor: Theme.of(context).colorScheme.surface,
+        fillColor: ThemeBrightnessHolder.surface,
       ),
       icon: Icon(
         Icons.keyboard_arrow_down_rounded,
         color: _getEventTypeColor(_selectedEventType),
       ),
-      dropdownColor: Theme.of(context).colorScheme.surface,
+      dropdownColor: ThemeBrightnessHolder.surface,
       borderRadius: BorderRadius.circular(12),
       selectedItemBuilder: (context) => EventType.values.map((type) {
         return Row(
@@ -1015,7 +1018,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       ),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: const Icon(Icons.calendar_today),
+        prefixIcon: Icon(Icons.calendar_today),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
@@ -1044,7 +1047,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       ),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: const Icon(Icons.access_time),
+        prefixIcon: Icon(Icons.access_time),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
@@ -1484,12 +1487,13 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   }
 
   Widget _buildRecurrenceSection() {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(Icons.repeat, size: 22, color: AppColors.primary),
+            Icon(Icons.repeat, size: 22, color: cs.primary),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -1514,7 +1518,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                   }
                 });
               },
-              activeColor: AppColors.primary,
+              activeColor: cs.primary,
             ),
           ],
         ),
@@ -1577,7 +1581,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surface,
+                fillColor: ThemeBrightnessHolder.surface,
               ),
               items: List.generate(31, (i) => i + 1).map((d) => DropdownMenuItem(value: d, child: Text('$d'))).toList(),
               onChanged: (v) => setState(() => _recurrenceMonthDay = v),
@@ -1598,7 +1602,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           filled: true,
-                          fillColor: Theme.of(context).colorScheme.surface,
+                          fillColor: ThemeBrightnessHolder.surface,
                         ),
                         items: [
                           for (int m = 1; m <= 12; m++)
@@ -1625,7 +1629,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           filled: true,
-                          fillColor: Theme.of(context).colorScheme.surface,
+                          fillColor: ThemeBrightnessHolder.surface,
                         ),
                         items: List.generate(31, (i) => i + 1).map((d) => DropdownMenuItem(value: d, child: Text('$d'))).toList(),
                         onChanged: (v) => setState(() => _recurrenceYearDay = v),
@@ -1654,7 +1658,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surface,
+                fillColor: ThemeBrightnessHolder.surface,
               ),
               child: Text(
                 _recurrenceEndDate != null
@@ -1715,6 +1719,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   }
 
   Widget _buildRouteSelector() {
+    final cs = Theme.of(context).colorScheme;
     final routesAsync = ref.watch(allRoutesProvider);
     final isTraining = _selectedEventType == EventType.training;
 
@@ -1728,20 +1733,20 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           return Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.neutral100,
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.neutral200),
+              border: Border.all(color: cs.outlineVariant),
             ),
             child: Row(
               children: [
-                Icon(Icons.map_outlined, color: AppColors.neutral400),
+                Icon(Icons.map_outlined, color: cs.outline),
                 const SizedBox(width: 12),
                 Text(
                   _selectedEventType == EventType.race
                       ? 'Henüz yarış rotası eklenmemiş'
                       : 'Henüz rota eklenmemiş',
                   style: AppTypography.bodyMedium
-                      .copyWith(color: AppColors.neutral500),
+                      .copyWith(color: cs.onSurfaceVariant),
                 ),
               ],
             ),
@@ -1777,13 +1782,15 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                       Expanded(
                         child: Text(
                           route?.name ?? sel.routeId,
-                          style: AppTypography.bodyMedium,
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: cs.onSurface,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        color: AppColors.neutral400,
+                        icon: Icon(Icons.close, size: 18),
+                        color: cs.outline,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: () {
@@ -1812,21 +1819,21 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.neutral100,
+                    color: cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.neutral200),
+                    border: Border.all(color: cs.outlineVariant),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.add, color: AppColors.tertiary, size: 20),
+                      Icon(Icons.add, color: cs.primary, size: 20),
                       const SizedBox(width: 6),
                       Text(
                         _selectedTrainingRoutes.isEmpty
                             ? 'Rota Ekle'
                             : 'Başka Rota Ekle',
                         style: AppTypography.bodyMedium
-                            .copyWith(color: AppColors.tertiary),
+                            .copyWith(color: cs.primary),
                       ),
                     ],
                   ),
@@ -1853,12 +1860,12 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
             decoration: BoxDecoration(
               color: selectedRoute != null
                   ? AppColors.tertiaryContainer.withValues(alpha: 0.3)
-                  : AppColors.neutral100,
+                  : cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: selectedRoute != null
                     ? AppColors.tertiary.withValues(alpha: 0.5)
-                    : AppColors.neutral200,
+                    : cs.outlineVariant,
               ),
             ),
             child: Row(
@@ -1869,14 +1876,14 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                   decoration: BoxDecoration(
                     color: selectedRoute != null
                         ? AppColors.tertiary.withValues(alpha: 0.2)
-                        : AppColors.neutral200,
+                        : cs.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     Icons.map_outlined,
                     color: selectedRoute != null
                         ? AppColors.tertiary
-                        : AppColors.neutral400,
+                        : cs.outline,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1888,8 +1895,8 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                         selectedRoute?.name ?? 'Rota Seçin',
                         style: AppTypography.titleSmall.copyWith(
                           color: selectedRoute != null
-                              ? AppColors.neutral900
-                              : AppColors.neutral500,
+                              ? cs.onSurface
+                              : cs.onSurfaceVariant,
                         ),
                       ),
                       if (selectedRoute != null) ...[
@@ -1897,7 +1904,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                         Text(
                           '${selectedRoute.formattedDistance} • ${selectedRoute.formattedElevationGain} yükseliş',
                           style: AppTypography.bodySmall
-                              .copyWith(color: AppColors.neutral500),
+                              .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                         ),
                       ],
                     ],
@@ -1905,14 +1912,13 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 ),
                 if (selectedRoute != null)
                   IconButton(
-                    icon: const Icon(Icons.close, size: 20),
+                    icon: Icon(Icons.close, size: 20),
                     onPressed: () =>
                         setState(() => _selectedRouteId = null),
-                    color: AppColors.neutral400,
+                    color: cs.outline,
                   )
                 else
-                  const Icon(Icons.chevron_right,
-                      color: AppColors.neutral400),
+                  Icon(Icons.chevron_right, color: cs.outline),
               ],
             ),
           ),
@@ -1921,7 +1927,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
       loading: () => Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.neutral100,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Center(
@@ -1940,7 +1946,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.error_outline, color: AppColors.error),
+            Icon(Icons.error_outline, color: AppColors.error),
             const SizedBox(width: 12),
             Text(
               'Rotalar yüklenemedi',
@@ -1955,6 +1961,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   }
 
   Widget _buildLocationPicker() {
+    final cs = Theme.of(context).colorScheme;
     final hasLocation = _pickedLocationLat != null && _pickedLocationLng != null;
     final displayName = _pickedLocationName?.isNotEmpty == true
         ? _pickedLocationName!
@@ -1983,12 +1990,12 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         decoration: BoxDecoration(
           color: hasLocation
               ? AppColors.tertiaryContainer.withValues(alpha: 0.3)
-              : AppColors.neutral100,
+              : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: hasLocation
                 ? AppColors.tertiary.withValues(alpha: 0.5)
-                : AppColors.neutral200,
+                : cs.outlineVariant,
           ),
         ),
         child: Row(
@@ -1999,12 +2006,12 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
               decoration: BoxDecoration(
                 color: hasLocation
                     ? AppColors.tertiary.withValues(alpha: 0.2)
-                    : AppColors.neutral200,
+                    : cs.surfaceContainerHigh,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 Icons.location_on_outlined,
-                color: hasLocation ? AppColors.tertiary : AppColors.neutral400,
+                color: hasLocation ? AppColors.tertiary : cs.outline,
               ),
             ),
             const SizedBox(width: 12),
@@ -2016,8 +2023,8 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                     displayName ?? 'Konum seçin',
                     style: AppTypography.titleSmall.copyWith(
                       color: hasLocation
-                          ? AppColors.neutral900
-                          : AppColors.neutral500,
+                          ? cs.onSurface
+                          : cs.onSurfaceVariant,
                     ),
                   ),
                   if (hasLocation) ...[
@@ -2025,7 +2032,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                     Text(
                       '${_pickedLocationLat!.toStringAsFixed(5)}, ${_pickedLocationLng!.toStringAsFixed(5)}',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                         fontFamily: 'monospace',
                       ),
                     ),
@@ -2035,7 +2042,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
             ),
             if (hasLocation)
               IconButton(
-                icon: const Icon(Icons.close, size: 20),
+                icon: Icon(Icons.close, size: 20),
                 onPressed: () {
                   setState(() {
                     _pickedLocationLat = null;
@@ -2044,12 +2051,12 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                     _pickedLocationAddress = null;
                   });
                 },
-                color: AppColors.neutral400,
+                color: cs.outline,
               )
             else
-              const Icon(
+              Icon(
                 Icons.chevron_right,
-                color: AppColors.neutral400,
+                color: cs.outline,
               ),
           ],
         ),
@@ -2060,17 +2067,18 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
   /// Yarış etkinliklerinde, seçilen rota içindeki gpxVariants listesinden
   /// hangi mesafelerin/kategorilerin açılacağını çoklu seçtiren alan.
   Widget _buildRaceCategorySelector() {
+    final cs = Theme.of(context).colorScheme;
     if (_selectedRouteId == null) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.neutral100,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.neutral200),
+          border: Border.all(color: cs.outlineVariant),
         ),
         child: Text(
           'Önce bir yarış rotası seçin.',
-          style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+          style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
         ),
       );
     }
@@ -2088,13 +2096,13 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
           return Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.neutral100,
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.neutral200),
+              border: Border.all(color: cs.outlineVariant),
             ),
             child: Text(
               'Bu rotada tanımlı mesafe/varyant yok.\nLütfen rota detayından GPX varyantları ekleyin.',
-              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
             ),
           );
         }
@@ -2116,7 +2124,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 ),
                 Text(
                   '${selected.length}/${route.gpxVariants.length} seçili',
-                  style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600),
+                  style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                 ),
               ],
             ),
@@ -2130,11 +2138,12 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                   label: Text(
                     v.label,
                     style: AppTypography.labelSmall.copyWith(
-                      color: isSelected ? Colors.white : AppColors.neutral700,
+                      color: isSelected ? cs.onPrimary : cs.onSurface,
                     ),
                   ),
                   selected: isSelected,
-                  selectedColor: AppColors.primary,
+                  selectedColor: cs.primary,
+                  backgroundColor: cs.surfaceContainerHighest,
                   onSelected: (value) {
                     setState(() {
                       final current = selected.toSet();
@@ -2152,7 +2161,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
             const SizedBox(height: 6),
             Text(
               'Katılımcılar sadece bu mesafelerden birine kayıt olabilecek.',
-              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+              style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
           ],
         );
@@ -2167,6 +2176,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
     bool multiSelect = false,
   }) {
     final parentContext = context;
+    final sheetCs = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -2177,9 +2187,9 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
         maxChildSize: 0.9,
         expand: false,
         builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          decoration: BoxDecoration(
+            color: sheetCs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
@@ -2188,7 +2198,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: sheetCs.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2197,12 +2207,17 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Rota Seçin', style: AppTypography.titleLarge),
+                    Text(
+                      'Rota Seçin',
+                      style: AppTypography.titleLarge.copyWith(
+                        color: sheetCs.onSurface,
+                      ),
+                    ),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.add),
+                          icon: Icon(Icons.add),
                           tooltip: 'Yeni rota ekle',
                           onPressed: () {
                             Navigator.pop(sheetContext);
@@ -2210,7 +2225,7 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                           },
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close),
+                          icon: Icon(Icons.close),
                           onPressed: () => Navigator.pop(sheetContext),
                         ),
                       ],
@@ -2237,14 +2252,14 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                         decoration: BoxDecoration(
                           color: isSelected
                               ? AppColors.tertiary.withValues(alpha: 0.2)
-                              : AppColors.neutral100,
+                              : sheetCs.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
                           Icons.map_outlined,
                           color: isSelected
                               ? AppColors.tertiary
-                              : AppColors.neutral400,
+                              : sheetCs.outline,
                         ),
                       ),
                       title: Text(
@@ -2253,15 +2268,16 @@ class _CreateEventPageState extends ConsumerState<CreateEventPage> {
                           fontWeight: isSelected
                               ? FontWeight.bold
                               : FontWeight.normal,
+                          color: sheetCs.onSurface,
                         ),
                       ),
                       subtitle: Text(
                         '${route.isRace ? 'Yarış' : 'Normal'} • ${route.formattedDistance} • ${route.formattedElevationGain} yükseliş • ${route.terrainType.displayName}',
                         style: AppTypography.bodySmall
-                            .copyWith(color: AppColors.neutral500),
+                            .copyWith(color: sheetCs.onSurfaceVariant),
                       ),
                       trailing: isSelected
-                          ? const Icon(Icons.check_circle,
+                          ? Icon(Icons.check_circle,
                               color: AppColors.tertiary)
                           : null,
                       onTap: () {
@@ -2315,16 +2331,17 @@ class _QuickSelectChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primary : AppColors.neutral100,
+          color: selected ? cs.primary : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? AppColors.primary : AppColors.neutral300,
+            color: selected ? cs.primary : cs.outlineVariant,
           ),
         ),
         child: Row(
@@ -2333,13 +2350,13 @@ class _QuickSelectChip extends StatelessWidget {
             Icon(
               icon,
               size: 14,
-              color: selected ? Colors.white : AppColors.neutral600,
+              color: selected ? cs.onPrimary : cs.onSurfaceVariant,
             ),
             const SizedBox(width: 4),
             Text(
               label,
               style: AppTypography.labelSmall.copyWith(
-                color: selected ? Colors.white : AppColors.neutral700,
+                color: selected ? cs.onPrimary : cs.onSurface,
                 fontWeight:
                     selected ? FontWeight.w600 : FontWeight.normal,
               ),

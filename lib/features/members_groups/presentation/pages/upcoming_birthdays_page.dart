@@ -11,6 +11,7 @@ import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../providers/group_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Yaklaşan Doğum Günleri Sayfası
 class UpcomingBirthdaysPage extends ConsumerWidget {
@@ -153,13 +154,13 @@ class _BirthdayCard extends StatelessWidget {
                         Icon(
                           Icons.cake_outlined,
                           size: 14,
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           birthDateFormatted,
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral600,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                         ),
                         if (age > 0) ...[
@@ -167,7 +168,7 @@ class _BirthdayCard extends StatelessWidget {
                           Text(
                             '$age yaşına ${isYesterday || (daysRemaining < 0) ? 'girdi' : 'giriyor'}',
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral500,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                           ),
                         ],

@@ -8,6 +8,7 @@ import '../../../../shared/widgets/loading_widget.dart';
 import '../../../admin/presentation/providers/admin_reports_provider.dart';
 import '../../../admin/presentation/widgets/person_360_view.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// İstatistikler - kullanıcının kendi "Kişi 360" özeti.
 /// [userId] verilirse (admin/koç başka üyeyi görüntülerken) o üyenin verisi gösterilir.
@@ -27,7 +28,7 @@ class StatisticsPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('İstatistikler'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
       ),
@@ -37,7 +38,7 @@ class StatisticsPage extends ConsumerWidget {
                 padding: const EdgeInsets.all(24),
                 child: Text('Kullanıcı bulunamadı.',
                     style: AppTypography.bodyMedium
-                        .copyWith(color: AppColors.neutral500),
+                        .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                     textAlign: TextAlign.center),
               ),
             )
@@ -61,7 +62,7 @@ class StatisticsPage extends ConsumerWidget {
               Text(e.toString(),
                   textAlign: TextAlign.center,
                   style: AppTypography.bodySmall
-                      .copyWith(color: AppColors.neutral500)),
+                      .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant)),
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () =>

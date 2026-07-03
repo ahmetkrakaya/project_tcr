@@ -8,6 +8,8 @@ import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../providers/app_versions_admin_provider.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class AdminAppVersionsPage extends ConsumerStatefulWidget {
   const AdminAppVersionsPage({super.key});
@@ -129,7 +131,7 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
     final versionsAsync = ref.watch(appVersionsAdminProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor =
-        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+        ThemeBrightnessHolder.scaffoldBackground;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -143,7 +145,7 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
                 child: Text(
                   'Bu sayfaya erişim yetkiniz yok.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -165,7 +167,7 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
                       Text(
                         '$e',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -187,7 +189,7 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
                     Text(
                       'Minimum sürümün altındaki kullanıcılara güncelleme uyarısı gösterilir.',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -266,7 +268,7 @@ class _PlatformSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cardColor = ThemeBrightnessHolder.surface;
 
     return Container(
       decoration: BoxDecoration(
@@ -307,7 +309,7 @@ class _PlatformSection extends StatelessWidget {
                       Text(
                         'Son kayıt: ${DateFormat('d MMM yyyy, HH:mm').format(updatedAt!.toLocal())}',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                   ],
@@ -381,7 +383,7 @@ class _SaveIconButton extends StatelessWidget {
                       color: AppColors.primary,
                     ),
                   )
-                : const Icon(
+                : Icon(
                     Icons.check_rounded,
                     color: AppColors.primary,
                     size: 22,

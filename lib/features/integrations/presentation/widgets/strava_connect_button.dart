@@ -6,6 +6,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../providers/strava_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Strava Connect Button Widget
 class StravaConnectButton extends ConsumerWidget {
@@ -91,7 +92,7 @@ class StravaConnectButton extends ConsumerWidget {
       width: 24,
       height: 24,
       colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-      placeholderBuilder: (context) => const Icon(
+      placeholderBuilder: (context) => Icon(
         Icons.directions_run,
         color: Colors.white,
         size: 24,
@@ -165,7 +166,7 @@ class StravaSyncButton extends ConsumerWidget {
               height: 20,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : const Icon(Icons.sync),
+          : Icon(Icons.sync),
       tooltip: 'Strava Senkronize Et',
     );
   }
@@ -206,7 +207,7 @@ class StravaStatusCard extends ConsumerWidget {
                       Color(0xFFFC4C02),
                       BlendMode.srcIn,
                     ),
-                    placeholderBuilder: (context) => const Icon(
+                    placeholderBuilder: (context) => Icon(
                       Icons.directions_run,
                       color: Color(0xFFFC4C02),
                       size: 24,
@@ -228,7 +229,7 @@ class StravaStatusCard extends ConsumerWidget {
                         Text(
                           integration.athleteName!,
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                         ),
                     ],
@@ -276,7 +277,7 @@ class StravaStatusCard extends ConsumerWidget {
                 Text(
                   'Son senkronizasyon:',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
                 Text(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
@@ -51,9 +50,9 @@ class _StravaConnectionReportPageState
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final isAdmin = ref.watch(isAdminProvider);
     final reportAsync = ref.watch(stravaConnectionReportProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final searchQuery = _searchController.text.toLowerCase().trim();
 
     return Scaffold(
@@ -68,7 +67,7 @@ class _StravaConnectionReportPageState
                 child: Text(
                   'Bu sayfaya erişim yetkiniz yok.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: cs.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -84,13 +83,15 @@ class _StravaConnectionReportPageState
                     children: [
                       Text(
                         'Rapor yüklenemedi',
-                        style: AppTypography.titleSmall,
+                        style: AppTypography.titleSmall.copyWith(
+                          color: cs.onSurface,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         error.toString(),
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: cs.onSurfaceVariant,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -131,7 +132,6 @@ class _StravaConnectionReportPageState
                               subtitle:
                                   '%${report.connectedPercentage.toStringAsFixed(0)}',
                               color: _stravaColor,
-                              isDark: isDark,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -140,8 +140,7 @@ class _StravaConnectionReportPageState
                               label: 'Bağlamayan',
                               value: report.notConnectedCount.toString(),
                               subtitle: 'aktif üye',
-                              color: AppColors.neutral600,
-                              isDark: isDark,
+                              color: cs.onSurface,
                             ),
                           ),
                         ],
@@ -151,13 +150,14 @@ class _StravaConnectionReportPageState
                         'Bağlamayanlar (${report.notConnectedCount})',
                         style: AppTypography.titleMedium.copyWith(
                           fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Aktif üyeler arasında Strava hesabı bağlamamış kullanıcılar',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: cs.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -200,26 +200,24 @@ class _SummaryCard extends StatelessWidget {
     required this.value,
     required this.subtitle,
     required this.color,
-    required this.isDark,
   });
 
   final String label;
   final String value;
   final String subtitle;
   final Color color;
-  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: color.withValues(alpha: 0.2),
+          color: color.withValues(alpha: 0.35),
         ),
       ),
       child: Column(
@@ -228,7 +226,7 @@ class _SummaryCard extends StatelessWidget {
           Text(
             label,
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral500,
+              color: cs.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 8),
@@ -243,7 +241,7 @@ class _SummaryCard extends StatelessWidget {
           Text(
             subtitle,
             style: AppTypography.labelSmall.copyWith(
-              color: AppColors.neutral500,
+              color: cs.onSurfaceVariant,
             ),
           ),
         ],
@@ -259,14 +257,14 @@ class _UserListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: ListTile(
         leading: UserAvatar(
@@ -276,12 +274,12 @@ class _UserListTile extends StatelessWidget {
         ),
         title: Text(
           user.fullName,
-          style: AppTypography.titleSmall,
+          style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
         ),
         subtitle: Text(
           'Strava bağlı değil',
           style: AppTypography.bodySmall.copyWith(
-            color: AppColors.neutral500,
+            color: cs.onSurfaceVariant,
           ),
         ),
       ),

@@ -17,6 +17,7 @@ import '../../../workout/utils/segment_target_resolver.dart';
 import '../../domain/entities/group_entity.dart';
 import '../../data/datasources/group_remote_datasource.dart';
 import '../providers/group_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 final _currentUserGroupIdProvider = FutureProvider<String?>((ref) async {
   final ds = GroupRemoteDataSource(Supabase.instance.client);
@@ -369,7 +370,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
                   Text(
                     'Program',
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5,
                     ),
@@ -434,7 +435,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
                           Text(
                             program.trainingTypeDescription!,
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral600,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                               height: 1.45,
                             ),
                             maxLines: 3,
@@ -516,7 +517,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
               'Bu antrenman kişisel pace değerlerine göre hazırlandı. Programı görüntülemek için VDOT hesaplayıcıdan değerini kaydet.',
               textAlign: TextAlign.center,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral600,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
                 height: 1.4,
               ),
             ),
@@ -720,7 +721,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
                       Text(
                         _formatSegmentDetails(parts, s.segmentType.displayName),
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral600,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                           height: 1.35,
                         ),
                       ),
@@ -785,7 +786,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
                             Text(
                               detailLine,
                               style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.neutral600,
+                                color: ThemeBrightnessHolder.onSurfaceVariant,
                                 height: 1.35,
                               ),
                             ),
@@ -996,7 +997,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: ThemeBrightnessHolder.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1012,7 +1013,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: Icon(Icons.close),
                       onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
@@ -1129,7 +1130,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
             Text(
               'Program',
               style: AppTypography.labelSmall.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.5,
               ),
@@ -1253,7 +1254,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
                   Text(
                     'Program',
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5,
                     ),
@@ -1310,7 +1311,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
                           Text(
                             program.trainingTypeDescription!,
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral600,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                               height: 1.45,
                             ),
                             maxLines: 3,

@@ -1103,11 +1103,13 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
           .from('event_participants')
           .select('''
             *,
-            users!inner(first_name, last_name, avatar_url),
+            users!inner(first_name, last_name, avatar_url, user_status, is_active),
             selected_route:routes!selected_route_id(name)
           ''')
           .eq('event_id', eventId)
           .eq('status', 'going')
+          .eq('users.user_status', 'active')
+          .eq('users.is_active', true)
           .order('responded_at', ascending: true);
 
       final List<dynamic> data = response as List<dynamic>;
@@ -1840,8 +1842,10 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       if (groupId != null && groupId.isNotEmpty) {
         final groupMembersResponse = await _supabase
             .from('group_members')
-            .select('user_id')
-            .eq('group_id', groupId);
+            .select('user_id, users!inner(user_status, is_active)')
+            .eq('group_id', groupId)
+            .eq('users.user_status', 'active')
+            .eq('users.is_active', true);
 
         groupUserIds = (groupMembersResponse as List<dynamic>)
             .map((e) => e['user_id'] as String)
@@ -1851,9 +1855,11 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       // Tüm RSVP'leri tek sorguda çek
       var rsvpsQuery = _supabase
           .from('event_participants')
-          .select('event_id, user_id')
+          .select('event_id, user_id, users!inner(user_status, is_active)')
           .inFilter('event_id', eventIds)
-          .eq('status', 'going');
+          .eq('status', 'going')
+          .eq('users.user_status', 'active')
+          .eq('users.is_active', true);
 
       // Grup filtresi varsa, sadece o gruptaki kişilerin RSVP'lerini al
       if (groupUserIds != null && groupUserIds.isNotEmpty) {
@@ -1924,9 +1930,11 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
 
       final rsvpResponse = await _supabase
           .from('event_participants')
-          .select('user_id')
+          .select('user_id, users!inner(user_status, is_active)')
           .eq('event_id', eventId)
-          .eq('status', 'going');
+          .eq('status', 'going')
+          .eq('users.user_status', 'active')
+          .eq('users.is_active', true);
 
       final goingUserIds = (rsvpResponse as List<dynamic>)
           .map((row) => row['user_id'] as String)
@@ -2015,11 +2023,13 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
     required DateTime endDate,
   }) async {
     try {
-      // Grup üyelerini al
+      // Grup üyelerini al (yalnızca aktif)
       final groupMembersResponse = await _supabase
           .from('group_members')
-          .select('user_id')
-          .eq('group_id', groupId);
+          .select('user_id, users!inner(user_status, is_active)')
+          .eq('group_id', groupId)
+          .eq('users.user_status', 'active')
+          .eq('users.is_active', true);
 
       final groupMembers = groupMembersResponse as List<dynamic>;
       if (groupMembers.isEmpty) {
@@ -2242,8 +2252,10 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
       if (groupId != null) {
         final groupMembersResponse = await _supabase
             .from('group_members')
-            .select('user_id')
-            .eq('group_id', groupId);
+            .select('user_id, users!inner(user_status, is_active)')
+            .eq('group_id', groupId)
+            .eq('users.user_status', 'active')
+            .eq('users.is_active', true);
 
         final groupMembers = groupMembersResponse as List<dynamic>;
         if (groupMembers.isEmpty) {

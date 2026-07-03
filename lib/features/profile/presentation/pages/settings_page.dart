@@ -4,11 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../shared/providers/theme_mode_provider.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../../notifications/constants/notification_types.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 import 'webview_page.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Settings Page
 class SettingsPage extends ConsumerStatefulWidget {
@@ -74,13 +77,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _buildSectionHeader('Görünüm'),
+          _buildThemeSettings(ref),
+          const SizedBox(height: 24),
+
           // About Section
           _buildSectionHeader('Hakkında'),
           AppCard(
             child: Column(
               children: [
                 _buildListTile(
-                  leading: const Icon(Icons.info_outline),
+                  leading: Icon(Icons.info_outline),
                   title: 'Uygulama Sürümü',
                   subtitle: _appVersion,
                   trailing: const SizedBox.shrink(),
@@ -88,7 +95,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const Divider(height: 1),
                 _buildListTile(
-                  leading: const Icon(Icons.group_outlined),
+                  leading: Icon(Icons.group_outlined),
                   title: 'TCR Hakkında',
                   onTap: () {
                     Navigator.of(context).push(
@@ -103,7 +110,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const Divider(height: 1),
                 _buildListTile(
-                  leading: const Icon(Icons.description_outlined),
+                  leading: Icon(Icons.description_outlined),
                   title: 'Kullanım Koşulları',
                   onTap: () {
                     Navigator.of(context).push(
@@ -118,7 +125,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const Divider(height: 1),
                 _buildListTile(
-                  leading: const Icon(Icons.privacy_tip_outlined),
+                  leading: Icon(Icons.privacy_tip_outlined),
                   title: 'Gizlilik Politikası',
                   onTap: () {
                     Navigator.of(context).push(
@@ -142,7 +149,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: Column(
               children: [
                 _buildListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.delete_forever_outlined,
                     color: AppColors.error,
                   ),
@@ -150,9 +157,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   subtitle:
                       'Hesabını silmek için talep oluştur. 15 gün içinde tekrar giriş yaparsan iptal edilir.',
                   onTap: () => _showDeleteAccountDialog(context, ref),
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.chevron_right,
-                    color: AppColors.neutral400,
+                    color: ThemeBrightnessHolder.outline,
                   ),
                 ),
               ],
@@ -171,7 +178,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.logout, color: AppColors.error),
+                Icon(Icons.logout, color: AppColors.error),
                 const SizedBox(width: 8),
                 Text(
                   'Çıkış Yap',
@@ -194,7 +201,99 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       child: Text(
         title,
         style: AppTypography.labelLarge.copyWith(
-          color: AppColors.neutral500,
+          color: context.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeSettings(WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+    final options = <(ThemeMode, IconData, String, String)>[
+      (ThemeMode.system, Icons.brightness_auto, 'Sistem', 'Telefon temasını kullan'),
+      (ThemeMode.light, Icons.light_mode, 'Açık Tema', 'Her zaman açık tema'),
+      (ThemeMode.dark, Icons.dark_mode, 'Koyu Tema', 'Her zaman koyu tema'),
+    ];
+
+    return AppCard(
+      child: Column(
+        children: [
+          for (var i = 0; i < options.length; i++) ...[
+            if (i > 0) const Divider(height: 1),
+            _buildThemeOptionTile(
+              ref,
+              themeMode,
+              options[i].$1,
+              options[i].$2,
+              options[i].$3,
+              options[i].$4,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThemeOptionTile(
+    WidgetRef ref,
+    ThemeMode currentMode,
+    ThemeMode mode,
+    IconData icon,
+    String title,
+    String subtitle,
+  ) {
+    final isSelected = currentMode == mode;
+    final cs = context.colorScheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => ref.read(themeModeProvider.notifier).setThemeMode(mode),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: (isSelected ? cs.primary : context.semanticColors.placeholder)
+                      .withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  icon,
+                  size: 22,
+                  color: isSelected ? cs.primary : cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTypography.titleSmall.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                Icon(Icons.check_circle, color: cs.primary, size: 22)
+              else
+                Icon(Icons.circle_outlined, color: cs.outline, size: 22),
+            ],
+          ),
         ),
       ),
     );
@@ -273,6 +372,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     String categoryId,
   ) {
     final enabled = _categoryEnabled(settings, categoryId);
+    final cs = context.colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -294,14 +394,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: (enabled ? AppColors.primary : AppColors.neutral300)
+                  color: (enabled ? cs.primary : context.semanticColors.placeholder)
                       .withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   NotificationCategories.icon(categoryId),
                   size: 22,
-                  color: enabled ? AppColors.primary : AppColors.neutral500,
+                  color: enabled ? cs.primary : cs.onSurfaceVariant,
                 ),
               ),
               const SizedBox(width: 14),
@@ -322,7 +422,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         .setCategoryEnabled(categoryId, value);
                   } catch (_) {}
                 },
-                activeColor: AppColors.primary,
               ),
             ],
           ),
@@ -338,16 +437,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     Widget? trailing,
     VoidCallback? onTap,
   }) {
+    final cs = context.colorScheme;
     return ListTile(
       leading: leading,
       title: Text(title, style: AppTypography.titleSmall),
       subtitle: subtitle != null
           ? Text(
               subtitle,
-              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
             )
           : null,
-      trailing: trailing ?? const Icon(Icons.chevron_right, color: AppColors.neutral400),
+      trailing: trailing ??
+          Icon(Icons.chevron_right, color: context.semanticColors.chevron),
       contentPadding: EdgeInsets.zero,
       onTap: onTap,
     );

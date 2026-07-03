@@ -13,6 +13,7 @@ import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../domain/entities/donation_entity.dart';
 import '../providers/donation_provider.dart';
 import '../providers/donation_stats_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class DonationsPage extends ConsumerStatefulWidget {
   const DonationsPage({super.key});
@@ -57,12 +58,12 @@ class _DonationsPageState extends ConsumerState<DonationsPage>
         actions: [
           if (isAdmin)
             IconButton(
-              icon: const Icon(Icons.favorite_outline),
+              icon: Icon(Icons.favorite_outline),
               tooltip: 'Vakıf Ekle',
               onPressed: () => context.pushNamed(RouteNames.foundations),
             ),
           IconButton(
-            icon: const Icon(Icons.add),
+            icon: Icon(Icons.add),
             tooltip: 'Bağış Ekle',
             onPressed: () => context.pushNamed(RouteNames.donationCreate),
           ),
@@ -324,6 +325,8 @@ class _UserRankingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -342,7 +345,7 @@ class _UserRankingCard extends StatelessWidget {
                       ranking.userName.isNotEmpty
                           ? ranking.userName[0].toUpperCase()
                           : '?',
-                      style: AppTypography.titleSmall.copyWith(color: AppColors.primary),
+                      style: AppTypography.titleSmall.copyWith(color: cs.primary),
                     )
                   : null,
             ),
@@ -360,7 +363,7 @@ class _UserRankingCard extends StatelessWidget {
                   if (subtitle != null)
                     Text(
                       subtitle!,
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                      style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                     ),
                 ],
               ),
@@ -369,7 +372,7 @@ class _UserRankingCard extends StatelessWidget {
               amountFormat.format(ranking.totalAmount),
               style: AppTypography.titleMedium.copyWith(
                 fontWeight: FontWeight.bold,
-                color: AppColors.primary,
+                color: cs.primary,
               ),
             ),
           ],
@@ -408,13 +411,10 @@ class _RaceBasedRankingsList extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: DropdownButtonFormField<String>(
                 value: selectedRaceKey,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Yarış',
                   hintText: 'Yarış seçin',
-                  prefixIcon: const Icon(Icons.directions_run),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  prefixIcon: Icon(Icons.directions_run),
                 ),
                 items: races.map((r) {
                   return DropdownMenuItem(
@@ -517,13 +517,10 @@ class _FoundationBasedRankingsList extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: DropdownButtonFormField<String>(
                 value: selectedFoundationName,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Vakıf',
                   hintText: 'Vakıf seçin',
-                  prefixIcon: const Icon(Icons.favorite_outline),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  prefixIcon: Icon(Icons.favorite_outline),
                 ),
                 items: foundations.map((f) {
                   return DropdownMenuItem(
@@ -608,6 +605,7 @@ class _StatsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final amountFormat = NumberFormat.currency(
       locale: 'tr_TR',
       symbol: '₺',
@@ -632,7 +630,7 @@ class _StatsTab extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Card(
-                      color: AppColors.primaryContainer,
+                      color: cs.primaryContainer,
                       child: Padding(
                         padding: const EdgeInsets.all(20),
                         child: Column(
@@ -641,7 +639,7 @@ class _StatsTab extends ConsumerWidget {
                             Text(
                               'TCR Toplam Bağış',
                               style: AppTypography.titleMedium.copyWith(
-                                color: AppColors.onPrimaryContainer,
+                                color: cs.onPrimaryContainer,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -650,7 +648,7 @@ class _StatsTab extends ConsumerWidget {
                               amountFormat.format(stats.grandTotal),
                               style: AppTypography.headlineMedium.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primary,
+                                color: cs.primary,
                               ),
                             ),
                           ],
@@ -662,7 +660,7 @@ class _StatsTab extends ConsumerWidget {
                       'Yarış Bazlı Toplamlar',
                       style: AppTypography.titleSmall.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: AppColors.neutral700,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -671,14 +669,14 @@ class _StatsTab extends ConsumerWidget {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Card(
                           child: ListTile(
-                            leading: const Icon(Icons.directions_run, color: AppColors.primary),
+                            leading: Icon(Icons.directions_run, color: cs.primary),
                             title: Text(r.raceName, style: AppTypography.titleSmall),
                             subtitle: Text('${r.donorCount} kişi katkı sağladı'),
                             trailing: Text(
                               amountFormat.format(r.totalAmount),
                               style: AppTypography.titleSmall.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primary,
+                                color: cs.primary,
                               ),
                             ),
                           ),
@@ -690,7 +688,7 @@ class _StatsTab extends ConsumerWidget {
                       'Vakıf Bazlı Toplamlar',
                       style: AppTypography.titleSmall.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: AppColors.neutral700,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -706,7 +704,7 @@ class _StatsTab extends ConsumerWidget {
                               amountFormat.format(f.totalAmount),
                               style: AppTypography.titleSmall.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primary,
+                                color: cs.primary,
                               ),
                             ),
                           ),
@@ -745,6 +743,7 @@ class _DonationCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     final isOwn = donation.userId == currentUserId;
     final canDelete = isOwn || isAdmin;
@@ -762,7 +761,7 @@ class _DonationCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         side: isOwn
             ? BorderSide(
-                color: AppColors.primary.withValues(alpha: 0.3), width: 1)
+                color: cs.primary.withValues(alpha: 0.35), width: 1)
             : BorderSide.none,
       ),
       child: Padding(
@@ -783,7 +782,7 @@ class _DonationCard extends ConsumerWidget {
                           ? donation.userName[0].toUpperCase()
                           : '?',
                       style: AppTypography.titleSmall.copyWith(
-                        color: AppColors.primary,
+                        color: cs.primary,
                       ),
                     )
                   : null,
@@ -809,14 +808,14 @@ class _DonationCard extends ConsumerWidget {
                             ? Icons.event
                             : Icons.directions_run,
                         size: 13,
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           donation.displayRaceName,
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral600,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -837,7 +836,7 @@ class _DonationCard extends ConsumerWidget {
                         child: Text(
                           donation.foundationName,
                           style: AppTypography.labelSmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -848,7 +847,7 @@ class _DonationCard extends ConsumerWidget {
                   Text(
                     dateFormat.format(donation.effectiveRaceDate),
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.neutral400,
+                      color: ThemeBrightnessHolder.outline,
                       fontSize: 10,
                     ),
                   ),
@@ -863,7 +862,7 @@ class _DonationCard extends ConsumerWidget {
                   amountFormat.format(donation.amount),
                   style: AppTypography.titleMedium.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+                    color: cs.primary,
                   ),
                 ),
                 if (canEdit)
@@ -878,13 +877,14 @@ class _DonationCard extends ConsumerWidget {
                           Icon(
                             Icons.edit,
                             size: 14,
-                            color: AppColors.primary,
+                            color: cs.primary,
                           ),
                           const SizedBox(width: 2),
                           Text(
                             'Güncelle',
                             style: AppTypography.labelSmall.copyWith(
-                              color: AppColors.primary,
+                              color: cs.primary,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -929,7 +929,7 @@ class _DonationCard extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.delete_outline, color: Colors.white, size: 28),
+                Icon(Icons.delete_outline, color: Colors.white, size: 28),
                 const SizedBox(height: 4),
                 Text(
                   'Sil',
@@ -1050,8 +1050,9 @@ class _RankBadge extends StatelessWidget {
         textColor = Colors.white;
         break;
       default:
-        bgColor = AppColors.neutral200;
-        textColor = AppColors.neutral600;
+        final cs = Theme.of(context).colorScheme;
+        bgColor = cs.surfaceContainerHighest;
+        textColor = cs.onSurface;
     }
 
     return Container(

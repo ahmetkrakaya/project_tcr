@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/notifications/constants/notification_types.dart';
 import '../constants/app_constants.dart';
+import 'app_icon_badge_service.dart';
 
 /// Bildirim açılışında yönlendirme için kullanılacak callback.
 /// TCRApp ilk build'de set eder.
@@ -70,10 +71,11 @@ void navigateFromNotification(GoRouter router, RemoteMessage message) {
 
   // Etkinlik oluşturuldu/güncellendi, ortak araç başvurusu/yanıtı → etkinlik detay
   if (eventId != null &&
-      (type == 'event_created' ||
-          type == 'event_updated' ||
-          type == 'carpool_application' ||
-          type == 'carpool_application_response')) {
+      (type == NotificationTypes.eventCreated ||
+          type == NotificationTypes.eventUpdated ||
+          type == NotificationTypes.eventRsvpReminder ||
+          type == NotificationTypes.carpoolApplication ||
+          type == NotificationTypes.carpoolApplicationResponse)) {
     router.goNamed(RouteNames.eventDetail, pathParameters: {'eventId': eventId});
     return;
   }
@@ -185,6 +187,12 @@ final FlutterLocalNotificationsPlugin _localNotifications =
 
 bool _initialized = false;
 
+int? _badgeCountFromMessage(RemoteMessage message) {
+  final raw = message.data['badge_count'];
+  if (raw == null) return null;
+  return int.tryParse(raw.toString());
+}
+
 /// Foreground'da gelen FCM mesajını yerel bildirim olarak gösterir.
 Future<void> showForegroundNotification(RemoteMessage message) async {
   if (!_initialized) return;
@@ -211,6 +219,7 @@ Future<void> showForegroundNotification(RemoteMessage message) async {
   final stravaSoundRes = isStravaWatch
       ? _stravaWatchSoundResource(data)
       : null;
+  final badgeCount = _badgeCountFromMessage(message);
 
   final androidDetails = isStravaWatch
       ? AndroidNotificationDetails(
@@ -220,26 +229,30 @@ Future<void> showForegroundNotification(RemoteMessage message) async {
           importance: Importance.max,
           priority: Priority.max,
           sound: RawResourceAndroidNotificationSound(stravaSoundRes!),
+          number: badgeCount,
         )
-      : const AndroidNotificationDetails(
+      : AndroidNotificationDetails(
           _channelId,
           _channelName,
           channelDescription: _channelDescription,
           importance: Importance.high,
           priority: Priority.high,
+          number: badgeCount,
         );
 
   final iosDetails = isStravaWatch
       ? DarwinNotificationDetails(
           presentAlert: true,
-          presentBadge: true,
+          presentBadge: badgeCount != null,
           presentSound: true,
           sound: '$stravaSoundRes.wav',
+          badgeNumber: badgeCount,
         )
-      : const DarwinNotificationDetails(
+      : DarwinNotificationDetails(
           presentAlert: true,
-          presentBadge: true,
+          presentBadge: badgeCount != null,
           presentSound: true,
+          badgeNumber: badgeCount,
         );
   // Payload: değerlerde = veya & olabilir; encode ederek tap'te doğru parse ederiz
   final payload = message.data.entries
@@ -256,6 +269,10 @@ Future<void> showForegroundNotification(RemoteMessage message) async {
     ),
     payload: payload,
   );
+
+  if (badgeCount != null) {
+    await AppIconBadgeService.update(badgeCount);
+  }
 }
 
 /// Arka planda gelen FCM (isolate). Sadece return; bildirim backend'den notification ile gidiyor.

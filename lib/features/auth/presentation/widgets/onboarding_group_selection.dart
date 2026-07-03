@@ -9,6 +9,7 @@ import '../../../../shared/widgets/loading_widget.dart';
 import '../../../members_groups/domain/entities/group_entity.dart';
 import '../../../members_groups/presentation/providers/group_provider.dart';
 import '../../../members_groups/presentation/widgets/group_avatar.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class OnboardingGroupSelection extends ConsumerStatefulWidget {
   const OnboardingGroupSelection({
@@ -124,7 +125,7 @@ class OnboardingGroupSelectionState
               Text(
                 'Antrenman programların ve etkinliklerin seçtiğin gruba göre düzenlenir.',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                   height: 1.45,
                 ),
               ),
@@ -183,7 +184,7 @@ class OnboardingGroupSelectionState
           child: Text(
             'Seçimin admin onayından sonra aktif olur.',
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
               height: 1.4,
             ),
             textAlign: TextAlign.center,
@@ -273,7 +274,7 @@ class _OnboardingGroupTile extends StatelessWidget {
                       Text(
                         subtitle,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -295,7 +296,7 @@ class _OnboardingGroupTile extends StatelessWidget {
                     : Icon(
                         Icons.circle_outlined,
                         key: const ValueKey('unselected'),
-                        color: AppColors.neutral400,
+                        color: ThemeBrightnessHolder.outline,
                         size: 24,
                       ),
               ),

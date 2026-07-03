@@ -11,6 +11,7 @@ import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../../members_groups/presentation/providers/group_provider.dart';
 import '../providers/admin_reports_provider.dart';
 import '../widgets/person_360_view.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 const _info = ReportInfo(
   title: 'Kişi 360',
@@ -62,7 +63,7 @@ class _Person360PageState extends ConsumerState<Person360Page> {
                 padding: const EdgeInsets.all(24),
                 child: Text('Bu sayfaya erişim yetkiniz yok.',
                     style: AppTypography.bodyMedium
-                        .copyWith(color: AppColors.neutral500),
+                        .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                     textAlign: TextAlign.center),
               ),
             )
@@ -101,7 +102,7 @@ class _Person360PageState extends ConsumerState<Person360Page> {
                 return Center(
                   child: Text('Üye bulunamadı',
                       style: AppTypography.bodyMedium
-                          .copyWith(color: AppColors.neutral500)),
+                          .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant)),
                 );
               }
               return ListView.builder(
@@ -119,7 +120,7 @@ class _Person360PageState extends ConsumerState<Person360Page> {
                       subtitle: u.hasVdot
                           ? Text('VDOT ${u.vdot!.toStringAsFixed(1)}')
                           : null,
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: Icon(Icons.chevron_right),
                       onTap: () => setState(() => _selectedUserId = u.id),
                     ),
                   );
@@ -142,7 +143,7 @@ class _Person360PageState extends ConsumerState<Person360Page> {
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
               onPressed: () => setState(() => _selectedUserId = null),
-              icon: const Icon(Icons.arrow_back, size: 18),
+              icon: Icon(Icons.arrow_back, size: 18),
               label: const Text('Üye listesine dön'),
             ),
           ),
@@ -161,7 +162,7 @@ class _Person360PageState extends ConsumerState<Person360Page> {
                     Text(e.toString(),
                         textAlign: TextAlign.center,
                         style: AppTypography.bodySmall
-                            .copyWith(color: AppColors.neutral500)),
+                            .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant)),
                     const SizedBox(height: 16),
                     FilledButton(
                       onPressed: () =>

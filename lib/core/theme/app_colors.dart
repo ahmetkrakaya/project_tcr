@@ -38,13 +38,20 @@ class AppColors {
   static const Color onSurfaceLight = Color(0xFF1E3A5F);
   static const Color onSurfaceVariantLight = Color(0xFF5C6B7A);
 
-  // Background - Dark Theme (Koyu lacivert tonları)
-  static const Color backgroundDark = Color(0xFF0D1B2A);
-  static const Color surfaceDark = Color(0xFF1B2838);
-  static const Color surfaceVariantDark = Color(0xFF243447);
+  // Background - Dark Theme (Siyahımsı arka plan + turkuaz vurgu)
+  static const Color backgroundDark = Color(0xFF0A0E12);
+  static const Color surfaceDark = Color(0xFF141A1F);
+  static const Color surfaceVariantDark = Color(0xFF1E262D);
   static const Color onBackgroundDark = Color(0xFFE8ECF0);
   static const Color onSurfaceDark = Color(0xFFE8ECF0);
-  static const Color onSurfaceVariantDark = Color(0xFFA0AEC0);
+  static const Color onSurfaceVariantDark = Color(0xFF94A3B8);
+
+  // Dark theme accent - Turkuaz
+  static const Color primaryDarkAccent = Color(0xFF26C6DA);
+  static const Color primaryDarkAccentLight = Color(0xFF4DD0E1);
+  static const Color primaryDarkAccentDark = Color(0xFF00838F);
+  static const Color primaryDarkContainer = Color(0xFF0D3B44);
+  static const Color onPrimaryDarkContainer = Color(0xFFB2EBF2);
 
   // Error
   static const Color error = Color(0xFFD32F2F);
@@ -138,9 +145,15 @@ class AppColors {
   );
 
   static const LinearGradient darkOverlay = LinearGradient(
-    colors: [Colors.transparent, Color(0xCC0D1B2A)],
+    colors: [Colors.transparent, Color(0xCC0A0E12)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
+  );
+
+  static const LinearGradient darkAccentGradient = LinearGradient(
+    colors: [primaryDarkAccent, primaryDarkAccentDark],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
   );
 
   static const LinearGradient elevationGradient = LinearGradient(

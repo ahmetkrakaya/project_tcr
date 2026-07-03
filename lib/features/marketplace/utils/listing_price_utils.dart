@@ -25,6 +25,14 @@ bool isListingInStock(ListingModel listing) {
 
 bool isListingOutOfStock(ListingModel listing) => !isListingInStock(listing);
 
+const listingLowStockVisibilityThreshold = 5;
+
+bool shouldShowListingLowStockWarning(int stock) {
+  return stock > 0 && stock <= listingLowStockVisibilityThreshold;
+}
+
+String listingLowStockLabel(int stock) => 'Son $stock adet';
+
 bool isListingDiscountActive(ListingModel listing, {DateTime? at}) {
   final percent = listing.discountPercent;
   if (percent == null || percent <= 0 || listing.price == null) {
@@ -83,12 +91,14 @@ class ListingPriceDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     if (listing.price == null) {
       return Text(
         'Fiyat Sorunuz',
         style: priceStyle ??
             AppTypography.titleMedium.copyWith(
-              color: AppColors.primary,
+              color: cs.primary,
               fontWeight: FontWeight.bold,
             ),
         maxLines: 1,
@@ -104,7 +114,7 @@ class ListingPriceDisplay extends StatelessWidget {
         '₺${formatListingPrice(displayPrice)}',
         style: priceStyle ??
             AppTypography.titleMedium.copyWith(
-              color: AppColors.primary,
+              color: cs.primary,
               fontWeight: FontWeight.bold,
             ),
         maxLines: 1,
@@ -114,7 +124,7 @@ class ListingPriceDisplay extends StatelessWidget {
 
     final originalStyle = originalPriceStyle ??
         AppTypography.bodySmall.copyWith(
-          color: AppColors.neutral500,
+          color: cs.onSurfaceVariant,
           decoration: TextDecoration.lineThrough,
         );
     final saleStyle = priceStyle ??

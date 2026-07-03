@@ -433,7 +433,8 @@ type ParsedBlock =
       recovery: RecoverySpec | null;
     }
   | { type: "duration"; minutes: number; pace: PaceSpec | null }
-  | { type: "distance"; distanceM: number; target: RepTarget | null };
+  | { type: "distance"; distanceM: number; target: RepTarget | null }
+  | { type: "recovery"; recovery: RecoverySpec };
 
 function normalizeBlock(block: string): string {
   return block.trim().replace(
@@ -542,6 +543,41 @@ function parseDistanceRepBlock(block: string): ParsedBlock | null {
   };
 }
 
+/** Tek satır toparlanma: R 400m 7:00 veya toparlanma 400m (normalizer → R) */
+function parseStandaloneRecoveryBlock(block: string): ParsedBlock | null {
+  const trimmed = block.trim();
+  if (!/^R(?:\s|\d)/i.test(trimmed)) return null;
+  const recRaw = trimmed.replace(/^R\s*/i, "");
+  const recovery = parseRecoveryClause(recRaw);
+  if (!hasRecovery(recovery)) return null;
+  return { type: "recovery", recovery: recovery! };
+}
+
+/** Süre + R toparlanma (tekrarsız): 15dk 5:30 R 400m 7:00 */
+function parseDurationRepBlock(block: string): ParsedBlock | null {
+  const normalized = block.trim();
+  const { work, recovery } = splitOnRecovery(normalized);
+  if (!hasRecovery(recovery)) return null;
+
+  const m = work.match(
+    new RegExp(`^(\\d+(?:\\.\\d+)?)\\s*${DURATION_UNIT_PATTERN}(?:\\s+(.+))?$`, "i"),
+  );
+  if (!m) return null;
+
+  const minutes = Number(m[1]);
+  const paceRaw = m[2]?.trim();
+  const pace = paceRaw ? parsePaceSpec(paceRaw) : null;
+
+  return {
+    type: "interval",
+    repeat: 1,
+    distanceM: null,
+    durationMinutes: minutes,
+    target: pace ? { pace } : null,
+    recovery,
+  };
+}
+
 function parseDurationBlock(block: string): ParsedBlock | null {
   const m = block.trim().match(
     new RegExp(`^(\\d+(?:\\.\\d+)?)\\s*${DURATION_UNIT_PATTERN}(?:\\s+(.+))?$`, "i"),
@@ -609,6 +645,9 @@ function blockToSteps(
   block: ParsedBlock,
   kind: SegmentKind,
 ): Array<Record<string, unknown>> {
+  if (block.type === "recovery") {
+    return [buildRecoveryStep(block.recovery)];
+  }
   if (block.type === "duration") {
     return [buildDurationSegment(kind, block.minutes * 60, block.pace)];
   }
@@ -687,6 +726,7 @@ function resolveSegmentKind(
   explicitKind: SegmentKind | null,
 ): SegmentKind {
   if (block.type === "interval") return "main";
+  if (block.type === "recovery") return "recovery";
   return explicitKind ?? "main";
 }
 
@@ -759,6 +799,8 @@ export function parseCoachText(rawInput: string): ParseResult {
     let block: ParsedBlock | null = parseIntervalBlock(part);
     if (!block) block = parseStandaloneRepBlock(part);
     if (!block) block = parseDistanceRepBlock(part);
+    if (!block) block = parseDurationRepBlock(part);
+    if (!block) block = parseStandaloneRecoveryBlock(part);
     if (!block) block = parseDurationBlock(part);
     if (!block) block = parseDistanceBlock(part);
     if (!block) {

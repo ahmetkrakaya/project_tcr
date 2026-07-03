@@ -10,6 +10,7 @@ import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../domain/entities/route_entity.dart';
 import '../providers/route_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Rotalar Listesi Sayfası
 enum RouteListFilter { all, race, normal }
@@ -37,7 +38,7 @@ class _RoutesPageState extends ConsumerState<RoutesPage> {
         actions: [
           if (isAdminOrCoach)
             IconButton(
-              icon: const Icon(Icons.add),
+              icon: Icon(Icons.add),
               onPressed: () => context.pushNamed(RouteNames.routeCreate),
             ),
         ],
@@ -130,7 +131,7 @@ class _RoutesPageState extends ConsumerState<RoutesPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+              Icon(Icons.error_outline, size: 48, color: AppColors.error),
               const SizedBox(height: 16),
               Text('Hata: $error'),
               const SizedBox(height: 16),
@@ -195,7 +196,7 @@ class _RouteListTile extends StatelessWidget {
                     Text(
                       '${route.isRace ? 'Yarış' : 'Normal'} · ${route.terrainType.displayName} · ${route.formattedDistance} · ${route.formattedElevationGain}',
                       style: AppTypography.labelSmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -206,7 +207,7 @@ class _RouteListTile extends StatelessWidget {
               Icon(
                 Icons.chevron_right,
                 size: 20,
-                color: AppColors.neutral400,
+                color: ThemeBrightnessHolder.outline,
               ),
             ],
           ),

@@ -11,6 +11,7 @@ import '../../data/models/event_activity_stat_model.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
+import '../../../../shared/widgets/app_text_field.dart';
 
 /// Etkinlik Raporu Detay Sayfası
 /// - Grup bazında antrenman programı
@@ -48,6 +49,7 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
       ),
       body: eventAsync.when(
         data: (event) {
+          final cs = Theme.of(context).colorScheme;
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -56,12 +58,15 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                 // Etkinlik başlık ve tarih
                 Text(
                   event.title,
-                  style: AppTypography.titleLarge.copyWith(fontWeight: FontWeight.bold),
+                  style: AppTypography.titleLarge.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   DateFormat('dd.MM.yyyy – HH:mm').format(event.startTime),
-                  style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                  style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: 16),
 
@@ -71,7 +76,10 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                     Expanded(
                       child: Text(
                         'Grup Bazında Antrenman Programı',
-                        style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w600),
+                        style: AppTypography.titleMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
                       ),
                     ),
                     programsAsync.when(
@@ -113,6 +121,7 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                     return Column(
                       children: filteredPrograms.map((p) {
                         return Card(
+                          color: cs.surfaceContainerHighest,
                           margin: const EdgeInsets.only(bottom: 8),
                           child: Padding(
                             padding: const EdgeInsets.all(12),
@@ -126,7 +135,7 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                                       height: 8,
                                       margin: const EdgeInsets.only(right: 8),
                                       decoration: BoxDecoration(
-                                        color: _parseColor(p.groupColor) ?? AppColors.primary,
+                                        color: _parseColor(p.groupColor) ?? cs.primary,
                                         shape: BoxShape.circle,
                                       ),
                                     ),
@@ -135,6 +144,7 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                                         p.groupName ?? 'Grup',
                                         style: AppTypography.bodyMedium.copyWith(
                                           fontWeight: FontWeight.w600,
+                                          color: cs.onSurface,
                                         ),
                                       ),
                                     ),
@@ -143,7 +153,9 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                                 const SizedBox(height: 6),
                                 Text(
                                   p.programContent,
-                                  style: AppTypography.bodySmall,
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
                                 ),
                               ],
                             ),
@@ -172,24 +184,18 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                     Expanded(
                       child: Text(
                         'Kullanıcı İstatistikleri',
-                        style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w600),
+                        style: AppTypography.titleMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
                       ),
                     ),
-                    _buildSortMenu(),
+                    _buildSortMenu(cs),
                   ],
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'İsim veya soyisime göre ara',
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    isDense: true,
-                  ),
-                  style: AppTypography.bodySmall,
+                AppSearchField(
+                  hint: 'İsim veya soyisime göre ara',
                   onChanged: (value) {
                     setState(() {
                       _userSearchQuery = value.trim().toLowerCase();
@@ -224,7 +230,7 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                             );
                           }
 
-                          return _buildStatsList(filteredStats);
+                          return _buildStatsList(filteredStats, cs);
                         },
                         loading: () => const Padding(
                           padding: EdgeInsets.all(8),
@@ -263,7 +269,7 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                         );
                       }
 
-                      return _buildStatsList(stats);
+                      return _buildStatsList(stats, cs);
                     },
                     loading: () => const Padding(
                       padding: EdgeInsets.all(8),
@@ -292,7 +298,7 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
     );
   }
 
-  Widget _buildStatsList(List<EventActivityStatModel> stats) {
+  Widget _buildStatsList(List<EventActivityStatModel> stats, ColorScheme cs) {
     final sorted = [...stats];
     switch (_sortType) {
       case _StatSortType.distance:
@@ -340,29 +346,32 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
           ),
           title: Text(
             s.userName,
-            style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+            style: AppTypography.bodyMedium.copyWith(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
           ),
           subtitle: Row(
             children: [
-              Icon(Icons.route, size: 14, color: AppColors.neutral500),
+              Icon(Icons.route, size: 14, color: cs.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 '${distanceKm.toStringAsFixed(2)} km',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+                style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
               ),
               const SizedBox(width: 12),
-              Icon(Icons.timer_outlined, size: 14, color: AppColors.neutral500),
+              Icon(Icons.timer_outlined, size: 14, color: cs.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 durationStr,
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+                style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
               ),
               const SizedBox(width: 12),
-              Icon(Icons.speed, size: 14, color: AppColors.neutral500),
+              Icon(Icons.speed, size: 14, color: cs.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 '$paceStr dk/km',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+                style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
               ),
             ],
           ),
@@ -393,9 +402,11 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.neutral100,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -405,14 +416,18 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
                 selectedGroupName,
                 style: AppTypography.bodySmall.copyWith(
                   fontWeight: FontWeight.w500,
-                  color: AppColors.neutral700,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.arrow_drop_down, size: 20, color: AppColors.neutral600),
+            Icon(
+              Icons.arrow_drop_down,
+              size: 20,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ],
         ),
       ),
@@ -438,7 +453,7 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
     );
   }
 
-  Widget _buildSortMenu() {
+  Widget _buildSortMenu(ColorScheme cs) {
     String getSortLabel() {
       switch (_sortType) {
         case _StatSortType.distance:
@@ -455,9 +470,9 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.neutral100,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: cs.outlineVariant),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -466,11 +481,11 @@ class _EventReportDetailPageState extends ConsumerState<EventReportDetailPage> {
               getSortLabel(),
               style: AppTypography.bodySmall.copyWith(
                 fontWeight: FontWeight.w500,
-                color: AppColors.neutral700,
+                color: cs.onSurface,
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.arrow_drop_down, size: 20, color: AppColors.neutral600),
+            Icon(Icons.arrow_drop_down, size: 20, color: cs.onSurfaceVariant),
           ],
         ),
       ),

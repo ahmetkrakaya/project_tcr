@@ -19,6 +19,7 @@ class RecurringEventsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final seriesAsync = ref.watch(recurringEventSeriesProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -26,6 +27,7 @@ class RecurringEventsPage extends ConsumerWidget {
       ),
       body: seriesAsync.when(
         data: (series) => RefreshIndicator(
+          color: cs.primary,
           onRefresh: () async {
             ref.invalidate(recurringEventSeriesProvider);
             await ref.read(recurringEventSeriesProvider.future);
@@ -64,7 +66,7 @@ class RecurringEventsPage extends ConsumerWidget {
                 const SizedBox(height: 8),
                 Text(
                   error.toString(),
-                  style: AppTypography.bodySmall.copyWith(color: AppColors.error),
+                  style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -189,6 +191,7 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
   @override
   Widget build(BuildContext context) {
     final series = widget.series;
+    final cs = Theme.of(context).colorScheme;
     final dateFormat = DateFormat('d MMM yyyy', 'tr_TR');
     final timeFormat = DateFormat('HH:mm', 'tr_TR');
     final frequency = formatRecurrenceRule(series.recurrenceRule);
@@ -213,6 +216,7 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
                         series.title,
                         style: AppTypography.titleSmall.copyWith(
                           fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -222,17 +226,17 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
                         children: [
                           _Chip(
                             label: series.eventType.displayName,
-                            color: AppColors.primary.withValues(alpha: 0.12),
-                            textColor: AppColors.primary,
+                            color: cs.primary.withValues(alpha: 0.12),
+                            textColor: cs.primary,
                           ),
                           _Chip(
                             label: series.isActive ? 'Aktif' : 'Durduruldu',
                             color: series.isActive
                                 ? AppColors.success.withValues(alpha: 0.12)
-                                : AppColors.neutral200,
+                                : cs.surfaceContainerHighest,
                             textColor: series.isActive
                                 ? AppColors.success
-                                : AppColors.neutral600,
+                                : cs.onSurfaceVariant,
                           ),
                         ],
                       ),
@@ -241,7 +245,7 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
                 ),
                 Icon(
                   Icons.repeat,
-                  color: series.isActive ? AppColors.primary : AppColors.neutral400,
+                  color: series.isActive ? cs.primary : cs.outline,
                 ),
               ],
             ),
@@ -251,13 +255,14 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
                 'Açıklama',
                 style: AppTypography.labelLarge.copyWith(
                   fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 description,
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.neutral700,
+                  color: cs.onSurfaceVariant,
                   height: 1.45,
                 ),
               ),
@@ -323,7 +328,7 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.stop_circle_outlined),
+                        : Icon(Icons.stop_circle_outlined, color: cs.onSurfaceVariant),
                   ),
                 IconButton(
                   onPressed: _isStopping || _isDeleting
@@ -339,7 +344,7 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
                           );
                         },
                   tooltip: 'Düzenle',
-                  icon: const Icon(Icons.edit_outlined),
+                  icon: Icon(Icons.edit_outlined, color: cs.onSurfaceVariant),
                 ),
                 IconButton(
                   onPressed: _isStopping || _isDeleting ? null : _deleteSeries,
@@ -350,7 +355,7 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.delete_outline, color: AppColors.error),
+                      : Icon(Icons.delete_outline, color: AppColors.error),
                 ),
               ],
             ),
@@ -374,19 +379,23 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: AppColors.neutral500),
+        Icon(icon, size: 16, color: cs.onSurfaceVariant),
         const SizedBox(width: 8),
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral700),
+              style: AppTypography.bodySmall.copyWith(color: cs.onSurface),
               children: [
                 TextSpan(
                   text: '$label: ',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
                 ),
                 TextSpan(text: value),
               ],

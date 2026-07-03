@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -16,6 +17,17 @@ import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/partner_campaign_model.dart';
 import '../../data/models/partner_redemption_models.dart';
 import '../providers/partner_campaign_provider.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
+
+/// Beyaz kupon kartı sabit açık zemin — metin renkleri uygulama temasından bağımsız.
+abstract final class _CouponCardPalette {
+  static const onSurface = AppColors.neutral900;
+  static const onSurfaceVariant = AppColors.neutral600;
+  static const outline = AppColors.neutral400;
+  static const outlineVariant = AppColors.neutral300;
+  static const sectionBackground = Color(0xFFF7F8FA);
+}
 
 class PartnerPerkDetailPage extends ConsumerStatefulWidget {
   const PartnerPerkDetailPage({super.key, required this.campaignId});
@@ -149,6 +161,43 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
     );
   }
 
+  Future<void> _openWebsite(PartnerCampaignModel campaign) async {
+    final raw = campaign.websiteUrl?.trim();
+    if (raw == null || raw.isEmpty) return;
+
+    final normalized = raw.startsWith('http://') || raw.startsWith('https://')
+        ? raw
+        : 'https://$raw';
+    final uri = Uri.tryParse(normalized);
+    if (uri == null) return;
+
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Web sitesi açılamadı')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Web sitesi açılamadı')),
+        );
+      }
+    }
+  }
+
+  String? _websiteDisplayLabel(PartnerCampaignModel campaign) {
+    final raw = campaign.websiteUrl?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    return raw
+        .replaceFirst(RegExp(r'^https?://'), '')
+        .replaceFirst(RegExp(r'/$'), '');
+  }
+
   String? _footerMessage(
     PartnerCampaignModel campaign,
     PartnerPerkEntitlement? entitlement,
@@ -280,6 +329,9 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
           lat: campaign.locationLat,
           lng: campaign.locationLng,
         );
+        final hasWebsite =
+            campaign.websiteUrl != null && campaign.websiteUrl!.trim().isNotEmpty;
+        final websiteLabel = _websiteDisplayLabel(campaign);
 
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle.light,
@@ -303,7 +355,7 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
                       color: Colors.white.withValues(alpha: 0.14),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.arrow_back_ios_new_rounded,
                       color: Colors.white,
                       size: 18,
@@ -371,7 +423,7 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
                         ),
                       ],
                       if (hasLocation) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         _LocationButton(
                           locationName: campaign.locationName ??
                               campaign.locationAddress ??
@@ -380,6 +432,13 @@ class _PartnerPerkDetailPageState extends ConsumerState<PartnerPerkDetailPage> {
                               ? campaign.locationAddress
                               : null,
                           onTap: () => _openDirections(campaign),
+                        ),
+                      ],
+                      if (hasWebsite && websiteLabel != null) ...[
+                        const SizedBox(height: 12),
+                        _WebsiteButton(
+                          label: websiteLabel,
+                          onTap: () => _openWebsite(campaign),
                         ),
                       ],
                     ],
@@ -427,8 +486,16 @@ class _FlipCouponCard extends StatefulWidget {
 
 class _FlipCouponCardState extends State<_FlipCouponCard>
     with TickerProviderStateMixin {
-  static const double _cardHeight = 400;
+  static const double _cardHeightDefault = 400;
+  static const double _cardHeightWithPromo = 460;
+
   static const int _hintCycles = 4;
+
+  double get _cardHeight {
+    final hasPromo = widget.campaign.promoCode != null &&
+        widget.campaign.promoCode!.trim().isNotEmpty;
+    return hasPromo ? _cardHeightWithPromo : _cardHeightDefault;
+  }
 
   late final AnimationController _flipController;
   late final Animation<double> _flipAnimation;
@@ -659,7 +726,7 @@ class _SwipeGestureHintOverlay extends StatelessWidget {
                 child: Icon(
                   Icons.swipe,
                   size: 100,
-                  color: AppColors.neutral400,
+                  color: _CouponCardPalette.outline,
                 ),
               ),
             ),
@@ -724,6 +791,8 @@ class _CouponCardFront extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final showSuccess = entitlement?.showRedemptionSuccess ?? false;
+    final hasPromoCode =
+        campaign.promoCode != null && campaign.promoCode!.trim().isNotEmpty;
     final logoSize = showSuccess ? 72.0 : 96.0;
     final topPadding = showSuccess ? 16.0 : 22.0;
 
@@ -746,7 +815,7 @@ class _CouponCardFront extends StatelessWidget {
                   Text(
                     campaign.tagline!.toUpperCase(),
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: _CouponCardPalette.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
                     ),
@@ -783,7 +852,7 @@ class _CouponCardFront extends StatelessWidget {
                 Text(
                   campaign.discountLabel,
                   style: AppTypography.titleMedium.copyWith(
-                    color: AppColors.neutral700,
+                    color: _CouponCardPalette.onSurface,
                     fontWeight: FontWeight.w600,
                     fontSize: showSuccess ? 15 : null,
                   ),
@@ -799,7 +868,7 @@ class _CouponCardFront extends StatelessWidget {
         if (showSuccess)
           Container(
             width: double.infinity,
-            color: const Color(0xFFF7F8FA),
+            color: _CouponCardPalette.sectionBackground,
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -811,7 +880,7 @@ class _CouponCardFront extends StatelessWidget {
                     color: Color(0xFFECFDF3),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.check_rounded,
                     color: Color(0xFF15803D),
                     size: 26,
@@ -835,44 +904,56 @@ class _CouponCardFront extends StatelessWidget {
         else
           Container(
             width: double.infinity,
-            height: 64,
-            color: const Color(0xFFF7F8FA),
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            alignment: Alignment.center,
-            child: Row(
-              children: [
-                UserAvatar(
-                  imageUrl: avatarUrl,
-                  name: userName,
-                  size: 36,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'TCR Üyesi',
-                        style: AppTypography.labelSmall.copyWith(
-                          color: AppColors.neutral500,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 11,
-                        ),
-                      ),
-                      Text(
-                        userName,
-                        style: AppTypography.labelLarge.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            color: _CouponCardPalette.sectionBackground,
+            padding: EdgeInsets.fromLTRB(
+              20,
+              showSuccess ? 14 : (hasPromoCode ? 16 : 0),
+              20,
+              hasPromoCode ? 16 : 0,
             ),
+            child: hasPromoCode
+                ? _PromoCodeSection(
+                    code: campaign.promoCode!.trim(),
+                    brandColor: brandColor,
+                  )
+                : SizedBox(
+                    height: 64,
+                    child: Row(
+                      children: [
+                        UserAvatar(
+                          imageUrl: avatarUrl,
+                          name: userName,
+                          size: 36,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'TCR Üyesi',
+                                style: AppTypography.labelSmall.copyWith(
+                                  color: _CouponCardPalette.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              Text(
+                                userName,
+                                style: AppTypography.labelLarge.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: _CouponCardPalette.onSurface,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
           ),
       ],
     );
@@ -917,7 +998,7 @@ class _CouponCardBack extends StatelessWidget {
                 Text(
                   'Kasada okutulmasını isteyin',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: _CouponCardPalette.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
                   textAlign: TextAlign.center,
@@ -969,20 +1050,22 @@ class _QrBackContent extends StatelessWidget {
       error: (e, _) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline_rounded, color: AppColors.neutral400, size: 36),
+          Icon(Icons.error_outline_rounded, color: _CouponCardPalette.outline, size: 36),
           const SizedBox(height: 10),
           Text(
             'QR oluşturulamadı',
             style: AppTypography.titleSmall.copyWith(
               fontWeight: FontWeight.w700,
-              color: AppColors.neutral800,
+              color: _CouponCardPalette.onSurface,
             ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 6),
           Text(
             e.toString().replaceFirst('Exception: ', ''),
-            style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+            style: AppTypography.bodySmall.copyWith(
+              color: _CouponCardPalette.onSurfaceVariant,
+            ),
             textAlign: TextAlign.center,
           ),
         ],
@@ -1034,7 +1117,7 @@ class _QrBackContent extends StatelessWidget {
             Text(
               'Kod $secondsLeft sn içinde yenilenir',
               style: AppTypography.labelMedium.copyWith(
-                color: AppColors.neutral500,
+                color: _CouponCardPalette.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1108,7 +1191,7 @@ class _TicketDivider extends StatelessWidget {
         children: [
           Positioned.fill(
             child: CustomPaint(
-              painter: _DashedLinePainter(color: AppColors.neutral300),
+              painter: _DashedLinePainter(color: _CouponCardPalette.outlineVariant),
             ),
           ),
           Row(
@@ -1174,6 +1257,161 @@ class _DashedLinePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+class _WebsiteButton extends StatelessWidget {
+  const _WebsiteButton({
+    required this.label,
+    required this.onTap,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.language_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Web sitesine git',
+                      style: AppTypography.titleSmall.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: Colors.white.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.open_in_new_rounded,
+                color: Colors.white.withValues(alpha: 0.9),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PromoCodeSection extends StatelessWidget {
+  const _PromoCodeSection({
+    required this.code,
+    required this.brandColor,
+  });
+
+  final String code;
+  final Color brandColor;
+
+  Future<void> _copyCode(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: code));
+    HapticFeedback.lightImpact();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"$code" kopyalandı'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'İNDİRİM KODU',
+          style: AppTypography.labelSmall.copyWith(
+            color: _CouponCardPalette.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.1,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: brandColor.withValues(alpha: 0.25)),
+            boxShadow: [
+              BoxShadow(
+                color: brandColor.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Text(
+            code,
+            style: AppTypography.headlineSmall.copyWith(
+              fontWeight: FontWeight.w800,
+              color: brandColor,
+              letterSpacing: 2,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _copyCode(context),
+            icon: Icon(Icons.copy_rounded, size: 18),
+            label: const Text('Kodu kopyala'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: brandColor,
+              side: BorderSide(color: brandColor.withValues(alpha: 0.35)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _LocationButton extends StatelessWidget {
   const _LocationButton({
     required this.locationName,
@@ -1204,7 +1442,7 @@ class _LocationButton extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.location_on_rounded,
                   color: Colors.white,
                   size: 22,
@@ -1259,7 +1497,7 @@ class _PartnerPerkDetailLoadingScaffold extends StatelessWidget {
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         extendBodyBehindAppBar: true,
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: ThemeBrightnessHolder.scaffoldBackground,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -1273,7 +1511,7 @@ class _PartnerPerkDetailLoadingScaffold extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
+                  color: ThemeBrightnessHolder.surface,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
@@ -1283,9 +1521,9 @@ class _PartnerPerkDetailLoadingScaffold extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.arrow_back_ios_new_rounded,
-                  color: AppColors.neutral800,
+                  color: ThemeBrightnessHolder.onSurface,
                   size: 18,
                 ),
               ),
@@ -1293,13 +1531,13 @@ class _PartnerPerkDetailLoadingScaffold extends StatelessWidget {
           ),
         ),
         body: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                AppColors.backgroundLight,
-                AppColors.surfaceVariantLight,
+                ThemeBrightnessHolder.scaffoldBackground,
+                ThemeBrightnessHolder.surfaceContainerHighest,
               ],
             ),
           ),
@@ -1311,7 +1549,7 @@ class _PartnerPerkDetailLoadingScaffold extends StatelessWidget {
                   Expanded(
                     child: Center(
                       child: _CouponCardLoadingSkeleton(
-                        notchColor: AppColors.backgroundLight,
+                        notchColor: ThemeBrightnessHolder.scaffoldBackground,
                       ),
                     ),
                   ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/utils/extensions.dart';
 
 /// Loading Indicator Widget
 class LoadingWidget extends StatelessWidget {
@@ -17,13 +17,14 @@ class LoadingWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SizedBox(
       width: size,
       height: size,
       child: CircularProgressIndicator(
         strokeWidth: strokeWidth,
         valueColor: AlwaysStoppedAnimation<Color>(
-          color ?? AppColors.primary,
+          color ?? cs.primary,
         ),
       ),
     );
@@ -83,16 +84,16 @@ class ShimmerListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final semantic = context.semanticColors;
 
     return Shimmer.fromColors(
-      baseColor: isDark ? Colors.grey[800]! : Colors.grey[300]!,
-      highlightColor: isDark ? Colors.grey[700]! : Colors.grey[100]!,
+      baseColor: semantic.shimmerBase,
+      highlightColor: semantic.shimmerHighlight,
       child: Container(
         height: height,
         margin: margin ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: semantic.shimmerHighlight,
           borderRadius: BorderRadius.circular(12),
         ),
       ),
@@ -117,17 +118,17 @@ class ShimmerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final semantic = context.semanticColors;
 
     return Shimmer.fromColors(
-      baseColor: isDark ? Colors.grey[800]! : Colors.grey[300]!,
-      highlightColor: isDark ? Colors.grey[700]! : Colors.grey[100]!,
+      baseColor: semantic.shimmerBase,
+      highlightColor: semantic.shimmerHighlight,
       child: Container(
         width: width,
         height: height,
         margin: margin,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: semantic.shimmerHighlight,
           borderRadius: borderRadius ?? BorderRadius.circular(16),
         ),
       ),
@@ -146,16 +147,16 @@ class ShimmerAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final semantic = context.semanticColors;
 
     return Shimmer.fromColors(
-      baseColor: isDark ? Colors.grey[800]! : Colors.grey[300]!,
-      highlightColor: isDark ? Colors.grey[700]! : Colors.grey[100]!,
+      baseColor: semantic.shimmerBase,
+      highlightColor: semantic.shimmerHighlight,
       child: Container(
         width: size,
         height: size,
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: semantic.shimmerHighlight,
           shape: BoxShape.circle,
         ),
       ),
@@ -176,16 +177,16 @@ class ShimmerText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final semantic = context.semanticColors;
 
     return Shimmer.fromColors(
-      baseColor: isDark ? Colors.grey[800]! : Colors.grey[300]!,
-      highlightColor: isDark ? Colors.grey[700]! : Colors.grey[100]!,
+      baseColor: semantic.shimmerBase,
+      highlightColor: semantic.shimmerHighlight,
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: semantic.shimmerHighlight,
           borderRadius: BorderRadius.circular(4),
         ),
       ),
@@ -199,19 +200,18 @@ class NotificationTileShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseColor = isDark ? Colors.grey[800]! : Colors.grey[300]!;
-    final highlightColor = isDark ? Colors.grey[700]! : Colors.grey[100]!;
+    final semantic = context.semanticColors;
+    final cs = context.colorScheme;
 
     return Shimmer.fromColors(
-      baseColor: baseColor,
-      highlightColor: highlightColor,
+      baseColor: semantic.shimmerBase,
+      highlightColor: semantic.shimmerHighlight,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cs.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white),
+          border: Border.all(color: cs.outlineVariant),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,7 +220,7 @@ class NotificationTileShimmer extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: semantic.shimmerHighlight,
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
@@ -233,7 +233,7 @@ class NotificationTileShimmer extends StatelessWidget {
                     height: 16,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: semantic.shimmerHighlight,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -242,7 +242,7 @@ class NotificationTileShimmer extends StatelessWidget {
                     height: 14,
                     width: 200,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: semantic.shimmerHighlight,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -251,7 +251,7 @@ class NotificationTileShimmer extends StatelessWidget {
                     height: 12,
                     width: 72,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: semantic.shimmerHighlight,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),

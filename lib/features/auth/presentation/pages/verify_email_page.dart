@@ -9,6 +9,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/responsive.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Verify Email Page
 class VerifyEmailPage extends ConsumerStatefulWidget {
@@ -44,7 +45,7 @@ class _VerifyEmailPageState extends ConsumerState<VerifyEmailPage> {
       appBar: AppBar(
         title: const Text('Email Doğrula'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => context.goNamed(RouteNames.login),
         ),
       ),
@@ -82,7 +83,7 @@ class _VerifyEmailPageState extends ConsumerState<VerifyEmailPage> {
                 Text(
                   '${widget.email} adresine gönderilen doğrulama kodunu girin.',
                   style: AppTypography.bodyLarge.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -143,7 +144,7 @@ class _VerifyEmailPageState extends ConsumerState<VerifyEmailPage> {
                     Text(
                       'Kod gelmedi mi? ',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                     ),
                     TextButton(
@@ -199,7 +200,7 @@ class _VerifyEmailPageState extends ConsumerState<VerifyEmailPage> {
                         '• Eğer kodu girmeden uygulamayı kapatırsanız, tekrar kayıt olmanız gerekecektir\n'
                         '• Email doğrulandıktan sonra hesabınız yetkili bir kişi tarafından onaylanana kadar bekleyecektir',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral600,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                     ],

@@ -367,6 +367,46 @@ soğuma 1k 5:50/6:00''';
       expect(main['duration_seconds'], 300);
       expect(main['pace_seconds_per_km_min'], 180);
     });
+
+    test('standalone recovery line without repeat prefix', () {
+      const s = '''15dk 5:30 pace
+R 400m 7 pace
+15dk 5:20 pace
+R 400m 7 pace
+15dk 5:10 pace
+R 400m 7 pace''';
+      final r = parseCoachText(s);
+      expect(r.ok, isTrue, reason: r.error);
+      final steps = r.workoutDefinition!['steps'] as List;
+      expect(steps.length, 6);
+      final recovery = (steps[1] as Map)['segment'] as Map;
+      expect(recovery['segment_type'], 'recovery');
+      expect(recovery['distance_meters'], 400);
+      expect(recovery['pace_seconds_per_km_min'], 420);
+    });
+
+    test('toparlanma label as standalone recovery', () {
+      final r = parseCoachText('toparlanma 400m 7 pace');
+      expect(r.ok, isTrue, reason: r.error);
+      final seg = ((r.workoutDefinition!['steps'] as List).first as Map)['segment'] as Map;
+      expect(seg['segment_type'], 'recovery');
+      expect(seg['distance_meters'], 400);
+    });
+
+    test('duration with inline recovery without repeat', () {
+      final r = parseCoachText('15dk 5:30 pace R 400m 7 pace');
+      expect(r.ok, isTrue, reason: r.error);
+      final repeat = (r.workoutDefinition!['steps'] as List).first as Map;
+      expect(repeat['repeat_count'], 1);
+      final inner = repeat['steps'] as List;
+      expect(inner.length, 2);
+      final main = (inner[0] as Map)['segment'] as Map;
+      expect(main['duration_seconds'], 900);
+      expect(main['pace_seconds_per_km_min'], 330);
+      final recovery = (inner[1] as Map)['segment'] as Map;
+      expect(recovery['segment_type'], 'recovery');
+      expect(recovery['distance_meters'], 400);
+    });
   });
 }
 

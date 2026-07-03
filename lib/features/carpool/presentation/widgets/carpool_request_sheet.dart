@@ -32,19 +32,22 @@ class CarpoolRequestSheet extends ConsumerStatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
+      builder: (context) {
+        final cs = Theme.of(context).colorScheme;
+        return DraggableScrollableSheet(
         initialChildSize: 0.6,
         minChildSize: 0.4,
         maxChildSize: 0.9,
         expand: false,
         builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: CarpoolRequestSheet(offer: offer, eventId: eventId),
         ),
-      ),
+      );
+      },
     );
   }
 
@@ -66,6 +69,7 @@ class _CarpoolRequestSheetState extends ConsumerState<CarpoolRequestSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final isLoading = ref.watch(carpoolNotifierProvider).isLoading;
 
     return Column(
@@ -76,7 +80,7 @@ class _CarpoolRequestSheetState extends ConsumerState<CarpoolRequestSheet> {
           width: 40,
           height: 4,
           decoration: BoxDecoration(
-            color: AppColors.neutral300,
+            color: cs.outlineVariant,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -90,12 +94,12 @@ class _CarpoolRequestSheetState extends ConsumerState<CarpoolRequestSheet> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: cs.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.person_add,
-                  color: AppColors.primary,
+                  color: cs.primary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -105,12 +109,14 @@ class _CarpoolRequestSheetState extends ConsumerState<CarpoolRequestSheet> {
                   children: [
                     Text(
                       'Katılım İsteği Gönder',
-                      style: AppTypography.titleLarge,
+                      style: AppTypography.titleLarge.copyWith(
+                        color: cs.onSurface,
+                      ),
                     ),
                     Text(
                       widget.offer.driverName,
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -118,7 +124,7 @@ class _CarpoolRequestSheetState extends ConsumerState<CarpoolRequestSheet> {
               ),
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
+                icon: Icon(Icons.close, color: cs.onSurfaceVariant),
               ),
             ],
           ),
@@ -139,7 +145,7 @@ class _CarpoolRequestSheetState extends ConsumerState<CarpoolRequestSheet> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.neutral100,
+                      color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -150,7 +156,7 @@ class _CarpoolRequestSheetState extends ConsumerState<CarpoolRequestSheet> {
                             Icon(
                               Icons.location_on_outlined,
                               size: 18,
-                              color: AppColors.neutral600,
+                              color: cs.onSurfaceVariant,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
@@ -167,7 +173,7 @@ class _CarpoolRequestSheetState extends ConsumerState<CarpoolRequestSheet> {
                             Icon(
                               Icons.access_time,
                               size: 18,
-                              color: AppColors.neutral600,
+                              color: cs.onSurfaceVariant,
                             ),
                             const SizedBox(width: 8),
                             Text(
@@ -182,7 +188,7 @@ class _CarpoolRequestSheetState extends ConsumerState<CarpoolRequestSheet> {
                             Icon(
                               Icons.directions_car,
                               size: 18,
-                              color: AppColors.neutral600,
+                              color: cs.onSurfaceVariant,
                             ),
                             const SizedBox(width: 8),
                             Text(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
@@ -71,10 +70,12 @@ class _EventLocationPickerSheetState extends State<EventLocationPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
         top: false,
@@ -86,7 +87,7 @@ class _EventLocationPickerSheetState extends State<EventLocationPickerSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.neutral300,
+                color: cs.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -97,6 +98,7 @@ class _EventLocationPickerSheetState extends State<EventLocationPickerSheet> {
                 'Konum seçin',
                 style: AppTypography.titleLarge.copyWith(
                   fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
                 ),
               ),
             ),
@@ -106,7 +108,7 @@ class _EventLocationPickerSheetState extends State<EventLocationPickerSheet> {
               child: Text(
                 'Haritada dokunarak veya arama yaparak konum seçin. İsteğe bağlı olarak mekan adı yazın.',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: cs.onSurfaceVariant,
                 ),
               ),
             ),

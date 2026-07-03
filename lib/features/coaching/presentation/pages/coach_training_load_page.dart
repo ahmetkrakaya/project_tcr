@@ -15,26 +15,11 @@ import '../../../members_groups/presentation/providers/group_provider.dart';
 import '../../data/models/training_load_models.dart';
 import '../providers/training_load_provider.dart';
 import '../widgets/training_load_format.dart';
+import '../widgets/training_load_report_info.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 enum _SortBy { tsb, acwr, acute }
-
-const _info = ReportInfo(
-  title: 'Performans Raporları',
-  summary:
-      'Sporcuların antrenman yükü ve formunu özetler; kimin taze, kimin yorgun '
-      'veya sakatlık riski altında olduğunu hızlıca gösterir.',
-  terms: [
-    ReportInfoTerm('CTL (Fitness)', 'Kronik yük: uzun vadeli kondisyon birikimi.'),
-    ReportInfoTerm('ATL (Yorgunluk)', 'Akut yük: son günlerdeki yorgunluk.'),
-    ReportInfoTerm('TSB (Form)', 'CTL − ATL. Pozitif = dinç, negatif = yorgun.'),
-    ReportInfoTerm('ACWR', 'Akut/Kronik oran. 0.8–1.3 ideal; >1.5 yüksek risk.'),
-  ],
-  takeaways: [
-    'Kırmızı (risk) sporcularda yükü azaltıp toparlanmaya öncelik verin.',
-    'Yarış öncesi pozitif TSB hedeflenir (tapering).',
-    'Sürekli düşük CTL, antrenman hacminin yetersiz olduğunu gösterir.',
-  ],
-);
 
 class CoachTrainingLoadPage extends ConsumerStatefulWidget {
   const CoachTrainingLoadPage({super.key, this.initialGroupId});
@@ -95,7 +80,7 @@ class _CoachTrainingLoadPageState extends ConsumerState<CoachTrainingLoadPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Performans Raporları'),
-        actions: const [ReportInfoButton(info: _info)],
+        actions: const [ReportInfoButton(info: coachTrainingLoadReportInfo)],
       ),
       body: !isAdminOrCoach
           ? Center(
@@ -104,7 +89,7 @@ class _CoachTrainingLoadPageState extends ConsumerState<CoachTrainingLoadPage> {
                 child: Text(
                   'Bu sayfaya erişim yetkiniz yok.',
                   style: AppTypography.bodyMedium
-                      .copyWith(color: AppColors.neutral500),
+                      .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -271,7 +256,7 @@ class _CoachTrainingLoadPageState extends ConsumerState<CoachTrainingLoadPage> {
             Text(
               label,
               style: AppTypography.labelSmall
-                  .copyWith(color: AppColors.neutral600),
+                  .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
           ],
         );
@@ -296,7 +281,7 @@ class _SummaryBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cardColor = ThemeBrightnessHolder.surface;
 
     final total = athletes.length;
     final risk =
@@ -327,7 +312,7 @@ class _SummaryBand extends StatelessWidget {
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.neutral300.withValues(alpha: 0.6)),
+        border: Border.all(color: ThemeBrightnessHolder.outlineVariant.withValues(alpha: 0.6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,7 +320,7 @@ class _SummaryBand extends StatelessWidget {
           Row(
             children: [
               Icon(Icons.groups_2_outlined,
-                  size: 18, color: AppColors.neutral600),
+                  size: 18, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 6),
               Text(
                 '$total sporcu',
@@ -403,7 +388,7 @@ class _SummaryBand extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           '$label $count',
-          style: AppTypography.labelSmall.copyWith(color: AppColors.neutral600),
+          style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
         ),
       ],
     );
@@ -422,7 +407,7 @@ class _SummaryBand extends StatelessWidget {
           Text(
             label,
             style: AppTypography.labelSmall
-                .copyWith(color: AppColors.neutral500),
+                .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
             textAlign: TextAlign.center,
           ),
         ],
@@ -440,7 +425,7 @@ class _AthleteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cardColor = ThemeBrightnessHolder.surface;
     final statusColor = TrainingLoadFormat.statusColor(athlete.status);
 
     return Container(
@@ -482,7 +467,7 @@ class _AthleteCard extends StatelessWidget {
                           Text(
                             TrainingLoadFormat.tsbInterpretation(athlete.tsb),
                             style: AppTypography.labelSmall
-                                .copyWith(color: AppColors.neutral500),
+                                .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -523,7 +508,7 @@ class _AthleteCard extends StatelessWidget {
                     _Metric(
                       label: '7g km',
                       value: athlete.distance7dKm.toStringAsFixed(0),
-                      color: AppColors.neutral600,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ],
                 ),
@@ -561,7 +546,7 @@ class _Metric extends StatelessWidget {
           Text(
             label,
             style: AppTypography.labelSmall
-                .copyWith(color: AppColors.neutral500),
+                .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
           ),
         ],
       ),
@@ -611,7 +596,7 @@ class _ErrorView extends StatelessWidget {
             Text(
               error.toString(),
               style: AppTypography.bodySmall
-                  .copyWith(color: AppColors.neutral500),
+                  .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),

@@ -10,6 +10,8 @@ import '../../../../shared/widgets/loading_widget.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/partner_campaign_model.dart';
 import '../providers/partner_campaign_provider.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class AdminPartnerCampaignsPage extends ConsumerWidget {
   const AdminPartnerCampaignsPage({super.key});
@@ -20,7 +22,7 @@ class AdminPartnerCampaignsPage extends ConsumerWidget {
     final campaignsAsync = ref.watch(allPartnerCampaignsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor =
-        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+        ThemeBrightnessHolder.scaffoldBackground;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -29,7 +31,7 @@ class AdminPartnerCampaignsPage extends ConsumerWidget {
         actions: [
           if (isAdmin)
             IconButton(
-              icon: const Icon(Icons.add),
+              icon: Icon(Icons.add),
               tooltip: 'Yeni kampanya',
               onPressed: () => _openCreatePage(context),
             ),
@@ -42,7 +44,7 @@ class AdminPartnerCampaignsPage extends ConsumerWidget {
                 child: Text(
                   'Bu sayfaya erişim yetkiniz yok.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -62,7 +64,7 @@ class AdminPartnerCampaignsPage extends ConsumerWidget {
                           Icon(
                             Icons.local_offer_outlined,
                             size: 48,
-                            color: AppColors.neutral400,
+                            color: ThemeBrightnessHolder.outline,
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -73,14 +75,14 @@ class AdminPartnerCampaignsPage extends ConsumerWidget {
                           Text(
                             'Partner işletmeler için indirim kampanyası ekleyin.',
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral500,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 20),
                           FilledButton.icon(
                             onPressed: () => _openCreatePage(context),
-                            icon: const Icon(Icons.add),
+                            icon: Icon(Icons.add),
                             label: const Text('Kampanya Ekle'),
                           ),
                         ],
@@ -233,10 +235,18 @@ class _AdminCampaignTile extends StatelessWidget {
     return const Color(0xFF1B4332);
   }
 
+  bool _isOnlineCampaign(PartnerCampaignModel campaign) {
+    final hasPromo =
+        campaign.promoCode != null && campaign.promoCode!.trim().isNotEmpty;
+    final hasWebsite =
+        campaign.websiteUrl != null && campaign.websiteUrl!.trim().isNotEmpty;
+    return hasPromo || hasWebsite;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cardColor = ThemeBrightnessHolder.surface;
     final isLive = campaign.isCurrentlyActive();
     final brandColor = _parseColor(campaign.brandColor);
 
@@ -263,7 +273,7 @@ class _AdminCampaignTile extends StatelessWidget {
                   imageUrl: campaign.logoUrl!,
                   fit: BoxFit.contain,
                 )
-              : const Icon(Icons.local_offer, color: Colors.white),
+              : Icon(Icons.local_offer, color: Colors.white),
         ),
         title: Text(
           campaign.partnerName,
@@ -298,7 +308,43 @@ class _AdminCampaignTile extends StatelessWidget {
                   Text(
                     'Kapalı',
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                if (campaign.adminOnly) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Sadece admin',
+                      style: AppTypography.labelSmall.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+                if (_isOnlineCampaign(campaign)) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.info.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Online',
+                      style: AppTypography.labelSmall.copyWith(
+                        color: AppColors.info,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

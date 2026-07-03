@@ -10,6 +10,7 @@ import '../../../../core/ui/responsive.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Complete Profile Page
 class CompleteProfilePage extends ConsumerStatefulWidget {
@@ -172,7 +173,7 @@ class _CompleteProfilePageState extends ConsumerState<CompleteProfilePage> {
                 Text(
                   'Bu bilgiler kulüp içi organizasyonlar için kullanılacak.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
                 SizedBox(height: context.heightPct(0.03)),
@@ -305,7 +306,7 @@ class _CompleteProfilePageState extends ConsumerState<CompleteProfilePage> {
                     child: Text(
                       'Daha sonra tamamla',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                     ),
                   ),

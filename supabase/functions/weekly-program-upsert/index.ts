@@ -20,6 +20,19 @@ type DayInput = {
   track_lane?: number | null;
 };
 
+async function isUserProgramEligible(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("users")
+    .select("is_active, user_status")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return data?.is_active === true && data?.user_status === "active";
+}
+
 async function getOrCreateWeeklyBatch(
   supabase: ReturnType<typeof createClient>,
   monthKey: string,
@@ -187,6 +200,12 @@ serve(async (req) => {
           headers: corsHeaders,
         });
       }
+      if (!(await isUserProgramEligible(supabase, memberUserId))) {
+        return new Response("User is not eligible for program updates", {
+          status: 400,
+          headers: corsHeaders,
+        });
+      }
     }
 
     const { data: trainingTypes } = await supabase
@@ -318,12 +337,16 @@ serve(async (req) => {
 
           let recipientIds: string[] = [];
           if (scopeType === "member" && memberUserId) {
-            recipientIds = [memberUserId];
+            if (await isUserProgramEligible(admin, memberUserId)) {
+              recipientIds = [memberUserId];
+            }
           } else {
             const { data: members } = await admin
               .from("group_members")
-              .select("user_id")
-              .eq("group_id", trainingGroupId);
+              .select("user_id, users!inner(is_active, user_status)")
+              .eq("group_id", trainingGroupId)
+              .eq("users.is_active", true)
+              .eq("users.user_status", "active");
             recipientIds = (members ?? [])
               .map((m) => String((m as { user_id: string }).user_id))
               .filter((id) => id.length > 0);

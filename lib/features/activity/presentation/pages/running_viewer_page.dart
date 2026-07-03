@@ -12,6 +12,7 @@ import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../domain/entities/activity_entity.dart';
 import '../providers/activity_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 // İzin verilen kullanıcı ID'leri (Ömer, Ahmet, Ayça)
 const _allowedUserIds = StravaWatchConstants.allowedUserIds;
@@ -188,7 +189,7 @@ class _RunningViewerPageState extends ConsumerState<RunningViewerPage>
     final isOmer = currentUserId == _omerId;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: ThemeBrightnessHolder.scaffoldBackground,
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
           _buildSliverHeader(context, currentUserId, isOmer),
@@ -307,20 +308,21 @@ class _RunningViewerPageState extends ConsumerState<RunningViewerPage>
         style: AppTypography.titleLarge.copyWith(color: Colors.white),
       ),
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        icon: Icon(Icons.arrow_back, color: Colors.white),
         onPressed: () => context.pop(),
       ),
     );
   }
 
   Widget _buildTabBar(BuildContext context, bool isOmer) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: Theme.of(context).colorScheme.surface,
+      color: cs.surface,
       child: TabBar(
         controller: _tabController,
-        labelColor: AppColors.primary,
-        unselectedLabelColor: AppColors.neutral500,
-        indicatorColor: AppColors.secondary,
+        labelColor: cs.primary,
+        unselectedLabelColor: cs.onSurfaceVariant,
+        indicatorColor: cs.secondary,
         indicatorWeight: 3,
         tabs: [
           Tab(
@@ -351,6 +353,12 @@ class _RunnerPraiseBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
+    final accentColor = isAhmet
+        ? cs.secondary
+        : (isDark ? const Color(0xFFCE93D8) : Colors.purple.shade700);
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       padding: const EdgeInsets.all(14),
@@ -358,17 +366,17 @@ class _RunnerPraiseBanner extends StatelessWidget {
         gradient: LinearGradient(
           colors: isAhmet
               ? [
-                  AppColors.secondary.withOpacity(0.15),
-                  AppColors.primary.withOpacity(0.08),
+                  cs.secondary.withValues(alpha: isDark ? 0.22 : 0.15),
+                  cs.primary.withValues(alpha: isDark ? 0.12 : 0.08),
                 ]
               : [
-                  Colors.purple.withOpacity(0.12),
-                  AppColors.tertiary.withOpacity(0.1),
+                  Colors.purple.withValues(alpha: isDark ? 0.22 : 0.12),
+                  cs.tertiary.withValues(alpha: isDark ? 0.15 : 0.1),
                 ],
         ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: (isAhmet ? AppColors.secondary : Colors.purple).withOpacity(0.35),
+          color: accentColor.withValues(alpha: 0.45),
         ),
       ),
       child: Column(
@@ -383,7 +391,7 @@ class _RunnerPraiseBanner extends StatelessWidget {
                   _RunningViewerCopy.runnerBannerTitle(runnerName, isAhmet),
                   style: AppTypography.titleSmall.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+                    color: accentColor,
                   ),
                 ),
               ),
@@ -393,7 +401,7 @@ class _RunnerPraiseBanner extends StatelessWidget {
           Text(
             _RunningViewerCopy.runnerBannerBody(isOmerViewer, isAhmet),
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral500,
+              color: cs.onSurfaceVariant,
               height: 1.35,
             ),
           ),
@@ -457,7 +465,7 @@ class _RunnerActivitiesTabState extends ConsumerState<_RunnerActivitiesTab>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 56, color: AppColors.error),
+            Icon(Icons.error_outline, size: 56, color: AppColors.error),
             const SizedBox(height: 12),
             Text('Bir hata oluştu', style: AppTypography.titleMedium),
             const SizedBox(height: 8),
@@ -563,6 +571,7 @@ class _RunActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final dateStr = DateFormat('d MMMM y, HH:mm', 'tr_TR').format(activity.startTime);
     final quip = _RunningViewerCopy.cardQuip(
       runnerName,
@@ -585,12 +594,12 @@ class _RunActivityCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.secondary.withOpacity(0.12),
+                  color: cs.secondary.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.directions_run,
-                  color: AppColors.secondary,
+                  color: cs.secondary,
                   size: 22,
                 ),
               ),
@@ -601,7 +610,9 @@ class _RunActivityCard extends StatelessWidget {
                   children: [
                     Text(
                       activity.title ?? 'Koşu',
-                      style: AppTypography.titleSmall,
+                      style: AppTypography.titleSmall.copyWith(
+                        color: cs.onSurface,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -609,7 +620,7 @@ class _RunActivityCard extends StatelessWidget {
                     Text(
                       dateStr,
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -630,14 +641,14 @@ class _RunActivityCard extends StatelessWidget {
                 value: activity.distanceMeters != null
                     ? '${activity.distanceKm.toStringAsFixed(2)} km'
                     : '--',
-                color: AppColors.secondary,
+                color: cs.secondary,
               ),
               const SizedBox(width: 8),
               _MetricChip(
                 icon: Icons.timer_outlined,
                 label: 'Süre',
                 value: activity.formattedDuration,
-                color: AppColors.tertiary,
+                color: cs.tertiary,
               ),
               const SizedBox(width: 8),
               _MetricChip(
@@ -646,7 +657,7 @@ class _RunActivityCard extends StatelessWidget {
                 value: activity.averagePaceSeconds != null
                     ? '${activity.formattedPace} /km'
                     : '--',
-                color: AppColors.primary,
+                color: cs.primary,
               ),
             ],
           ),
@@ -722,7 +733,9 @@ class _RunActivityCard extends StatelessWidget {
               child: Text(
                 quip,
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.primaryDark,
+                  color: cs.brightness == Brightness.dark
+                      ? AppColors.warningLight
+                      : AppColors.primaryDark,
                   fontStyle: FontStyle.italic,
                   height: 1.3,
                 ),
@@ -738,12 +751,12 @@ class _RunActivityCard extends StatelessWidget {
                 Text(
                   _RunningViewerCopy.detailsLabel(isOmerViewer),
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.primary,
+                    color: cs.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right, size: 18, color: AppColors.primary),
+                Icon(Icons.chevron_right, size: 18, color: cs.primary),
               ],
             ),
           ),
@@ -768,13 +781,25 @@ class _MetricChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
+
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: isDark
+              ? Color.alphaBlend(
+                  color.withValues(alpha: 0.22),
+                  cs.surfaceContainerHighest,
+                )
+              : color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(
+            color: isDark
+                ? color.withValues(alpha: 0.42)
+                : color.withValues(alpha: 0.2),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -783,11 +808,14 @@ class _MetricChip extends StatelessWidget {
               children: [
                 Icon(icon, size: 12, color: color),
                 const SizedBox(width: 3),
-                Text(
-                  label,
-                  style: AppTypography.labelSmall.copyWith(
-                    color: color,
-                    fontSize: 10,
+                Flexible(
+                  child: Text(
+                    label,
+                    style: AppTypography.labelSmall.copyWith(
+                      color: color,
+                      fontSize: 10,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -798,6 +826,7 @@ class _MetricChip extends StatelessWidget {
               style: AppTypography.titleSmall.copyWith(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
+                color: cs.onSurface,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

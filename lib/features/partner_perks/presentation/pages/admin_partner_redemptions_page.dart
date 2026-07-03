@@ -8,6 +8,8 @@ import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/partner_campaign_model.dart';
 import '../../data/models/partner_redemption_models.dart';
 import '../providers/partner_campaign_provider.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class AdminPartnerRedemptionsPage extends ConsumerStatefulWidget {
   const AdminPartnerRedemptionsPage({super.key});
@@ -169,7 +171,7 @@ class _AdminPartnerRedemptionsPageState
         ref.watch(partnerRedemptionDashboardProvider(_filters));
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor =
-        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+        ThemeBrightnessHolder.scaffoldBackground;
 
     if (!isAdmin) {
       return Scaffold(
@@ -194,7 +196,7 @@ class _AdminPartnerRedemptionsPageState
             IconButton(
               tooltip: 'Yenile',
               onPressed: _refresh,
-              icon: const Icon(Icons.refresh),
+              icon: Icon(Icons.refresh),
             ),
           ],
         ),
@@ -307,7 +309,7 @@ class _CampaignSearchField extends StatelessWidget {
                 IconButton(
                   tooltip: 'Temizle',
                   onPressed: onClear,
-                  icon: const Icon(Icons.close, size: 20),
+                  icon: Icon(Icons.close, size: 20),
                 ),
               const Padding(
                 padding: EdgeInsets.only(right: 8),
@@ -330,7 +332,7 @@ class _CampaignSearchField extends StatelessWidget {
               Text(
                 subtitle!,
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -381,7 +383,7 @@ class _CampaignSearchSheetState extends State<_CampaignSearchSheet> {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor =
-        isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+        ThemeBrightnessHolder.surface;
     final filtered = _filtered;
 
     return Padding(
@@ -402,7 +404,7 @@ class _CampaignSearchSheetState extends State<_CampaignSearchSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.neutral400,
+                color: ThemeBrightnessHolder.outline,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -424,10 +426,10 @@ class _CampaignSearchSheetState extends State<_CampaignSearchSheet> {
                 shrinkWrap: true,
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.all_inclusive),
+                    leading: Icon(Icons.all_inclusive),
                     title: const Text('Tüm kampanyalar'),
                     trailing: widget.selectedCampaignId == null
-                        ? const Icon(Icons.check, color: AppColors.primary)
+                        ? Icon(Icons.check, color: AppColors.primary)
                         : null,
                     onTap: () => Navigator.pop(context, null),
                   ),
@@ -453,7 +455,7 @@ class _CampaignSearchSheetState extends State<_CampaignSearchSheet> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       trailing: widget.selectedCampaignId == campaign.id
-                          ? const Icon(Icons.check, color: AppColors.primary)
+                          ? Icon(Icons.check, color: AppColors.primary)
                           : null,
                       onTap: () => Navigator.pop(context, campaign.id),
                     ),
@@ -464,7 +466,7 @@ class _CampaignSearchSheetState extends State<_CampaignSearchSheet> {
                       child: Text(
                         'Sonuç bulunamadı.',
                         style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -513,7 +515,7 @@ class _DateRangeFilterBar extends StatelessWidget {
               child: Text(
                 'Tarih aralığı',
                 style: AppTypography.labelMedium.copyWith(
-                  color: AppColors.neutral600,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -631,7 +633,7 @@ class _RecordsTab extends StatelessWidget {
           Text(
             'Seçili filtrelere uygun kayıt yok.',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           )
         else
@@ -666,7 +668,7 @@ class _DashboardTab extends StatelessWidget {
         .length;
     final usage = dashboard.usage;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cardColor = ThemeBrightnessHolder.surface;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
@@ -782,7 +784,7 @@ class _DashboardTab extends StatelessWidget {
                         child: LinearProgressIndicator(
                           value: ratio,
                           minHeight: 6,
-                          backgroundColor: AppColors.neutral200,
+                          backgroundColor: ThemeBrightnessHolder.surfaceContainerHighest,
                           color: AppColors.primary,
                         ),
                       ),
@@ -790,7 +792,7 @@ class _DashboardTab extends StatelessWidget {
                       Text(
                         '${item.successCount} başarılı · ${item.totalCount} toplam',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -819,7 +821,7 @@ class _DashboardSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cardColor = ThemeBrightnessHolder.surface;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -882,7 +884,7 @@ class _StatGrid extends StatelessWidget {
             return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.backgroundLight,
+                color: ThemeBrightnessHolder.scaffoldBackground,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -899,7 +901,7 @@ class _StatGrid extends StatelessWidget {
                   Text(
                     tile.label,
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                       height: 1.2,
                     ),
                     maxLines: 2,
@@ -923,7 +925,7 @@ class _RedemptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cardColor = ThemeBrightnessHolder.surface;
     final dateText =
         DateFormat('d MMM yyyy HH:mm', 'tr_TR').format(item.redeemedAt);
 
@@ -965,14 +967,14 @@ class _RedemptionTile extends StatelessWidget {
                 Text(
                   item.partnerName,
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   dateText,
                   style: AppTypography.labelSmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
               ],

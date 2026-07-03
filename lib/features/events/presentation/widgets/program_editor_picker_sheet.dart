@@ -88,6 +88,7 @@ class ProgramEditorPickerField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final hasValue = valueText != null && valueText!.trim().isNotEmpty;
 
     return Material(
@@ -98,28 +99,29 @@ class ProgramEditorPickerField extends StatelessWidget {
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: label,
+            labelStyle: TextStyle(color: cs.onSurfaceVariant),
             filled: true,
             fillColor: enabled
-                ? AppColors.secondary.withValues(alpha: 0.06)
-                : AppColors.neutral200.withValues(alpha: 0.4),
+                ? cs.surfaceContainerHighest
+                : cs.surfaceContainerHigh.withValues(alpha: 0.6),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: AppColors.neutral300.withValues(alpha: 0.6)),
+              borderSide: BorderSide(color: cs.outlineVariant),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: AppColors.neutral300.withValues(alpha: 0.6)),
+              borderSide: BorderSide(color: cs.outlineVariant),
             ),
             suffixIcon: Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: enabled ? AppColors.neutral600 : AppColors.neutral400,
+              color: enabled ? cs.onSurfaceVariant : cs.outline,
             ),
           ),
           child: Text(
             hasValue ? valueText! : hintText,
             style: AppTypography.bodyMedium.copyWith(
-              color: hasValue ? AppColors.neutral800 : AppColors.neutral500,
+              color: hasValue ? cs.onSurface : cs.onSurfaceVariant,
               fontWeight: hasValue ? FontWeight.w600 : FontWeight.normal,
             ),
             maxLines: 2,
@@ -149,6 +151,7 @@ class ProgramEditorMultiPickerField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -157,26 +160,27 @@ class ProgramEditorMultiPickerField extends StatelessWidget {
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: label,
+            labelStyle: TextStyle(color: cs.onSurfaceVariant),
             filled: true,
-            fillColor: AppColors.secondary.withValues(alpha: 0.06),
+            fillColor: cs.surfaceContainerHighest,
             contentPadding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: AppColors.neutral300.withValues(alpha: 0.6)),
+              borderSide: BorderSide(color: cs.outlineVariant),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: AppColors.neutral300.withValues(alpha: 0.6)),
+              borderSide: BorderSide(color: cs.outlineVariant),
             ),
             suffixIcon: Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: enabled ? AppColors.neutral600 : AppColors.neutral400,
+              color: enabled ? cs.onSurfaceVariant : cs.outline,
             ),
           ),
           child: selectedItems.isEmpty
               ? Text(
                   hintText,
-                  style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral500),
+                  style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
                 )
               : Wrap(
                   spacing: 6,
@@ -275,6 +279,7 @@ class _PickerSheetState extends State<_PickerSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final filtered = _filtered;
+    final cs = Theme.of(context).colorScheme;
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -285,7 +290,7 @@ class _PickerSheetState extends State<_PickerSheet> {
         expand: false,
         builder: (context, scrollController) => Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
+            color: cs.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
@@ -295,7 +300,7 @@ class _PickerSheetState extends State<_PickerSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: cs.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -307,20 +312,28 @@ class _PickerSheetState extends State<_PickerSheet> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
+                        color: cs.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(widget.headerIcon, color: AppColors.primary),
+                      child: Icon(widget.headerIcon, color: cs.primary),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(widget.title, style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700)),
+                          Text(
+                            widget.title,
+                            style: AppTypography.titleMedium.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: cs.onSurface,
+                            ),
+                          ),
                           Text(
                             widget.subtitle,
-                            style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                            style: AppTypography.bodySmall.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
@@ -330,7 +343,7 @@ class _PickerSheetState extends State<_PickerSheet> {
                         context,
                         widget.multiSelect ? _selected : null,
                       ),
-                      icon: const Icon(Icons.close),
+                      icon: Icon(Icons.close, color: cs.onSurfaceVariant),
                       tooltip: widget.multiSelect ? 'Seçimi uygula' : 'Kapat',
                     ),
                   ],
@@ -342,11 +355,12 @@ class _PickerSheetState extends State<_PickerSheet> {
                   child: TextField(
                     controller: _searchController,
                     onChanged: (v) => setState(() => _query = v),
+                    style: TextStyle(color: cs.onSurface),
                     decoration: InputDecoration(
                       hintText: 'Ara…',
-                      prefixIcon: const Icon(Icons.search_rounded),
+                      prefixIcon: Icon(Icons.search_rounded, color: cs.onSurfaceVariant),
                       filled: true,
-                      fillColor: AppColors.neutral200.withValues(alpha: 0.5),
+                      fillColor: cs.surfaceContainerHighest,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -388,7 +402,9 @@ class _PickerSheetState extends State<_PickerSheet> {
                     ? Center(
                         child: Text(
                           'Sonuç bulunamadı',
-                          style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral500),
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                       )
                     : ListView.separated(
@@ -399,12 +415,12 @@ class _PickerSheetState extends State<_PickerSheet> {
                         itemBuilder: (context, index) {
                           final item = filtered[index];
                           final isSelected = _selected.contains(item.id);
-                          final accent = item.accentColor ?? AppColors.primary;
+                          final accent = item.accentColor ?? cs.primary;
 
                           return Material(
                             color: isSelected
-                                ? accent.withValues(alpha: 0.08)
-                                : AppColors.neutral200.withValues(alpha: 0.35),
+                                ? accent.withValues(alpha: 0.12)
+                                : cs.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(12),
                             child: InkWell(
                               onTap: () => _toggle(item.id),
@@ -435,13 +451,14 @@ class _PickerSheetState extends State<_PickerSheet> {
                                             item.label,
                                             style: AppTypography.bodyMedium.copyWith(
                                               fontWeight: FontWeight.w600,
+                                              color: cs.onSurface,
                                             ),
                                           ),
                                           if (item.subtitle != null && item.subtitle!.isNotEmpty)
                                             Text(
                                               item.subtitle!,
                                               style: AppTypography.labelSmall.copyWith(
-                                                color: AppColors.neutral500,
+                                                color: cs.onSurfaceVariant,
                                               ),
                                             ),
                                         ],

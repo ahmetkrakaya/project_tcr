@@ -12,6 +12,8 @@ class UserPointsLeaderboardPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
     final isAdmin = ref.watch(isAdminProvider);
     final dataAsync = ref.watch(userPointsLeaderboardProvider);
 
@@ -25,7 +27,9 @@ class UserPointsLeaderboardPage extends ConsumerWidget {
                 padding: const EdgeInsets.all(24),
                 child: Text(
                   'Bu sayfaya erişim yetkiniz yok.',
-                  style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral500),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -40,7 +44,10 @@ class UserPointsLeaderboardPage extends ConsumerWidget {
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     itemCount: items.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      color: cs.outlineVariant,
+                    ),
                     itemBuilder: (context, index) {
                       final e = items[index];
                       final rank = index + 1;
@@ -59,16 +66,24 @@ class UserPointsLeaderboardPage extends ConsumerWidget {
                               left: -6,
                               top: -6,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary,
+                                  color: cs.primary,
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.white, width: 2),
+                                  border: Border.all(
+                                    color: cs.surface,
+                                    width: 2,
+                                  ),
                                 ),
                                 child: Text(
                                   '$rank',
                                   style: AppTypography.labelSmall.copyWith(
-                                    color: Colors.white,
+                                    color: isDark
+                                        ? Colors.white
+                                        : cs.onPrimary,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -76,17 +91,36 @@ class UserPointsLeaderboardPage extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        title: Text(e.fullName, style: AppTypography.titleSmall),
+                        title: Text(
+                          e.fullName,
+                          style: AppTypography.titleSmall.copyWith(
+                            color: cs.onSurface,
+                          ),
+                        ),
                         trailing: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFF8E1),
+                            color: isDark
+                                ? AppColors.warningLight
+                                    .withValues(alpha: 0.18)
+                                : const Color(0xFFFFF8E1),
                             borderRadius: BorderRadius.circular(12),
+                            border: isDark
+                                ? Border.all(
+                                    color: AppColors.warningLight
+                                        .withValues(alpha: 0.35),
+                                  )
+                                : null,
                           ),
                           child: Text(
                             '${e.points}',
                             style: AppTypography.titleSmall.copyWith(
-                              color: const Color(0xFFFF8F00),
+                              color: isDark
+                                  ? AppColors.warningLight
+                                  : const Color(0xFFFF8F00),
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -102,7 +136,9 @@ class UserPointsLeaderboardPage extends ConsumerWidget {
                   padding: const EdgeInsets.all(24),
                   child: Text(
                     'Puanlar yüklenemedi: $err',
-                    style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral500),
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),

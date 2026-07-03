@@ -8,6 +8,8 @@ import '../../../../shared/widgets/app_card.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../data/models/order_model.dart';
 import '../providers/marketplace_provider.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Orders Management Page (Admin)
 class OrdersManagementPage extends ConsumerStatefulWidget {
@@ -34,6 +36,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
     }
 
     final ordersAsync = ref.watch(allOrdersProvider(_selectedStatus));
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -45,9 +48,8 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
               border: Border(
-                bottom: BorderSide(color: AppColors.neutral200),
+                bottom: BorderSide(color: cs.outlineVariant),
               ),
             ),
             child: Row(
@@ -69,9 +71,9 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceVariantLight,
+                        color: cs.surface,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.neutral300),
+                        border: Border.all(color: cs.outline),
                       ),
                       child: Row(
                         children: [
@@ -83,7 +85,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                               ),
                             ),
                           ),
-                          const Icon(
+                          Icon(
                             Icons.arrow_drop_down,
                             size: 20,
                           ),
@@ -107,7 +109,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                             Icon(
                               _selectedStatus == null ? Icons.check : null,
                               size: 20,
-                              color: AppColors.primary,
+                              color: cs.primary,
                             ),
                             const SizedBox(width: 8),
                             const Text('Tümü'),
@@ -121,7 +123,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                             Icon(
                               _selectedStatus == OrderStatus.pending ? Icons.check : null,
                               size: 20,
-                              color: AppColors.primary,
+                              color: cs.primary,
                             ),
                             const SizedBox(width: 8),
                             const Text('Beklemede'),
@@ -135,7 +137,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                             Icon(
                               _selectedStatus == OrderStatus.confirmed ? Icons.check : null,
                               size: 20,
-                              color: AppColors.primary,
+                              color: cs.primary,
                             ),
                             const SizedBox(width: 8),
                             const Text('Onaylandı'),
@@ -149,7 +151,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                             Icon(
                               _selectedStatus == OrderStatus.completed ? Icons.check : null,
                               size: 20,
-                              color: AppColors.primary,
+                              color: cs.primary,
                             ),
                             const SizedBox(width: 8),
                             const Text('Tamamlandı'),
@@ -163,7 +165,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                             Icon(
                               _selectedStatus == OrderStatus.cancelled ? Icons.check : null,
                               size: 20,
-                              color: AppColors.primary,
+                              color: cs.primary,
                             ),
                             const SizedBox(width: 8),
                             const Text('İptal'),
@@ -188,7 +190,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                         Icon(
                           Icons.shopping_cart_outlined,
                           size: 64,
-                          color: AppColors.neutral400,
+                          color: ThemeBrightnessHolder.outline,
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -201,7 +203,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                               ? 'Henüz sipariş yok'
                               : 'Bu durumda sipariş bulunmuyor',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -238,7 +240,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                     Text(
                       error.toString(),
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -275,6 +277,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
   }
 
   Widget _buildOrderCard(BuildContext context, OrderModel order) {
+    final cs = Theme.of(context).colorScheme;
     final statusColor = _getStatusColor(order.status);
     final statusText = _getStatusText(order.status);
 
@@ -327,14 +330,14 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                     Icon(
                       Icons.person_outline,
                       size: 14,
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         order.buyerName ?? 'Bilinmeyen',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral600,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -348,14 +351,14 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                     Icon(
                       Icons.access_time,
                       size: 14,
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         DateFormat('dd MMM yyyy, HH:mm', 'tr_TR').format(order.createdAt),
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -366,7 +369,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                             ? '${order.quantity} adet • ${order.selectedSize} • ${order.totalPrice.toStringAsFixed(2)} ${order.currency}'
                             : '${order.quantity} adet • ${order.totalPrice.toStringAsFixed(2)} ${order.currency}',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.primary,
+                          color: cs.primary,
                           fontWeight: FontWeight.w600,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -388,9 +391,9 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                   onPressed: () {
                     _showOrderDetailsDialog(context, order);
                   },
-                  icon: const Icon(Icons.info_outline, size: 20),
+                  icon: Icon(Icons.info_outline, size: 20),
                   tooltip: 'Detaylar',
-                  color: AppColors.neutral600,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                   padding: const EdgeInsets.all(8),
                   constraints: const BoxConstraints(),
                 ),
@@ -398,9 +401,9 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                   onPressed: () {
                     _showStatusUpdateDialog(context, order);
                   },
-                  icon: const Icon(Icons.edit, size: 20),
+                  icon: Icon(Icons.edit, size: 20),
                   tooltip: 'Durum Güncelle',
-                  color: AppColors.primary,
+                  color: cs.primary,
                   padding: const EdgeInsets.all(8),
                   constraints: const BoxConstraints(),
                 ),
@@ -510,7 +513,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
             child: Text(
               '$label:',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -550,7 +553,7 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                 Text(
                   'Yeni Durum',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -575,7 +578,6 @@ class _OrdersManagementPageState extends ConsumerState<OrdersManagementPage> {
                   decoration: const InputDecoration(
                     labelText: 'Not (Opsiyonel)',
                     hintText: 'Durum değişikliği için not ekleyin',
-                    border: OutlineInputBorder(),
                   ),
                   maxLines: 3,
                 ),

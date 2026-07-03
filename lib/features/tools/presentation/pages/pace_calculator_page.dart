@@ -14,6 +14,7 @@ import '../../../../shared/widgets/app_text_field.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../../events/domain/entities/event_entity.dart' show TrainingTypeEntity;
 import '../../../events/presentation/providers/event_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// VDOT Calculator Page
 class PaceCalculatorPage extends ConsumerStatefulWidget {
@@ -180,7 +181,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -259,7 +260,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
               gradient: AppColors.primaryGradient,
               child: Row(
                 children: [
-                  const Icon(Icons.speed, color: Colors.white, size: 32),
+                  Icon(Icons.speed, color: Colors.white, size: 32),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -284,7 +285,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
                   if (!_showCalculator)
                     IconButton(
                       onPressed: () => setState(() => _showCalculator = true),
-                      icon: const Icon(Icons.edit, color: Colors.white),
+                      icon: Icon(Icons.edit, color: Colors.white),
                       tooltip: 'Yeni VDOT Hesapla',
                     ),
                 ],
@@ -302,7 +303,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
                   _showCalculator = false;
                   _calculatedVdot = null;
                 }),
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(Icons.arrow_back),
                 label: const Text('Pace\'lerime Dön'),
               ),
               const SizedBox(height: 16),
@@ -318,7 +319,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
               'VDOT, Jack Daniels tarafından geliştirilen ve koşu performansını ölçen bir değerdir. '
               'Yarış sonucunuza göre hesaplanır ve farklı antrenman türleri için ideal pace\'lerinizi belirler.',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.neutral600,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 24),
@@ -357,7 +358,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
               child: Text(
                 'Yukarıdan hesaplama yöntemini seçerek VDOT\'unu hesapla!',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -401,7 +402,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
           Text(
             'Eşik Tempon: ${VdotCalculator.formatPace(thresholdPace)} /km',
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral600,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 16),
@@ -515,14 +516,14 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              border: Border.all(color: AppColors.neutral300),
+              border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
               borderRadius: BorderRadius.circular(12),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: _selectedDistance,
                 isExpanded: true,
-                icon: const Icon(Icons.keyboard_arrow_down),
+                icon: Icon(Icons.keyboard_arrow_down),
                 items: VdotCalculator.standardDistances.keys.map((distance) {
                   return DropdownMenuItem<String>(
                     value: distance,
@@ -606,7 +607,7 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
           Text(
             '20 dakikada koştuğunuz mesafeyi girin',
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 16),
@@ -703,6 +704,8 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
 
   Widget _buildLaneCalculator() {
     final userVdot = ref.watch(userVdotProvider);
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
     
     // Lane distances (standard 400m track)
     final laneDistances = [
@@ -720,38 +723,34 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
           Text(
             'Pist kulvarına göre toplam mesafeyi ve antrenman süresini hesapla',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.neutral500,
+              color: cs.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 24),
 
-          // Antrenman Türü Seçimi
-          Text('Antrenman Türü', style: AppTypography.labelMedium),
+          Text(
+            'Antrenman Türü',
+            style: AppTypography.labelMedium.copyWith(color: cs.onSurface),
+          ),
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.neutral300),
-              borderRadius: BorderRadius.circular(12),
+          DropdownButtonFormField<String>(
+            value: _selectedTrainingType,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedTrainingType,
-                isExpanded: true,
-                icon: const Icon(Icons.keyboard_arrow_down),
-                items: _trackTrainingTypes.keys.map((type) {
-                  return DropdownMenuItem<String>(
-                    value: type,
-                    child: Text(type, style: AppTypography.bodyLarge),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _selectedTrainingType = value);
-                  }
-                },
-              ),
-            ),
+            icon: const Icon(Icons.keyboard_arrow_down),
+            items: _trackTrainingTypes.keys.map((type) {
+              return DropdownMenuItem<String>(
+                value: type,
+                child: Text(type, style: AppTypography.bodyLarge),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _selectedTrainingType = value);
+              }
+            },
           ),
           const SizedBox(height: 24),
 
@@ -765,7 +764,10 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
           ),
           const SizedBox(height: 24),
 
-          Text('Kulvar Seçin', style: AppTypography.titleSmall),
+          Text(
+            'Kulvar Seçin',
+            style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
+          ),
           const SizedBox(height: 12),
           _buildLaneSelector(),
           const SizedBox(height: 24),
@@ -806,16 +808,21 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
             ),
             const SizedBox(height: 12),
             AppCard(
-              backgroundColor: AppColors.warningContainer,
+              backgroundColor: isDark
+                  ? AppColors.warning.withValues(alpha: 0.14)
+                  : AppColors.warningContainer,
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: AppColors.warning),
+                  Icon(
+                    Icons.info_outline,
+                    color: isDark ? AppColors.warningLight : AppColors.warning,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Koşu süresi hesaplaması için önce VDOT değerini hesaplayın.',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.warning,
+                        color: isDark ? AppColors.warningLight : AppColors.warning,
                       ),
                     ),
                   ),
@@ -825,7 +832,10 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
             const SizedBox(height: 24),
           ],
 
-          Text('Kulvar Mesafeleri (1 Tur)', style: AppTypography.titleSmall),
+          Text(
+            'Kulvar Mesafeleri (1 Tur)',
+            style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
+          ),
           const SizedBox(height: 12),
           AppCard(
             child: Column(
@@ -841,8 +851,8 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
                               ? FontWeight.bold
                               : FontWeight.normal,
                           color: _selectedLane == i + 1
-                              ? AppColors.primary
-                              : null,
+                              ? cs.primary
+                              : cs.onSurface,
                         ),
                       ),
                       Text(
@@ -852,8 +862,8 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
                               ? FontWeight.bold
                               : FontWeight.normal,
                           color: _selectedLane == i + 1
-                              ? AppColors.primary
-                              : AppColors.neutral500,
+                              ? cs.primary
+                              : cs.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -869,6 +879,8 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
   }
 
   Widget _buildLaneSelector() {
+    final cs = Theme.of(context).colorScheme;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: List.generate(
@@ -883,14 +895,14 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : AppColors.neutral200,
+                color: isSelected ? cs.primary : cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
                 child: Text(
                   '$lane',
                   style: AppTypography.titleSmall.copyWith(
-                    color: isSelected ? Colors.white : AppColors.neutral600,
+                    color: isSelected ? cs.onPrimary : cs.onSurface,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -903,6 +915,9 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
   }
 
   Widget _buildTrackTimingCard(double vdot, List<double> laneDistances, int laps, double selectedDistance) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
+    final successColor = isDark ? AppColors.secondaryLight : AppColors.success;
     final intensityPercent = _trackTrainingTypes[_selectedTrainingType] ?? 0.98;
     
     // Pace hesapla (saniye/km)
@@ -920,7 +935,9 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
     final selectedLaneTime = laneTimes[_selectedLane - 1];
     
     return AppCard(
-      backgroundColor: AppColors.successContainer,
+      backgroundColor: isDark
+          ? successColor.withValues(alpha: 0.14)
+          : AppColors.successContainer,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -930,10 +947,10 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.2),
+                  color: successColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.timer, color: AppColors.success, size: 24),
+                child: Icon(Icons.timer, color: successColor, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -943,14 +960,14 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
                     Text(
                       '$_selectedTrainingType Antrenmanı',
                       style: AppTypography.titleSmall.copyWith(
-                        color: AppColors.success,
+                        color: successColor,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
                       'Pace: $paceFormatted /km',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral600,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -959,13 +976,12 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
             ],
           ),
           const SizedBox(height: 16),
-          
-          // Seçili kulvar için süre ve mesafe
+
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.15),
+              color: successColor.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -976,14 +992,14 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
                     Text(
                       '${selectedDistance.toStringAsFixed(0)} m',
                       style: AppTypography.headlineSmall.copyWith(
-                        color: AppColors.success,
+                        color: successColor,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
                       ' (${(selectedDistance / 1000).toStringAsFixed(2)} km)',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.neutral600,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -992,33 +1008,32 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
                 Text(
                   'Kulvar $_selectedLane • $laps Tur',
                   style: AppTypography.labelMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: cs.onSurfaceVariant,
                   ),
                 ),
                 const Divider(height: 24),
                 Text(
                   _formatTime(selectedLaneTime),
                   style: AppTypography.displaySmall.copyWith(
-                    color: AppColors.success,
+                    color: successColor,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
                   'koşmalısın',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: cs.onSurfaceVariant,
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
-          
-          // Tüm kulvarlar için süreler
+
           Text(
             'Tüm Kulvarlar İçin Süreler',
             style: AppTypography.labelMedium.copyWith(
-              color: AppColors.neutral600,
+              color: cs.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 8),
@@ -1030,14 +1045,12 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected 
-                      ? AppColors.success.withValues(alpha: 0.2)
-                      : Colors.white,
+                  color: isSelected
+                      ? successColor.withValues(alpha: 0.2)
+                      : cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isSelected 
-                        ? AppColors.success 
-                        : AppColors.neutral200,
+                    color: isSelected ? successColor : cs.outlineVariant,
                   ),
                 ),
                 child: Column(
@@ -1045,14 +1058,14 @@ class _PaceCalculatorPageState extends ConsumerState<PaceCalculatorPage>
                     Text(
                       'K${index + 1}',
                       style: AppTypography.labelSmall.copyWith(
-                        color: isSelected ? AppColors.success : AppColors.neutral500,
+                        color: isSelected ? successColor : cs.onSurfaceVariant,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
                       _formatTime(laneTimes[index]),
                       style: AppTypography.bodySmall.copyWith(
-                        color: isSelected ? AppColors.success : AppColors.neutral700,
+                        color: isSelected ? successColor : cs.onSurface,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),

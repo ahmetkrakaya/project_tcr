@@ -13,6 +13,7 @@ import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../domain/entities/event_entity.dart';
 import '../providers/event_provider.dart';
 import '../widgets/admin_monthly_program_entry_card.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Events Page
 class EventsPage extends ConsumerStatefulWidget {
@@ -267,7 +268,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               },
             ),
             IconButton(
-              icon: const Icon(Icons.calendar_today),
+              icon: Icon(Icons.calendar_today),
               onPressed: () {
                 _hasScrolledToCurrentDate = false;
                 _scrollToCurrentDate();
@@ -279,13 +280,13 @@ class _EventsPageState extends ConsumerState<EventsPage> {
         title: Text(showWorkoutView ? 'Antrenmanlar' : 'Etkinlikler'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.emoji_events_outlined),
+            icon: Icon(Icons.emoji_events_outlined),
             tooltip: 'TCR Yarışları',
             onPressed: () => context.pushNamed(RouteNames.clubRaces),
           ),
           if (isAdmin)
             PopupMenuButton<String>(
-              icon: const Icon(Icons.add),
+              icon: Icon(Icons.add),
               onSelected: (value) {
                 if (value == 'create') {
                   context.pushNamed(RouteNames.createEvent);
@@ -344,6 +345,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                     _currentMonthTitle,
                     style: AppTypography.titleMedium.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -489,7 +491,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                           day,
                           textAlign: TextAlign.center,
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -605,7 +608,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                       day,
                       textAlign: TextAlign.center,
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -695,13 +699,13 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               Icon(
                 Icons.fitness_center,
                 size: 48,
-                color: AppColors.neutral400,
+                color: ThemeBrightnessHolder.outline,
               ),
               const SizedBox(height: 16),
               Text(
                 'Bu günden itibaren antrenman kaydı yok',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -728,7 +732,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                 '${date.day} ${_getMonthName(date)} ${_getDayName(date)} ${date.year}',
                 style: AppTypography.titleSmall.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.neutral900,
+                  color: ThemeBrightnessHolder.onSurface,
                 ),
               ),
             ),
@@ -810,6 +814,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     Map<DateTime, List<EventEntity>>? eventsByDate,
     Set<DateTime>? daysWithSimpleDots,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     // MediaQuery'yi optimize et (mümkünse cache'lenmiş değeri kullan)
     final screenWidth = MediaQuery.maybeOf(context)?.size.width ?? 
                         MediaQuery.of(context).size.width;
@@ -845,23 +850,29 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                     height: 32,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: null, // İçi boş
-                      borderRadius: BorderRadius.circular(4), // Kare köşeler
+                      color: isSelected
+                          ? colorScheme.primary.withValues(alpha: 0.18)
+                          : (isToday
+                                ? colorScheme.primaryContainer.withValues(
+                                    alpha: 0.35,
+                                  )
+                                : null),
+                      borderRadius: BorderRadius.circular(4),
                       border: Border.all(
                         color: isSelected
-                            ? AppColors
-                                  .primary // Koyu mavi çerçeve (seçili)
+                            ? colorScheme.primary
                             : (isToday
-                                  ? AppColors
-                                        .primaryContainer // Açık mavi çerçeve (bugün)
-                                  : Colors.transparent), // Çerçeve yok
+                                  ? colorScheme.primary.withValues(alpha: 0.7)
+                                  : Colors.transparent),
                         width: 2,
                       ),
                     ),
                     child: Text(
                       '${currentDay.day}',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.neutral900, // Her zaman aynı renk
+                        color: isSelected || isToday
+                            ? colorScheme.primary
+                            : colorScheme.onSurface,
                         fontWeight: isSelected || isToday
                             ? FontWeight.bold
                             : FontWeight.normal,
@@ -921,6 +932,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     EventEntity event,
     bool isAdmin,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
     // Local state'teki pin durumunu kontrol et
     final effectiveEvent = _pinnedStates.containsKey(event.id)
         ? EventEntity(
@@ -977,7 +989,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             decoration: BoxDecoration(
               color: effectiveEvent.isToday
                   ? AppColors.secondary
-                  : AppColors.primaryContainer,
+                  : colorScheme.primaryContainer,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -989,7 +1001,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   style: AppTypography.labelSmall.copyWith(
                     color: effectiveEvent.isToday
                         ? Colors.white
-                        : AppColors.primary,
+                        : colorScheme.onPrimaryContainer,
                     fontWeight: FontWeight.w600,
                     fontSize: 10,
                   ),
@@ -999,7 +1011,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   style: AppTypography.headlineSmall.copyWith(
                     color: effectiveEvent.isToday
                         ? Colors.white
-                        : AppColors.primary,
+                        : colorScheme.onPrimaryContainer,
                     fontWeight: FontWeight.bold,
                     fontSize: 20,
                   ),
@@ -1039,7 +1051,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                     ),
                     const Spacer(),
                     if (effectiveEvent.isUserParticipating)
-                      const Icon(
+                      Icon(
                         Icons.check_circle,
                         size: 16,
                         color: AppColors.success,
@@ -1110,8 +1122,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                                 : Icons.push_pin_outlined,
                             size: 16,
                             color: effectiveEvent.isPinned
-                                ? AppColors.primary
-                                : AppColors.neutral500,
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -1128,31 +1140,31 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                 const SizedBox(height: 3),
                 Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.access_time,
                         size: 14,
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         effectiveEvent.formattedTime,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                       if (locationText != null) ...[
                         const SizedBox(width: 12),
-                        const Icon(
+                        Icon(
                           Icons.location_on_outlined,
                           size: 14,
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             locationText,
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral500,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -1163,16 +1175,16 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.people_outline,
                       size: 14,
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       '${effectiveEvent.participantCount} katılımcı',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -1277,13 +1289,13 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               Icon(
                 showWorkoutView ? Icons.fitness_center : Icons.event_available,
                 size: 48,
-                color: AppColors.neutral400,
+                color: ThemeBrightnessHolder.outline,
               ),
               const SizedBox(height: 16),
               Text(
                 showWorkoutView ? 'Yaklaşan antrenman yok' : 'Yaklaşan etkinlik yok',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
               ),
             ],
@@ -1310,7 +1322,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                 '${date.day} ${_getMonthName(date)} ${_getDayName(date)} ${date.year}',
                 style: AppTypography.titleSmall.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.neutral900,
+                  color: ThemeBrightnessHolder.onSurface,
                 ),
               ),
             ),

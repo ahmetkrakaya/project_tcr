@@ -10,6 +10,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/theme/content_block_theme.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
@@ -17,6 +18,7 @@ import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../../domain/entities/post_block_entity.dart';
 import '../../domain/entities/post_entity.dart';
 import '../providers/post_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Post Detail Page
 class PostDetailPage extends ConsumerWidget {
@@ -105,7 +107,7 @@ class PostDetailPage extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                Icon(Icons.error_outline, size: 48, color: AppColors.error),
                 const SizedBox(height: 16),
                 Text('Hata: $error'),
                 const SizedBox(height: 16),
@@ -152,16 +154,16 @@ class PostDetailPage extends ConsumerWidget {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.article,
                             size: 14,
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             timeago.format(post.createdAt, locale: 'tr'),
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral500,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -177,43 +179,48 @@ class PostDetailPage extends ConsumerWidget {
           if (post.eventId != null && post.eventId!.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Material(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                child: InkWell(
-                  onTap: () => context.pushNamed(
-                    RouteNames.eventDetail,
-                    pathParameters: {'eventId': post.eventId!},
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.event_note,
-                          size: 20,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Bu etkinliğin programıdır',
-                            style: AppTypography.labelMedium.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
+              child: Builder(
+                builder: (context) {
+                  final cs = Theme.of(context).colorScheme;
+                  return Material(
+                    color: cs.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      onTap: () => context.pushNamed(
+                        RouteNames.eventDetail,
+                        pathParameters: {'eventId': post.eventId!},
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.event_note,
+                              size: 20,
+                              color: cs.primary,
                             ),
-                          ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Bu etkinliğin programıdır',
+                                style: AppTypography.labelMedium.copyWith(
+                                  color: cs.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              size: 12,
+                              color: cs.primary,
+                            ),
+                          ],
                         ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 12,
-                          color: AppColors.primary,
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 12),
@@ -266,21 +273,21 @@ class PostDetailPage extends ConsumerWidget {
   Widget _buildBlock(BuildContext context, PostBlockEntity block) {
     switch (block.type) {
       case PostBlockType.header:
-        return _buildHeaderBlock(block);
+        return _buildHeaderBlock(context, block);
       case PostBlockType.subheader:
-        return _buildSubheaderBlock(block);
+        return _buildSubheaderBlock(context, block);
       case PostBlockType.scheduleItem:
-        return _buildScheduleItemBlock(block);
+        return _buildScheduleItemBlock(context, block);
       case PostBlockType.warning:
-        return _buildWarningBlock(block);
+        return _buildWarningBlock(context, block);
       case PostBlockType.info:
-        return _buildInfoBlock(block);
+        return _buildInfoBlock(context, block);
       case PostBlockType.tip:
-        return _buildTipBlock(block);
+        return _buildTipBlock(context, block);
       case PostBlockType.text:
         return _buildTextBlock(block);
       case PostBlockType.quote:
-        return _buildQuoteBlock(block);
+        return _buildQuoteBlock(context, block);
       case PostBlockType.listItem:
         return _buildListItemBlock(block);
       case PostBlockType.checklistItem:
@@ -323,11 +330,20 @@ class PostDetailPage extends ConsumerWidget {
     final label = block.subContent?.trim().isNotEmpty == true
         ? block.subContent!.trim()
         : url;
+    final infoAccent = ContentBlockTheme.title(
+      context,
+      AppColors.info,
+      darkAccent: AppColors.infoLight,
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Material(
-        color: AppColors.infoContainer.withValues(alpha: 0.45),
+        color: ContentBlockTheme.surface(
+          context,
+          lightContainer: AppColors.infoContainer.withValues(alpha: 0.45),
+          semantic: AppColors.info,
+        ),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: () => _openExternalLink(context, url),
@@ -338,7 +354,7 @@ class PostDetailPage extends ConsumerWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: AppColors.info.withValues(alpha: 0.35),
+                color: ContentBlockTheme.border(context, AppColors.info),
               ),
             ),
             child: Row(
@@ -346,12 +362,14 @@ class PostDetailPage extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.85),
+                    color: ContentBlockTheme.isDark(context)
+                        ? AppColors.info.withValues(alpha: 0.2)
+                        : Colors.white.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.link,
-                    color: AppColors.info,
+                    color: infoAccent,
                     size: 20,
                   ),
                 ),
@@ -363,10 +381,10 @@ class PostDetailPage extends ConsumerWidget {
                       Text(
                         label,
                         style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.info,
+                          color: infoAccent,
                           fontWeight: FontWeight.w600,
                           decoration: TextDecoration.underline,
-                          decorationColor: AppColors.info,
+                          decorationColor: infoAccent,
                         ),
                       ),
                       if (label != url) ...[
@@ -374,7 +392,7 @@ class PostDetailPage extends ConsumerWidget {
                         Text(
                           url,
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral600,
+                            color: ContentBlockTheme.onSurfaceVariant(context),
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -383,10 +401,10 @@ class PostDetailPage extends ConsumerWidget {
                     ],
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.open_in_new,
                   size: 18,
-                  color: AppColors.info,
+                  color: infoAccent,
                 ),
               ],
             ),
@@ -396,43 +414,61 @@ class PostDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeaderBlock(PostBlockEntity block) {
+  Widget _buildHeaderBlock(BuildContext context, PostBlockEntity block) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primaryContainer,
+        color: ContentBlockTheme.isDark(context)
+            ? cs.primaryContainer
+            : AppColors.primaryContainer,
         borderRadius: BorderRadius.circular(12),
+        border: ContentBlockTheme.isDark(context)
+            ? Border.all(color: cs.primary.withValues(alpha: 0.35))
+            : null,
       ),
       child: Text(
         block.content,
         style: AppTypography.titleLarge.copyWith(
           fontWeight: FontWeight.bold,
-          color: AppColors.primary,
+          color: ContentBlockTheme.isDark(context)
+              ? cs.onPrimaryContainer
+              : AppColors.primary,
         ),
       ),
     );
   }
 
-  Widget _buildSubheaderBlock(PostBlockEntity block) {
+  Widget _buildSubheaderBlock(BuildContext context, PostBlockEntity block) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Text(
         block.content,
         style: AppTypography.titleMedium.copyWith(
           fontWeight: FontWeight.w600,
+          color: ContentBlockTheme.onSurface(context),
         ),
       ),
     );
   }
 
-  Widget _buildScheduleItemBlock(PostBlockEntity block) {
+  Widget _buildScheduleItemBlock(BuildContext context, PostBlockEntity block) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.secondaryContainer,
+        color: ContentBlockTheme.surface(
+          context,
+          lightContainer: AppColors.secondaryContainer,
+          semantic: AppColors.secondary,
+        ),
         borderRadius: BorderRadius.circular(8),
+        border: ContentBlockTheme.isDark(context)
+            ? Border.all(
+                color: ContentBlockTheme.border(context, AppColors.secondary),
+              )
+            : null,
       ),
       child: Row(
         children: [
@@ -454,7 +490,9 @@ class PostDetailPage extends ConsumerWidget {
           Expanded(
             child: Text(
               block.subContent ?? '',
-              style: AppTypography.bodyMedium,
+              style: AppTypography.bodyMedium.copyWith(
+                color: ContentBlockTheme.onSurface(context),
+              ),
             ),
           ),
         ],
@@ -462,19 +500,28 @@ class PostDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildWarningBlock(PostBlockEntity block) {
+  Widget _buildWarningBlock(BuildContext context, PostBlockEntity block) {
+    final titleColor = ContentBlockTheme.title(
+      context,
+      AppColors.error,
+      darkAccent: AppColors.errorLight,
+    );
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.errorContainer,
+        color: ContentBlockTheme.surface(
+          context,
+          lightContainer: AppColors.errorContainer,
+          semantic: AppColors.error,
+        ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.error),
+        border: Border.all(color: ContentBlockTheme.border(context, AppColors.error)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.warning, color: AppColors.error),
+          Icon(Icons.warning, color: titleColor),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -485,14 +532,16 @@ class PostDetailPage extends ConsumerWidget {
                     block.content,
                     style: AppTypography.titleSmall.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: AppColors.error,
+                      color: titleColor,
                     ),
                   ),
                 if (block.subContent != null && block.subContent!.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     block.subContent!,
-                    style: AppTypography.bodyMedium,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: ContentBlockTheme.onSurface(context),
+                    ),
                   ),
                 ],
               ],
@@ -503,19 +552,28 @@ class PostDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildInfoBlock(PostBlockEntity block) {
+  Widget _buildInfoBlock(BuildContext context, PostBlockEntity block) {
+    final titleColor = ContentBlockTheme.title(
+      context,
+      AppColors.info,
+      darkAccent: AppColors.infoLight,
+    );
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.infoContainer,
+        color: ContentBlockTheme.surface(
+          context,
+          lightContainer: AppColors.infoContainer,
+          semantic: AppColors.info,
+        ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.info),
+        border: Border.all(color: ContentBlockTheme.border(context, AppColors.info)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, color: AppColors.info),
+          Icon(Icons.info_outline, color: titleColor),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -526,14 +584,16 @@ class PostDetailPage extends ConsumerWidget {
                     block.content,
                     style: AppTypography.titleSmall.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: AppColors.info,
+                      color: titleColor,
                     ),
                   ),
                 if (block.subContent != null && block.subContent!.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     block.subContent!,
-                    style: AppTypography.bodyMedium,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: ContentBlockTheme.onSurface(context),
+                    ),
                   ),
                 ],
               ],
@@ -544,19 +604,28 @@ class PostDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildTipBlock(PostBlockEntity block) {
+  Widget _buildTipBlock(BuildContext context, PostBlockEntity block) {
+    final titleColor = ContentBlockTheme.title(
+      context,
+      AppColors.success,
+      darkAccent: AppColors.successLight,
+    );
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.successContainer,
+        color: ContentBlockTheme.surface(
+          context,
+          lightContainer: AppColors.successContainer,
+          semantic: AppColors.success,
+        ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.success),
+        border: Border.all(color: ContentBlockTheme.border(context, AppColors.success)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.lightbulb_outline, color: AppColors.success),
+          Icon(Icons.lightbulb_outline, color: titleColor),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -567,14 +636,16 @@ class PostDetailPage extends ConsumerWidget {
                     block.content,
                     style: AppTypography.titleSmall.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: AppColors.success,
+                      color: titleColor,
                     ),
                   ),
                 if (block.subContent != null && block.subContent!.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     block.subContent!,
-                    style: AppTypography.bodyMedium,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: ContentBlockTheme.onSurface(context),
+                    ),
                   ),
                 ],
               ],
@@ -595,21 +666,25 @@ class PostDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildQuoteBlock(PostBlockEntity block) {
+  Widget _buildQuoteBlock(BuildContext context, PostBlockEntity block) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.neutral100,
+        color: ContentBlockTheme.isDark(context)
+            ? cs.surfaceContainerHighest
+            : AppColors.neutral100,
         borderRadius: BorderRadius.circular(8),
         border: Border(
-          left: BorderSide(color: AppColors.primary, width: 4),
+          left: BorderSide(color: cs.primary, width: 4),
         ),
       ),
       child: Text(
         block.content,
         style: AppTypography.bodyLarge.copyWith(
           fontStyle: FontStyle.italic,
+          color: ContentBlockTheme.onSurface(context),
         ),
       ),
     );
@@ -639,7 +714,7 @@ class PostDetailPage extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.check_box_outline_blank, size: 20),
+          Icon(Icons.check_box_outline_blank, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -656,7 +731,7 @@ class PostDetailPage extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
       height: 1,
-      color: AppColors.neutral300,
+      color: ThemeBrightnessHolder.outlineVariant,
     );
   }
 
@@ -748,6 +823,9 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
+
     try {
       // JSON'u parse et
       final resultsData = jsonDecode(widget.block.content) as List<dynamic>;
@@ -757,15 +835,15 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
           margin: const EdgeInsets.symmetric(vertical: 12),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: AppColors.neutral100,
+            color: cs.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.neutral200),
+            border: Border.all(color: cs.outlineVariant),
           ),
           child: Center(
             child: Text(
               'Sonuç bulunamadı',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.neutral500,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ),
@@ -845,12 +923,12 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.primary,
+                      color: cs.primary,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.emoji_events,
-                      color: Colors.white,
+                      color: cs.onPrimary,
                       size: 20,
                     ),
                   ),
@@ -860,6 +938,7 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
                       'Yarış Sonuçları',
                       style: AppTypography.titleMedium.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
                       ),
                     ),
                   ),
@@ -875,21 +954,22 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
                 ),
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: AppColors.neutral100,
+                  color: cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.neutral300),
+                  border: Border.all(color: cs.outlineVariant),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String?>(
                     value: dropdownValue,
                     isExpanded: true,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.arrow_drop_down,
-                      color: AppColors.neutral600,
+                      color: cs.onSurfaceVariant,
                     ),
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.neutral900,
+                      color: cs.onSurface,
                     ),
+                    dropdownColor: cs.surfaceContainerHighest,
                     items: raceCategories.map((cat) {
                       return DropdownMenuItem<String?>(
                         value: cat,
@@ -910,18 +990,19 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: AppColors.neutral100,
+                color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.neutral300),
+                border: Border.all(color: cs.outlineVariant),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _selectedRankingType,
                   isExpanded: true,
-                  icon: const Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+                  icon: Icon(Icons.arrow_drop_down, color: cs.onSurfaceVariant),
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral900,
+                    color: cs.onSurface,
                   ),
+                  dropdownColor: cs.surfaceContainerHighest,
                   items: const [
                     DropdownMenuItem(
                       value: 'overall',
@@ -951,15 +1032,15 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppColors.neutral100,
+                  color: cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.neutral200),
+                  border: Border.all(color: cs.outlineVariant),
                 ),
                 child: Center(
                   child: Text(
                     'Bu kategoride sonuç bulunamadı',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.neutral500,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -978,35 +1059,46 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
                   final formattedFinishTime = result['formattedFinishTime'] as String? ?? '-';
 
                   // İlk 3 için özel renkler
-                  Color rankColor = AppColors.neutral400;
-                  Color rankBgColor = AppColors.neutral100;
+                  Color rankColor = cs.outline;
+                  Color rankBgColor = cs.surfaceContainerHighest;
+                  Color cardColor = cs.surfaceContainerHigh;
                   if (rank == 1) {
                     rankColor = const Color(0xFFFFD700); // Altın
-                    rankBgColor = const Color(0xFFFFF8DC);
+                    rankBgColor = isDark
+                        ? const Color(0xFFFFD700).withValues(alpha: 0.18)
+                        : const Color(0xFFFFF8DC);
                   } else if (rank == 2) {
                     rankColor = const Color(0xFFC0C0C0); // Gümüş
-                    rankBgColor = const Color(0xFFF5F5F5);
+                    rankBgColor = isDark
+                        ? const Color(0xFFC0C0C0).withValues(alpha: 0.18)
+                        : const Color(0xFFF5F5F5);
                   } else if (rank == 3) {
                     rankColor = const Color(0xFFCD7F32); // Bronz
-                    rankBgColor = const Color(0xFFFFF4E6);
+                    rankBgColor = isDark
+                        ? const Color(0xFFCD7F32).withValues(alpha: 0.18)
+                        : const Color(0xFFFFF4E6);
                   }
 
                   return Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardColor,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: rank <= 3 ? rankColor.withValues(alpha: 0.3) : AppColors.neutral200,
+                        color: rank <= 3
+                            ? rankColor.withValues(alpha: isDark ? 0.5 : 0.3)
+                            : cs.outlineVariant,
                         width: rank <= 3 ? 2 : 1,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.neutral200.withValues(alpha: 0.3),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      boxShadow: isDark
+                          ? null
+                          : [
+                              BoxShadow(
+                                color: AppColors.neutral200.withValues(alpha: 0.3),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                     ),
                     child: Row(
                       children: [
@@ -1015,7 +1107,7 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: rank <= 3 ? rankBgColor : AppColors.neutral100,
+                            color: rank <= 3 ? rankBgColor : cs.surfaceContainerHighest,
                             shape: BoxShape.circle,
                             border: rank <= 3
                                 ? Border.all(color: rankColor, width: 2)
@@ -1025,7 +1117,7 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
                             child: Text(
                               rank.toString(),
                               style: AppTypography.titleMedium.copyWith(
-                                color: rank <= 3 ? rankColor : AppColors.neutral700,
+                                color: rank <= 3 ? rankColor : cs.onSurfaceVariant,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -1050,6 +1142,7 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
                                   fullName,
                                   style: AppTypography.bodyLarge.copyWith(
                                     fontWeight: FontWeight.w600,
+                                    color: cs.onSurface,
                                   ),
                                 ),
                               ),
@@ -1065,7 +1158,7 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
                               style: AppTypography.titleMedium.copyWith(
                                 fontFeatures: const [FontFeature.tabularFigures()],
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.neutral900,
+                                color: cs.onSurface,
                               ),
                             ),
                             if (rank <= 3) ...[
@@ -1092,13 +1185,14 @@ class _RaceResultsBlockWidgetState extends State<_RaceResultsBlockWidget> {
       );
     } catch (e) {
       // JSON parse hatası durumunda
+      final cs = Theme.of(context).colorScheme;
       return Container(
         margin: const EdgeInsets.symmetric(vertical: 12),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: AppColors.neutral100,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.neutral200),
+          border: Border.all(color: cs.outlineVariant),
         ),
         child: Center(
           child: Text(

@@ -7,6 +7,7 @@ import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../domain/entities/event_info_block_entity.dart';
 import '../providers/event_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 String _normalizeEventInfoLinkUrl(String input) {
   var url = input.trim();
@@ -44,12 +45,12 @@ class _EventInfoBlocksEditorState extends ConsumerState<EventInfoBlocksEditor> {
         title: const Text('Etkinlik Bilgileri'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.playlist_add),
+            icon: Icon(Icons.playlist_add),
             tooltip: 'Toplu Ekle',
             onPressed: () => _showBulkAddDialog(context),
           ),
           IconButton(
-            icon: const Icon(Icons.add),
+            icon: Icon(Icons.add),
             tooltip: 'Blok Ekle',
             onPressed: () => _showAddBlockDialog(context),
           ),
@@ -61,7 +62,7 @@ class _EventInfoBlocksEditorState extends ConsumerState<EventInfoBlocksEditor> {
                   )
                 : IconButton(
                     onPressed: _saveBlocks,
-                    icon: const Icon(Icons.check),
+                    icon: Icon(Icons.check),
                     tooltip: 'Kaydet',
                   ),
             loading: () => const SizedBox.shrink(),
@@ -93,7 +94,7 @@ class _EventInfoBlocksEditorState extends ConsumerState<EventInfoBlocksEditor> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+              Icon(Icons.error_outline, size: 48, color: AppColors.error),
               const SizedBox(height: 16),
               Text('Hata: $error'),
               const SizedBox(height: 16),
@@ -121,20 +122,20 @@ class _EventInfoBlocksEditorState extends ConsumerState<EventInfoBlocksEditor> {
             Icon(
               Icons.article_outlined,
               size: 64,
-              color: AppColors.neutral400,
+              color: ThemeBrightnessHolder.outline,
             ),
             const SizedBox(height: 16),
             Text(
               'Henüz bilgi bloğu yok',
               style: AppTypography.titleMedium.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Katılımcılar için program, uyarılar ve bilgiler ekleyin',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.neutral400,
+                color: ThemeBrightnessHolder.outline,
               ),
               textAlign: TextAlign.center,
             ),
@@ -157,7 +158,7 @@ class _EventInfoBlocksEditorState extends ConsumerState<EventInfoBlocksEditor> {
       child: ListTile(
         leading: ReorderableDragStartListener(
           index: index,
-          child: const Icon(Icons.drag_handle, color: AppColors.neutral400),
+          child: Icon(Icons.drag_handle, color: ThemeBrightnessHolder.outline),
         ),
         title: Row(
           children: [
@@ -182,18 +183,18 @@ class _EventInfoBlocksEditorState extends ConsumerState<EventInfoBlocksEditor> {
                 block.subContent!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               )
             : null,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 20),
+              icon: Icon(Icons.edit_outlined, size: 20),
               onPressed: () => _showEditBlockDialog(context, block),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.error),
+              icon: Icon(Icons.delete_outline, size: 20, color: AppColors.error),
               onPressed: () => _confirmDeleteBlock(context, block),
             ),
           ],
@@ -389,7 +390,7 @@ class _AddBlockSheetState extends State<_AddBlockSheet> {
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -426,7 +427,7 @@ class _AddBlockSheetState extends State<_AddBlockSheet> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   prefixIcon: _selectedType == EventInfoBlockType.link
-                      ? const Icon(Icons.link)
+                      ? Icon(Icons.link)
                       : null,
                 ),
                 maxLines: _selectedType == EventInfoBlockType.text ? 3 : 1,
@@ -493,11 +494,12 @@ class _AddBlockSheetState extends State<_AddBlockSheet> {
 
   Widget _buildTypeChip(EventInfoBlockType type, String label) {
     final isSelected = _selectedType == type;
+    final cs = Theme.of(context).colorScheme;
     return ChoiceChip(
       label: Text(
         label,
         style: TextStyle(
-          color: isSelected ? Colors.white : AppColors.neutral700,
+          color: isSelected ? cs.onPrimary : cs.onSurface,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
         ),
       ),
@@ -512,15 +514,15 @@ class _AddBlockSheetState extends State<_AddBlockSheet> {
           });
         }
       },
-      backgroundColor: AppColors.neutral200,
-      selectedColor: AppColors.primary,
-      disabledColor: AppColors.neutral300,
+      backgroundColor: cs.surfaceContainerHighest,
+      selectedColor: cs.primary,
+      disabledColor: cs.outlineVariant,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       labelPadding: const EdgeInsets.symmetric(horizontal: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(
-          color: isSelected ? AppColors.primary : Colors.transparent,
+          color: isSelected ? cs.primary : Colors.transparent,
           width: isSelected ? 2 : 0,
         ),
       ),
@@ -701,7 +703,7 @@ class _BulkAddSheetState extends State<_BulkAddSheet> {
               children: [
                 Text('Toplu Ekle', style: AppTypography.titleLarge),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -709,7 +711,7 @@ class _BulkAddSheetState extends State<_BulkAddSheet> {
             const SizedBox(height: 8),
             Text(
               'Her satır ayrı bir blok olarak eklenecek',
-              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+              style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
             
@@ -774,11 +776,12 @@ class _BulkAddSheetState extends State<_BulkAddSheet> {
 
   Widget _buildTypeChip(EventInfoBlockType type, String label) {
     final isSelected = _selectedType == type;
+    final cs = Theme.of(context).colorScheme;
     return ChoiceChip(
       label: Text(
         label,
         style: TextStyle(
-          color: isSelected ? Colors.white : AppColors.neutral700,
+          color: isSelected ? cs.onPrimary : cs.onSurface,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
         ),
       ),
@@ -788,8 +791,8 @@ class _BulkAddSheetState extends State<_BulkAddSheet> {
           setState(() => _selectedType = type);
         }
       },
-      backgroundColor: AppColors.neutral200,
-      selectedColor: AppColors.primary,
+      backgroundColor: cs.surfaceContainerHighest,
+      selectedColor: cs.primary,
     );
   }
 
@@ -876,7 +879,7 @@ class _EditBlockSheetState extends State<_EditBlockSheet> {
               children: [
                 Text('Bloğu Düzenle', style: AppTypography.titleLarge),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -914,7 +917,7 @@ class _EditBlockSheetState extends State<_EditBlockSheet> {
                       ? 'https://ornek.com'
                       : null,
                   prefixIcon: widget.block.type == EventInfoBlockType.link
-                      ? const Icon(Icons.link)
+                      ? Icon(Icons.link)
                       : null,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),

@@ -16,23 +16,9 @@ import '../../../events/presentation/providers/event_provider.dart';
 import '../../data/models/training_load_models.dart';
 import '../providers/training_load_provider.dart';
 import '../widgets/training_load_format.dart';
-
-const _info = ReportInfo(
-  title: 'Etkinlik Yarış Formu',
-  summary:
-      'Yaklaşan bir yarışa katılacak sporcuların yarış öncesi form durumunu '
-      'gösterir; kim hazır, kim yorgun hızlıca görülür.',
-  terms: [
-    ReportInfoTerm('TSB (Form)', 'CTL − ATL. Pozitif = dinç/hazır, negatif = yorgun.'),
-    ReportInfoTerm('ACWR', 'Akut/Kronik oran. >1.5 yüksek sakatlık riski.'),
-    ReportInfoTerm('Taze → Yorgun', 'Liste forma göre sıralı (en dinçten en yorguna).'),
-  ],
-  takeaways: [
-    'Yarış öncesi pozitif TSB hedeflenir.',
-    'Yorgun (negatif TSB) sporcular için yükü azaltmayı değerlendirin.',
-    'Yüksek ACWR olan sporcuyu yakından takip edin.',
-  ],
-);
+import '../widgets/training_load_report_info.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class EventTrainingLoadPage extends ConsumerStatefulWidget {
   const EventTrainingLoadPage({super.key, this.initialEventId});
@@ -61,7 +47,7 @@ class _EventTrainingLoadPageState extends ConsumerState<EventTrainingLoadPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Etkinlik Yarış Formu'),
-        actions: const [ReportInfoButton(info: _info)],
+        actions: const [ReportInfoButton(info: eventTrainingLoadReportInfo)],
       ),
       body: !isAdminOrCoach
           ? Center(
@@ -70,7 +56,7 @@ class _EventTrainingLoadPageState extends ConsumerState<EventTrainingLoadPage> {
                 child: Text(
                   'Bu sayfaya erişim yetkiniz yok.',
                   style: AppTypography.bodyMedium
-                      .copyWith(color: AppColors.neutral500),
+                      .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -117,7 +103,7 @@ class _EventTrainingLoadPageState extends ConsumerState<EventTrainingLoadPage> {
     if (upcoming.isEmpty) {
       return Text(
         'Yaklaşan yarış bulunamadı.',
-        style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+        style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
       );
     }
 
@@ -162,7 +148,7 @@ class _EventTrainingLoadPageState extends ConsumerState<EventTrainingLoadPage> {
             Text(
               error.toString(),
               style: AppTypography.bodySmall
-                  .copyWith(color: AppColors.neutral500),
+                  .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -190,7 +176,7 @@ class _EventTrainingLoadPageState extends ConsumerState<EventTrainingLoadPage> {
             Text(
               '${sorted.length} katılımcı - forma göre sıralı (taze → yorgun)',
               style: AppTypography.bodySmall
-                  .copyWith(color: AppColors.neutral500),
+                  .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
             ...sorted.map(
@@ -219,7 +205,7 @@ class _RosterTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cardColor = ThemeBrightnessHolder.surface;
     final statusColor = TrainingLoadFormat.statusColor(athlete.status);
 
     return Container(
@@ -259,7 +245,7 @@ class _RosterTile extends StatelessWidget {
                       Text(
                         TrainingLoadFormat.tsbInterpretation(athlete.tsb),
                         style: AppTypography.labelSmall
-                            .copyWith(color: AppColors.neutral500),
+                            .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

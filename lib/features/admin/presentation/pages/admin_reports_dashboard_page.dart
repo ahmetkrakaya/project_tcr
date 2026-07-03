@@ -13,12 +13,22 @@ import '../../../events/presentation/providers/event_provider.dart';
 import '../../../integrations/presentation/providers/strava_connection_report_provider.dart';
 import '../../../members_groups/presentation/providers/group_provider.dart';
 import '../providers/admin_reports_provider.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 const _kCardGradient = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
   colors: [Color(0xFF1E3A5F), Color(0xFF2D5C8F)],
 );
+
+Color _readableReportAccent(Color color, bool isDark) {
+  if (!isDark) return color;
+  if (color.computeLuminance() < 0.45) {
+    return Color.lerp(color, Colors.white, 0.45)!;
+  }
+  return color;
+}
 
 /// Raporlar: Dashboard (sayisal ozet) + Raporlar (drill-down liste) sekmeleri.
 class AdminReportsDashboardPage extends ConsumerWidget {
@@ -27,9 +37,8 @@ class AdminReportsDashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isAdmin = ref.watch(isAdminProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor =
-        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+        ThemeBrightnessHolder.scaffoldBackground;
 
     if (!isAdmin) {
       return Scaffold(
@@ -39,7 +48,7 @@ class AdminReportsDashboardPage extends ConsumerWidget {
             padding: const EdgeInsets.all(24),
             child: Text('Bu sayfaya erişim yetkiniz yok.',
                 style: AppTypography.bodyMedium
-                    .copyWith(color: AppColors.neutral500),
+                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                 textAlign: TextAlign.center),
           ),
         ),
@@ -601,6 +610,7 @@ class _ReportsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
@@ -649,7 +659,7 @@ class _ReportsTab extends StatelessWidget {
           icon: Icons.dashboard_customize_outlined,
           title: 'Grup Durum Panosu',
           subtitle: 'Grup başına üye, aktiflik ve bekleyen talepler',
-          iconColor: AppColors.primary,
+          iconColor: cs.primary,
           onTap: () => context.pushNamed(RouteNames.adminGroupStatus),
         ),
         const SizedBox(height: 12),
@@ -715,11 +725,12 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
+    final displayIconColor = _readableReportAccent(iconColor, isDark);
 
     return Material(
-      color: cardColor,
+      color: cs.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -732,10 +743,10 @@ class _ReportCard extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.12),
+                  color: displayIconColor.withValues(alpha: isDark ? 0.2 : 0.12),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(icon, color: iconColor, size: 24),
+                child: Icon(icon, color: displayIconColor, size: 24),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -746,21 +757,22 @@ class _ReportCard extends StatelessWidget {
                       title,
                       style: AppTypography.titleSmall.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right,
-                color: AppColors.neutral400,
+                color: cs.outline,
               ),
             ],
           ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../theme/app_semantic_colors.dart';
+
 /// String Extensions
 extension StringExtensions on String {
   /// Capitalize first letter
@@ -204,6 +206,10 @@ extension BuildContextExtensions on BuildContext {
 
   /// Get color scheme
   ColorScheme get colorScheme => theme.colorScheme;
+
+  /// Semantik tema renkleri (shimmer, ikon kutusu vb.)
+  AppSemanticColors get semanticColors =>
+      theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
 
   /// Get media query
   MediaQueryData get mediaQuery => MediaQuery.of(this);

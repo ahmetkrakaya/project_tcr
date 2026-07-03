@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'app_colors.dart';
+import 'app_semantic_colors.dart';
 import 'app_typography.dart';
 
 /// TCR App Theme
@@ -60,6 +61,7 @@ class AppTheme {
       dialogTheme: _dialogTheme,
       bottomSheetTheme: _bottomSheetTheme,
       snackBarTheme: _snackBarTheme,
+      extensions: const [AppSemanticColors.light],
     );
   }
 
@@ -91,6 +93,7 @@ class AppTheme {
       dialogTheme: _dialogTheme,
       bottomSheetTheme: _bottomSheetTheme,
       snackBarTheme: _snackBarTheme,
+      extensions: const [AppSemanticColors.dark],
     );
   }
 
@@ -123,18 +126,18 @@ class AppTheme {
   );
 
   static const ColorScheme _darkColorScheme = ColorScheme.dark(
-    primary: AppColors.primaryLight,
-    onPrimary: AppColors.onPrimary,
-    primaryContainer: AppColors.primaryDark,
-    onPrimaryContainer: AppColors.primaryContainer,
+    primary: AppColors.primaryDarkAccent,
+    onPrimary: AppColors.primaryDark,
+    primaryContainer: AppColors.primaryDarkContainer,
+    onPrimaryContainer: AppColors.onPrimaryDarkContainer,
     secondary: AppColors.secondaryLight,
     onSecondary: AppColors.onSecondary,
     secondaryContainer: AppColors.secondaryDark,
     onSecondaryContainer: AppColors.secondaryContainer,
-    tertiary: AppColors.tertiaryLight,
-    onTertiary: AppColors.onTertiary,
-    tertiaryContainer: AppColors.tertiaryDark,
-    onTertiaryContainer: AppColors.tertiaryContainer,
+    tertiary: AppColors.primaryDarkAccentLight,
+    onTertiary: AppColors.primaryDark,
+    tertiaryContainer: AppColors.primaryDarkAccentDark,
+    onTertiaryContainer: AppColors.onPrimaryDarkContainer,
     error: AppColors.errorLight,
     onError: AppColors.onPrimary,
     errorContainer: AppColors.error,
@@ -143,8 +146,8 @@ class AppTheme {
     onSurface: AppColors.onSurfaceDark,
     surfaceContainerHighest: AppColors.surfaceVariantDark,
     onSurfaceVariant: AppColors.onSurfaceVariantDark,
-    outline: AppColors.neutral500,
-    outlineVariant: AppColors.neutral600,
+    outline: Color(0xFF475569),
+    outlineVariant: Color(0xFF334155),
     inverseSurface: AppColors.onSurfaceDark,
     onInverseSurface: AppColors.surfaceDark,
   );
@@ -245,8 +248,8 @@ class AppTheme {
       FloatingActionButtonThemeData(
     elevation: elevationMd,
     shape: CircleBorder(),
-    backgroundColor: AppColors.primaryLight,
-    foregroundColor: AppColors.onPrimary,
+    backgroundColor: AppColors.primaryDarkAccent,
+    foregroundColor: AppColors.primaryDark,
   );
 
   // Input Decoration Themes
@@ -284,20 +287,21 @@ class AppTheme {
   static final InputDecorationTheme _darkInputDecorationTheme =
       InputDecorationTheme(
     filled: true,
-    fillColor: AppColors.surfaceVariantDark,
+    // Kart yüzeyinden (surfaceContainerHighest) ayrışsın diye daha koyu dolgu.
+    fillColor: AppColors.surfaceDark,
     contentPadding:
         const EdgeInsets.symmetric(horizontal: spacingMd, vertical: spacingMd),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(radiusMd),
-      borderSide: BorderSide.none,
+      borderSide: const BorderSide(color: Color(0xFF334155)),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(radiusMd),
-      borderSide: BorderSide.none,
+      borderSide: const BorderSide(color: Color(0xFF334155)),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(radiusMd),
-      borderSide: const BorderSide(color: AppColors.primaryLight, width: 2),
+      borderSide: const BorderSide(color: AppColors.primaryDarkAccent, width: 2),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(radiusMd),
@@ -338,7 +342,7 @@ class AppTheme {
 
   static const ChipThemeData _darkChipTheme = ChipThemeData(
     backgroundColor: AppColors.surfaceVariantDark,
-    selectedColor: AppColors.primaryLight,
+    selectedColor: AppColors.primaryDarkAccent,
     disabledColor: AppColors.neutral700,
     padding: EdgeInsets.symmetric(horizontal: spacingSm, vertical: spacingXs),
     shape: RoundedRectangleBorder(
@@ -372,7 +376,7 @@ class AppTheme {
   static const BottomNavigationBarThemeData _darkBottomNavTheme =
       BottomNavigationBarThemeData(
     backgroundColor: AppColors.surfaceDark,
-    selectedItemColor: AppColors.primaryLight,
+    selectedItemColor: AppColors.primaryDarkAccent,
     unselectedItemColor: AppColors.onSurfaceVariantDark,
     type: BottomNavigationBarType.fixed,
     elevation: elevationMd,
@@ -394,7 +398,7 @@ class AppTheme {
   static const NavigationBarThemeData _darkNavigationBarTheme =
       NavigationBarThemeData(
     backgroundColor: AppColors.surfaceDark,
-    indicatorColor: AppColors.primaryLight,
+    indicatorColor: AppColors.primaryDarkContainer,
     surfaceTintColor: Colors.transparent,
     elevation: elevationSm,
     height: 64,
@@ -412,9 +416,9 @@ class AppTheme {
   );
 
   static const TabBarThemeData _darkTabBarTheme = TabBarThemeData(
-    labelColor: AppColors.primaryLight,
-    unselectedLabelColor: AppColors.neutral400,
-    indicatorColor: AppColors.primaryLight,
+    labelColor: AppColors.primaryDarkAccent,
+    unselectedLabelColor: AppColors.onSurfaceVariantDark,
+    indicatorColor: AppColors.primaryDarkAccent,
     labelStyle: AppTypography.tabText,
     unselectedLabelStyle: AppTypography.tabText,
     indicatorSize: TabBarIndicatorSize.label,
@@ -428,7 +432,7 @@ class AppTheme {
   );
 
   static const DividerThemeData _darkDividerTheme = DividerThemeData(
-    color: AppColors.neutral600,
+    color: Color(0xFF334155),
     thickness: 1,
     space: 1,
   );
@@ -472,4 +476,24 @@ class AppTheme {
       borderRadius: BorderRadius.circular(radiusMd),
     ),
   );
+
+  /// Status bar ve navigation bar — aktif brightness'a göre.
+  static SystemUiOverlayStyle systemUiOverlayFor(Brightness brightness) {
+    if (brightness == Brightness.dark) {
+      return const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: AppColors.backgroundDark,
+        systemNavigationBarIconBrightness: Brightness.light,
+      );
+    }
+    return const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.surfaceLight,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    );
+  }
 }

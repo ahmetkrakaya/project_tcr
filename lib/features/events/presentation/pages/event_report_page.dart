@@ -16,6 +16,8 @@ import '../../domain/entities/event_entity.dart';
 import '../providers/event_provider.dart';
 import '../../../members_groups/presentation/providers/group_provider.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 enum GroupReportSortType { distance, duration, pace }
 
@@ -150,7 +152,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
+              color: ThemeBrightnessHolder.surface,
               border: Border(
                 bottom: BorderSide(
                   color: AppColors.neutral200,
@@ -189,7 +191,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                     Text(
                       'Etkinlik:',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -199,7 +201,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                       Text(
                         'Grup:',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -231,7 +233,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                         Icon(
                           Icons.bar_chart_outlined,
                           size: 64,
-                          color: AppColors.neutral400,
+                          color: ThemeBrightnessHolder.outline,
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -239,7 +241,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                               ? 'Seçilen tarih aralığında $eventTypeText etkinliği bulunamadı'
                               : 'Seçilen tarih aralığında etkinlik bulunamadı',
                           style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -317,7 +319,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -326,7 +328,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
             Text(
               label,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 4),
@@ -352,7 +354,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
       icon: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -368,7 +370,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
             Icon(
               Icons.arrow_drop_down,
               size: 18,
-              color: AppColors.neutral600,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ],
         ),
@@ -441,7 +443,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                border: Border.all(color: AppColors.neutral300),
+                border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -461,7 +463,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                   Icon(
                     Icons.arrow_drop_down,
                     size: 18,
-                    color: AppColors.neutral600,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ],
               ),
@@ -516,7 +518,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
       loading: () => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
           borderRadius: BorderRadius.circular(8),
         ),
         child: const SizedBox(
@@ -528,10 +530,10 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
       error: (_, __) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Icon(Icons.error_outline, size: 16),
+        child: Icon(Icons.error_outline, size: 16),
       ),
     );
   }
@@ -597,7 +599,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surfaceLight,
+            color: ThemeBrightnessHolder.surface,
             border: Border(
               bottom: BorderSide(
                 color: AppColors.neutral200,
@@ -636,7 +638,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                   Text(
                     'Grup:',
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -696,7 +698,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                     TextField(
                       decoration: InputDecoration(
                         hintText: 'İsim veya soyisime göre ara',
-                        prefixIcon: const Icon(Icons.search, size: 18),
+                        prefixIcon: Icon(Icons.search, size: 18),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 8,
@@ -751,7 +753,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
+        color: ThemeBrightnessHolder.surface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.neutral200),
       ),
@@ -780,7 +782,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
             child: Text(
               title,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
               maxLines: 1,
             ),
@@ -855,7 +857,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                           event.eventTitle,
                           style: AppTypography.bodyMedium.copyWith(
                             fontWeight: FontWeight.w600,
-                            color: AppColors.neutral800,
+                            color: ThemeBrightnessHolder.onSurface,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -865,7 +867,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                           DateFormat('dd.MM.yyyy EEEE – HH:mm', 'tr_TR')
                               .format(event.eventDate),
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                             fontSize: 11,
                           ),
                         ),
@@ -880,16 +882,16 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.people,
                             size: 14,
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             event.participantCount.toString(),
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral700,
+                              color: ThemeBrightnessHolder.onSurface,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -952,7 +954,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
       height: 300,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
+        color: ThemeBrightnessHolder.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.neutral200),
       ),
@@ -994,7 +996,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                     child: Text(
                       '${index + 1}',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral600,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1012,7 +1014,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                   return Text(
                     value.toInt().toString(),
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral600,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   );
                 },
@@ -1039,8 +1041,8 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
           borderData: FlBorderData(
             show: true,
             border: Border(
-              bottom: BorderSide(color: AppColors.neutral300),
-              left: BorderSide(color: AppColors.neutral300),
+              bottom: BorderSide(color: ThemeBrightnessHolder.outlineVariant),
+              left: BorderSide(color: ThemeBrightnessHolder.outlineVariant),
             ),
           ),
           barGroups: chartEvents.asMap().entries.map((entry) {
@@ -1232,37 +1234,37 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
           ),
           subtitle: Row(
             children: [
-              Icon(Icons.route, size: 14, color: AppColors.neutral500),
+              Icon(Icons.route, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 '${distanceKm.toStringAsFixed(2)} km',
                 style: AppTypography.bodySmall
-                    .copyWith(color: AppColors.neutral600),
+                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
               const SizedBox(width: 12),
-              Icon(Icons.timer_outlined, size: 14, color: AppColors.neutral500),
+              Icon(Icons.timer_outlined, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 formatDuration(user.totalDurationSeconds),
                 style: AppTypography.bodySmall
-                    .copyWith(color: AppColors.neutral600),
+                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
               const SizedBox(width: 12),
-              Icon(Icons.speed, size: 14, color: AppColors.neutral500),
+              Icon(Icons.speed, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 '$paceStr dk/km',
                 style: AppTypography.bodySmall
-                    .copyWith(color: AppColors.neutral600),
+                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
               const SizedBox(width: 12),
               Icon(Icons.directions_run,
-                  size: 14, color: AppColors.neutral500),
+                  size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 '${user.totalRuns} koşu',
                 style: AppTypography.bodySmall
-                    .copyWith(color: AppColors.neutral600),
+                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
             ],
           ),
@@ -1315,7 +1317,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
       height: 260,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
+        color: ThemeBrightnessHolder.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.neutral200),
       ),
@@ -1358,7 +1360,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                     child: Text(
                       '${index + 1}',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral600,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                         fontSize: 11,
                       ),
                     ),
@@ -1375,7 +1377,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                   return Text(
                     value.toStringAsFixed(0),
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral600,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   );
                 },
@@ -1402,8 +1404,8 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
           borderData: FlBorderData(
             show: true,
             border: Border(
-              bottom: BorderSide(color: AppColors.neutral300),
-              left: BorderSide(color: AppColors.neutral300),
+              bottom: BorderSide(color: ThemeBrightnessHolder.outlineVariant),
+              left: BorderSide(color: ThemeBrightnessHolder.outlineVariant),
             ),
           ),
           barGroups: List.generate(chartUsers.length, (index) {
@@ -1457,7 +1459,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surfaceLight,
+            color: ThemeBrightnessHolder.surface,
             border: Border(
               bottom: BorderSide(
                 color: AppColors.neutral200,
@@ -1508,7 +1510,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                   child: Text(
                     'Grup seçiniz',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                 )
@@ -1566,7 +1568,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                           TextField(
                             decoration: InputDecoration(
                               hintText: 'İsim veya soyisime göre ara',
-                              prefixIcon: const Icon(Icons.search, size: 18),
+                              prefixIcon: Icon(Icons.search, size: 18),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
@@ -1634,7 +1636,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
             decoration: BoxDecoration(
               color: AppColors.neutral100,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.neutral300),
+              border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1644,14 +1646,14 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                     selectedGroup?.name ?? 'Grup Seçiniz',
                     style: AppTypography.bodySmall.copyWith(
                       fontWeight: FontWeight.w500,
-                      color: AppColors.neutral700,
+                      color: ThemeBrightnessHolder.onSurface,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.arrow_drop_down, size: 20, color: AppColors.neutral600),
+                Icon(Icons.arrow_drop_down, size: 20, color: ThemeBrightnessHolder.onSurfaceVariant),
               ],
             ),
           ),
@@ -1704,7 +1706,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
         decoration: BoxDecoration(
           color: AppColors.neutral100,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1713,11 +1715,11 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
               getSortLabel(),
               style: AppTypography.bodySmall.copyWith(
                 fontWeight: FontWeight.w500,
-                color: AppColors.neutral700,
+                color: ThemeBrightnessHolder.onSurface,
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.arrow_drop_down, size: 20, color: AppColors.neutral600),
+            Icon(Icons.arrow_drop_down, size: 20, color: ThemeBrightnessHolder.onSurfaceVariant),
           ],
         ),
       ),
@@ -1811,27 +1813,27 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
           ),
           subtitle: Row(
             children: [
-              Icon(Icons.route, size: 14, color: AppColors.neutral500),
+              Icon(Icons.route, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 '${distanceKm.toStringAsFixed(2)} km',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+                style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
               const SizedBox(width: 12),
-              Icon(Icons.timer_outlined, size: 14, color: AppColors.neutral500),
+              Icon(Icons.timer_outlined, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 formatDuration(durationSeconds),
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+                style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
               const SizedBox(width: 12),
-              Icon(Icons.speed, size: 14, color: AppColors.neutral500),
+              Icon(Icons.speed, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 paceSecondsPerKm != null
                     ? '${formatPace(paceSecondsPerKm.toDouble())} dk/km'
                     : '-',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600),
+                style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
             ],
           ),
@@ -1861,7 +1863,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
         decoration: BoxDecoration(
           color: AppColors.neutral100,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1874,12 +1876,12 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                       : 'Pace',
               style: AppTypography.bodySmall.copyWith(
                 fontWeight: FontWeight.w500,
-                color: AppColors.neutral700,
+                color: ThemeBrightnessHolder.onSurface,
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.arrow_drop_down,
-                size: 20, color: AppColors.neutral600),
+            Icon(Icons.arrow_drop_down,
+                size: 20, color: ThemeBrightnessHolder.onSurfaceVariant),
           ],
         ),
       ),
@@ -1916,7 +1918,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
           return Text(
             'Tüm Gruplar',
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           );
         }
@@ -1935,7 +1937,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
             decoration: BoxDecoration(
               color: AppColors.neutral100,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.neutral300),
+              border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1944,13 +1946,13 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
                   selectedGroup?.name ?? 'Tüm Gruplar',
                   style: AppTypography.bodySmall.copyWith(
                     fontWeight: FontWeight.w500,
-                    color: AppColors.neutral700,
+                    color: ThemeBrightnessHolder.onSurface,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.arrow_drop_down,
-                    size: 20, color: AppColors.neutral600),
+                Icon(Icons.arrow_drop_down,
+                    size: 20, color: ThemeBrightnessHolder.onSurfaceVariant),
               ],
             ),
           ),
@@ -1978,7 +1980,7 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
       loading: () => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
           borderRadius: BorderRadius.circular(8),
         ),
         child: const SizedBox(
@@ -1990,10 +1992,10 @@ class _EventReportPageState extends ConsumerState<EventReportPage> with SingleTi
       error: (_, __) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.neutral300),
+          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Icon(Icons.error_outline, size: 16),
+        child: Icon(Icons.error_outline, size: 16),
       ),
     );
   }

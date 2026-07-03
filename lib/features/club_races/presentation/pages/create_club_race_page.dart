@@ -9,6 +9,7 @@ import '../../../../shared/widgets/app_text_field.dart';
 import '../../../events/presentation/widgets/event_location_picker_sheet.dart';
 import '../../domain/entities/club_race_entity.dart';
 import '../providers/club_race_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Yeni Yarış Ekleme / Düzenleme Sayfası (Admin Only)
 class CreateClubRacePage extends ConsumerStatefulWidget {
@@ -160,7 +161,7 @@ class _CreateClubRacePageState extends ConsumerState<CreateClubRacePage> {
                             Text(
                               '${_locationLat!.toStringAsFixed(4)}, ${_locationLng!.toStringAsFixed(4)}',
                               style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.neutral500,
+                                color: ThemeBrightnessHolder.onSurfaceVariant,
                               ),
                             ),
                         ],
@@ -168,7 +169,7 @@ class _CreateClubRacePageState extends ConsumerState<CreateClubRacePage> {
                     ),
                     Icon(
                       Icons.chevron_right,
-                      color: AppColors.neutral400,
+                      color: ThemeBrightnessHolder.outline,
                     ),
                   ],
                 ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/theme_brightness_holder.dart';
 
 /// User Avatar Widget
 class UserAvatar extends StatelessWidget {
@@ -65,7 +66,7 @@ class UserAvatar extends StatelessWidget {
                 color: AppColors.success,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: Theme.of(context).scaffoldBackgroundColor,
+                  color: ThemeBrightnessHolder.scaffoldBackground,
                   width: 2,
                 ),
               ),
@@ -153,7 +154,7 @@ class AvatarGroup extends StatelessWidget {
                 name: names?[i],
                 size: size,
                 showBorder: true,
-                borderColor: Theme.of(context).scaffoldBackgroundColor,
+                borderColor: ThemeBrightnessHolder.scaffoldBackground,
               ),
             ),
           if (remaining > 0)
@@ -166,7 +167,7 @@ class AvatarGroup extends StatelessWidget {
                   color: AppColors.neutral200,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Theme.of(context).scaffoldBackgroundColor,
+                    color: ThemeBrightnessHolder.scaffoldBackground,
                     width: 2,
                   ),
                 ),
@@ -174,7 +175,7 @@ class AvatarGroup extends StatelessWidget {
                   child: Text(
                     '+$remaining',
                     style: TextStyle(
-                      color: AppColors.neutral700,
+                      color: ThemeBrightnessHolder.onSurface,
                       fontSize: size * 0.35,
                       fontWeight: FontWeight.bold,
                     ),
@@ -222,7 +223,7 @@ class RoleAvatarBadge extends StatelessWidget {
                 color: _getBadgeColor(),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: Theme.of(context).scaffoldBackgroundColor,
+                  color: ThemeBrightnessHolder.scaffoldBackground,
                   width: 2,
                 ),
               ),

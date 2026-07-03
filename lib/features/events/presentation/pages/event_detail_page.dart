@@ -38,6 +38,7 @@ import '../../domain/entities/event_entity.dart';
 import '../../domain/repositories/event_results_repository.dart';
 import '../providers/event_provider.dart';
 import '../widgets/event_info_blocks_viewer.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Event Detail Page
 class EventDetailPage extends ConsumerStatefulWidget {
@@ -149,7 +150,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(Icons.arrow_back),
                 onPressed: () => context.pop(),
               ),
             ),
@@ -185,7 +186,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                 child: Builder(
                   builder: (ctx) {
                     return IconButton(
-                      icon: const Icon(Icons.share),
+                      icon: Icon(Icons.share),
                       splashRadius: 24,
                       onPressed: () async {
                         try {
@@ -269,14 +270,22 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                         ],
                       ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'save_template',
-                      child: Row(
-                        children: [
-                          Icon(Icons.bookmark_add_outlined, color: AppColors.primary),
-                          SizedBox(width: 8),
-                          Text('Şablon Olarak Kaydet', style: TextStyle(color: AppColors.primary)),
-                        ],
+                      child: Builder(
+                        builder: (menuCtx) {
+                          final menuCs = Theme.of(menuCtx).colorScheme;
+                          return Row(
+                            children: [
+                              Icon(Icons.bookmark_add_outlined, color: menuCs.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Şablon Olarak Kaydet',
+                                style: TextStyle(color: menuCs.primary),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                     const PopupMenuItem(
@@ -351,6 +360,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   // Weather Note
                   if (event.weatherNote != null && event.weatherNote!.isNotEmpty)
                     _buildInfoRow(
+                      context: context,
                       icon: Icons.wb_sunny_outlined,
                       title: 'Hava Durumu Notu',
                       subtitle: event.weatherNote!,
@@ -373,7 +383,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                     LinkifyText(
                       text: event.description!,
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.neutral600,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -411,12 +421,13 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
 
                   // Participants Section
                   _buildSectionHeader(
+                    context,
                     'Katılımcılar (${event.participantCount})',
                     actionText: event.participantCount > 0 ? 'Tümünü Gör' : null,
                     onAction: () => _showParticipantsSheet(context, event, participantsAsync),
                   ),
                   const SizedBox(height: 12),
-                  _buildParticipantsSection(participantsAsync),
+                  _buildParticipantsSection(context, participantsAsync),
                   const SizedBox(height: 24),
 
                   // Yarış Sonuçları (sadece yarış tipi etkinliklerde göster)
@@ -455,11 +466,13 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   }
 
   Widget _buildInfoRow({
+    required BuildContext context,
     required IconData icon,
     required String title,
     required String subtitle,
     VoidCallback? onTap,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final content = Padding(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       child: Row(
@@ -468,10 +481,10 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: AppColors.primaryContainer,
+              color: cs.primaryContainer,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: AppColors.primary, size: 22),
+            child: Icon(icon, color: cs.primary, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -483,14 +496,14 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   Text(
                     subtitle,
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
               ],
             ),
           ),
           if (onTap != null)
-            const Icon(Icons.chevron_right, color: AppColors.neutral400),
+            Icon(Icons.chevron_right, color: cs.outline),
         ],
       ),
     );
@@ -501,8 +514,8 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(8),
-          splashColor: AppColors.primary.withValues(alpha: 0.1),
-          highlightColor: AppColors.primary.withValues(alpha: 0.05),
+          splashColor: cs.primary.withValues(alpha: 0.1),
+          highlightColor: cs.primary.withValues(alpha: 0.05),
           child: content,
         ),
       );
@@ -512,10 +525,12 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   }
 
   Widget _buildSectionHeader(
+    BuildContext context,
     String title, {
     String? actionText,
     VoidCallback? onAction,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -526,7 +541,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             child: Text(
               actionText,
               style: AppTypography.labelLarge.copyWith(
-                color: AppColors.primary,
+                color: cs.primary,
               ),
             ),
           ),
@@ -535,15 +550,17 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   }
 
   Widget _buildParticipantsSection(
+    BuildContext context,
     AsyncValue<List<EventParticipantEntity>> participantsAsync,
   ) {
+    final cs = Theme.of(context).colorScheme;
     return participantsAsync.when(
       data: (participants) {
         if (participants.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: AppColors.neutral100,
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -551,13 +568,13 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               children: [
                 Icon(
                   Icons.people_outline,
-                  color: AppColors.neutral400,
+                  color: cs.outline,
                 ),
                 const SizedBox(width: 12),
                 Text(
                   'Henüz katılımcı yok',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: cs.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -573,7 +590,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                 child: Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+                    border: Border.all(color: cs.surface, width: 2),
                   ),
                   child: UserAvatar(
                     size: 40,
@@ -589,15 +606,15 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.neutral200,
+                    color: cs.surfaceContainerHigh,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+                    border: Border.all(color: cs.surface, width: 2),
                   ),
                   child: Center(
                     child: Text(
                       '+${participants.length - 6}',
                       style: AppTypography.labelMedium.copyWith(
-                        color: AppColors.neutral700,
+                        color: cs.onSurface,
                       ),
                     ),
                   ),
@@ -618,6 +635,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     required EventEntity event,
   }) {
     final isAdmin = ref.watch(isAdminProvider);
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -631,10 +649,10 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             if (isAdmin)
               TextButton.icon(
                 onPressed: () => _showResultsManagementDialog(context, ref, event),
-                icon: const Icon(Icons.settings, size: 18),
+                icon: Icon(Icons.settings, size: 18),
                 label: const Text('Yönet'),
                 style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
+                  foregroundColor: cs.primary,
                 ),
               ),
           ],
@@ -646,7 +664,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               return Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppColors.neutral100,
+                  color: cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -654,7 +672,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                       ? 'Bu yarış için henüz sonuç yüklenmemiş.\nYukarıdaki "Yönet" butonundan şablonu indirip doldurarak sonuçları yükleyebilirsiniz.'
                       : 'Bu yarış için sonuçlar henüz yayınlanmadı.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral600,
+                    color: cs.onSurfaceVariant,
                   ),
                 ),
               );
@@ -667,10 +685,10 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.05),
+                  color: cs.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.2),
+                    color: cs.primary.withValues(alpha: 0.22),
                   ),
                 ),
                 child: Row(
@@ -678,12 +696,12 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
+                        color: cs.primary,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.emoji_events,
-                        color: Colors.white,
+                        color: cs.onPrimary,
                         size: 24,
                       ),
                     ),
@@ -702,15 +720,15 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           Text(
                             'Sıralamayı görüntülemek için dokunun',
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral600,
+                              color: cs.onSurfaceVariant,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(
+                    Icon(
                       Icons.chevron_right,
-                      color: AppColors.neutral400,
+                      color: cs.outline,
                     ),
                   ],
                 ),
@@ -740,6 +758,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   ) {
     final isLoading = rsvpState.isLoading;
     final userRsvpStatus = event.currentUserRsvpStatus;
+    final cs = Theme.of(context).colorScheme;
 
     if (!_shouldShowParticipationBottomBar(event)) {
       return const SizedBox.shrink();
@@ -753,7 +772,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
+          color: cs.surface,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
@@ -768,22 +787,25 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
+                color: cs.primary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: cs.primary,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(
                     'Katılım durumu güncelleniyor...',
                     style: AppTypography.labelLarge.copyWith(
-                      color: AppColors.primary,
+                      color: cs.primary,
                     ),
                   ),
                 ],
@@ -846,7 +868,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.check_circle,
                               color: AppColors.success,
                               size: 20,
@@ -881,7 +903,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           event,
                           isRouteChange: true,
                         ),
-                        icon: const Icon(Icons.swap_horiz, size: 16),
+                        icon: Icon(Icons.swap_horiz, size: 16),
                         label: Text(
                           'Pist Değiştir',
                           style: AppTypography.labelSmall.copyWith(
@@ -889,7 +911,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           ),
                         ),
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.primary,
+                          foregroundColor: cs.primary,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 2,
@@ -925,22 +947,22 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.neutral100,
+                      color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.cancel_outlined,
-                          color: AppColors.neutral600,
+                          color: cs.onSurfaceVariant,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'Katılmıyorsunuz',
                           style: AppTypography.labelLarge.copyWith(
-                            color: AppColors.neutral700,
+                            color: cs.onSurface,
                           ),
                         ),
                       ],
@@ -1089,7 +1111,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               Text(
                 'Katılacağınız pisti seçin.',
                 style: AppTypography.bodySmall
-                    .copyWith(color: AppColors.neutral600),
+                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
               const SizedBox(height: 12),
               ...options.map(
@@ -1160,7 +1182,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   Text(
                     'Katılıyorum demeden önce mesafe/kategori seçmelisiniz.',
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral600,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1445,10 +1467,10 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             event.bannerImageUrl!,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) =>
-                _buildDefaultBanner(event),
+                _buildDefaultBanner(context, event),
           )
         else
-          _buildDefaultBanner(event),
+          _buildDefaultBanner(context, event),
 
         // Gradient yalnızca görsel; dokunuşları engellemesin
         IgnorePointer(
@@ -1519,7 +1541,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.camera_alt,
                       color: Colors.white,
                       size: 18,
@@ -1540,13 +1562,39 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     );
   }
 
-  Widget _buildDefaultBanner(EventEntity event) {
+  Widget _buildDefaultBanner(BuildContext context, EventEntity event) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final typeColor = _getEventTypeColor(event.eventType);
+
+    if (isDark) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              cs.surfaceContainerHigh,
+              Color.lerp(cs.surfaceContainerHighest, typeColor, 0.22)!,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: Icon(
+            _getEventTypeIcon(event.eventType),
+            size: 80,
+            color: typeColor.withValues(alpha: 0.55),
+          ),
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            _getEventTypeColor(event.eventType),
-            _getEventTypeColor(event.eventType).withValues(alpha: 0.7),
+            typeColor,
+            typeColor.withValues(alpha: 0.7),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -1563,69 +1611,83 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   }
 
   void _showBannerOptions(BuildContext context, WidgetRef ref, EventEntity event) {
-    // Bottom sheet kapandıktan sonra sheet'in context'i unmount olur.
-    // Picker / snackbar gibi işlemler için sayfanın context'ini kullan.
     final pageContext = context;
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Banner Fotoğrafı', style: AppTypography.titleLarge),
-              const SizedBox(height: 20),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.photo_library, color: AppColors.primary),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (sheetContext) {
+        final cs = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Banner Fotoğrafı',
+                  style: AppTypography.titleLarge.copyWith(color: cs.onSurface),
                 ),
-                title: const Text('Galeriden Seç'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Future.microtask(() => _pickBannerImage(pageContext, ref, event));
-                },
-              ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.camera_alt, color: AppColors.secondary),
-                ),
-                title: const Text('Kamera ile Çek'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Future.microtask(() => _takeBannerPhoto(pageContext, ref, event));
-                },
-              ),
-              if (event.bannerImageUrl != null && event.bannerImageUrl!.isNotEmpty)
+                const SizedBox(height: 20),
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha: 0.1),
+                      color: cs.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.delete, color: AppColors.error),
+                    child: Icon(Icons.photo_library, color: cs.primary),
                   ),
-                  title: const Text('Fotoğrafı Kaldır'),
+                  title: Text(
+                    'Galeriden Seç',
+                    style: TextStyle(color: cs.onSurface),
+                  ),
                   onTap: () {
-                    Navigator.pop(context);
-                    Future.microtask(() => _removeBannerImage(pageContext, ref, event));
+                    Navigator.pop(sheetContext);
+                    Future.microtask(() => _pickBannerImage(pageContext, ref, event));
                   },
                 ),
-            ],
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.camera_alt, color: AppColors.secondary),
+                  ),
+                  title: Text(
+                    'Kamera ile Çek',
+                    style: TextStyle(color: cs.onSurface),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    Future.microtask(() => _takeBannerPhoto(pageContext, ref, event));
+                  },
+                ),
+                if (event.bannerImageUrl != null && event.bannerImageUrl!.isNotEmpty)
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.delete, color: AppColors.error),
+                    ),
+                    title: Text(
+                      'Fotoğrafı Kaldır',
+                      style: TextStyle(color: cs.onSurface),
+                    ),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      Future.microtask(() => _removeBannerImage(pageContext, ref, event));
+                    },
+                  ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1790,6 +1852,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   }
 
   Widget _buildTrainingTypeCard(BuildContext context, EventEntity event, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final typeColor = _parseColor(event.trainingTypeColor);
     final userVdot = ref.watch(userVdotProvider);
     
@@ -1839,7 +1902,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                     Text(
                       'Antrenman Türü',
                       style: AppTypography.labelMedium.copyWith(
-                        color: AppColors.neutral500,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -1861,13 +1924,13 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.5),
+                color: cs.surface.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 event.trainingTypeDescription!,
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.neutral700,
+                  color: cs.onSurface,
                   height: 1.5,
                 ),
               ),
@@ -1913,7 +1976,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                         Text(
                           'Senin Önerilen Pace\'in',
                           style: AppTypography.labelSmall.copyWith(
-                            color: AppColors.neutral600,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -1938,10 +2001,10 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.neutral100,
+                  color: cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.neutral200,
+                    color: cs.outlineVariant,
                   ),
                 ),
                 child: Row(
@@ -1949,21 +2012,21 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                     Icon(
                       Icons.info_outline,
                       size: 18,
-                      color: AppColors.neutral500,
+                      color: cs.onSurfaceVariant,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Kişisel pace önerisi için VDOT hesapla',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral600,
+                          color: cs.onSurfaceVariant,
                         ),
                       ),
                     ),
                     Icon(
                       Icons.arrow_forward_ios,
                       size: 14,
-                      color: AppColors.neutral400,
+                      color: cs.outline,
                     ),
                   ],
                 ),
@@ -2018,6 +2081,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   }
 
   Widget _buildChatSection(BuildContext context, String eventId, EventEntity event) {
+    final cs = Theme.of(context).colorScheme;
     // Etkinlik bittikten 1 gün sonra chat'e hala erişilebilir ama salt okunur olacak
     final eventEndTime = event.endTime ?? event.startTime.add(const Duration(hours: 2));
     final chatDeadline = eventEndTime.add(const Duration(days: 1));
@@ -2035,13 +2099,13 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             height: 56,
             decoration: BoxDecoration(
               color: isExpired
-                  ? AppColors.neutral200
+                  ? cs.surfaceContainerHigh
                   : AppColors.secondaryContainer,
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               Icons.chat_bubble_outlined,
-              color: isExpired ? AppColors.neutral400 : AppColors.secondary,
+              color: isExpired ? cs.onSurfaceVariant : AppColors.secondary,
               size: 28,
             ),
           ),
@@ -2060,7 +2124,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                       ? 'Sohbet artık salt okunur'
                       : 'Katılımcılarla iletişime geç',
                   style: AppTypography.bodySmall.copyWith(
-                    color: isExpired ? AppColors.neutral400 : AppColors.neutral600,
+                    color: isExpired ? cs.onSurfaceVariant : cs.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -2070,14 +2134,14 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: isExpired
-                  ? AppColors.neutral100
+                  ? cs.surfaceContainerHighest
                   : AppColors.secondary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               Icons.arrow_forward_ios,
               size: 16,
-              color: isExpired ? AppColors.neutral400 : AppColors.secondary,
+              color: isExpired ? cs.outline : AppColors.secondary,
             ),
           ),
         ],
@@ -2173,6 +2237,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     int locationLabelMaxLines = 1,
     double? locationLabelMaxWidth = 180,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final screenW = MediaQuery.sizeOf(context).width;
     final double chipMaxW;
     if (locationLabelMaxWidth == null) {
@@ -2189,22 +2254,22 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.calendar_today_outlined, size: 16, color: AppColors.neutral500),
+            Icon(Icons.calendar_today_outlined, size: 16, color: cs.onSurfaceVariant),
             const SizedBox(width: 6),
             Text(
               '${event.dayOfWeek}, ${event.formattedDate}',
-              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral700),
+              style: AppTypography.bodySmall.copyWith(color: cs.onSurface),
             ),
           ],
         ),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.access_time, size: 16, color: AppColors.neutral500),
+            Icon(Icons.access_time, size: 16, color: cs.onSurfaceVariant),
             const SizedBox(width: 6),
             Text(
               event.formattedTime,
-              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral700),
+              style: AppTypography.bodySmall.copyWith(color: cs.onSurface),
             ),
           ],
         ),
@@ -2220,16 +2285,16 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.09),
+                    color: cs.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.42),
+                      color: cs.primary.withValues(alpha: 0.35),
                     ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.map_rounded, size: 22, color: AppColors.primary),
+                      Icon(Icons.map_rounded, size: 22, color: cs.primary),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -2239,7 +2304,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                             Text(
                               locationRouteLabel,
                               style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.neutral900,
+                                color: cs.onSurface,
                                 fontWeight: FontWeight.w600,
                                 height: 1.25,
                               ),
@@ -2252,14 +2317,14 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                                 Icon(
                                   Icons.navigation_rounded,
                                   size: 14,
-                                  color: AppColors.primary,
+                                  color: cs.primary,
                                 ),
                                 const SizedBox(width: 4),
                                 Flexible(
                                   child: Text(
                                     'Yol tarifi ve harita için dokunun',
                                     style: AppTypography.labelSmall.copyWith(
-                                      color: AppColors.primary,
+                                      color: cs.primary,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -2273,7 +2338,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                       Icon(
                         Icons.keyboard_arrow_right_rounded,
                         size: 22,
-                        color: AppColors.primary,
+                        color: cs.primary,
                       ),
                     ],
                   ),
@@ -2342,7 +2407,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                       Text(
                         route.locationName!,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -2372,15 +2437,15 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                       runSpacing: 4,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Icon(Icons.straighten, size: 14, color: AppColors.neutral500),
+                        Icon(Icons.straighten, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
                         Text(
                           route.formattedDistance,
-                          style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                          style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                         ),
-                        Icon(Icons.trending_up, size: 14, color: AppColors.neutral500),
+                        Icon(Icons.trending_up, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
                         Text(
                           route.formattedElevationGain,
-                          style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                          style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -2499,7 +2564,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           Text(
                             event.locationAddress!,
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral500,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -2540,7 +2605,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                                   'Mesafe',
                                   style: AppTypography.labelMedium.copyWith(
                                     fontWeight: FontWeight.w800,
-                                    color: AppColors.neutral700,
+                                    color: ThemeBrightnessHolder.onSurface,
                                   ),
                                 ),
                               ),
@@ -2572,7 +2637,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           Text(
                             '${variants.length} farklı rota seçeneği',
                             style: AppTypography.labelSmall.copyWith(
-                              color: AppColors.neutral600,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -2580,7 +2645,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                             'Seçili Rota: ${selectedVariant?.label ?? variants[selectedVariantIndex].label} • '
                             '${(selectedVariant?.formattedDistance ?? variants[selectedVariantIndex].formattedDistance)}',
                             style: AppTypography.labelMedium.copyWith(
-                              color: AppColors.neutral800,
+                              color: ThemeBrightnessHolder.onSurface,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -2591,16 +2656,16 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           runSpacing: 4,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            Icon(Icons.straighten, size: 14, color: AppColors.neutral500),
+                            Icon(Icons.straighten, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
                             Text(
                               selectedVariant?.formattedDistance ?? route.formattedDistance,
-                              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                              style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                             ),
-                            Icon(Icons.trending_up, size: 14, color: AppColors.neutral500),
+                            Icon(Icons.trending_up, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
                             Text(
                               selectedVariant?.formattedElevationGain ??
                                   route.formattedElevationGain,
-                              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+                              style: AppTypography.bodySmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                             ),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -2626,7 +2691,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                 padding: const EdgeInsets.all(24),
                 child: Row(
                   children: [
-                    Icon(Icons.location_on_outlined, color: AppColors.neutral400, size: 24),
+                    Icon(Icons.location_on_outlined, color: ThemeBrightnessHolder.outline, size: 24),
                     const SizedBox(width: 12),
                     const Expanded(
                       child: SizedBox(
@@ -2687,7 +2752,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             Text(
               event.locationAddress!,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -2724,93 +2789,97 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (modalContext) => SafeArea(
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.neutral300,
-                  borderRadius: BorderRadius.circular(2),
+      builder: (modalContext) {
+        final cs = Theme.of(modalContext).colorScheme;
+        return SafeArea(
+          child: Container(
+            decoration: BoxDecoration(
+              color: cs.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: cs.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                child: Consumer(
-                  builder: (_, ref, __) {
-                    if (event.eventType == EventType.training) {
-                      return ref.watch(eventRouteOptionsProvider(event.id)).when(
-                        data: (opts) {
-                          if (opts.isNotEmpty) {
-                            return Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  opts.length > 1
-                                      ? 'Antrenman rotaları (${opts.length})'
-                                      : 'Antrenman rotası',
-                                  style: AppTypography.titleSmall.copyWith(
-                                    fontWeight: FontWeight.w600,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  child: Consumer(
+                    builder: (_, ref, __) {
+                      if (event.eventType == EventType.training) {
+                        return ref.watch(eventRouteOptionsProvider(event.id)).when(
+                          data: (opts) {
+                            if (opts.isNotEmpty) {
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text(
+                                    opts.length > 1
+                                        ? 'Antrenman rotaları (${opts.length})'
+                                        : 'Antrenman rotası',
+                                    style: AppTypography.titleSmall.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: cs.onSurface,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                _trainingRouteOptionsSheetBody(
-                                  modalContext,
-                                  hostContext,
-                                  ref,
-                                  event,
-                                  opts,
-                                ),
-                              ],
+                                  const SizedBox(height: 8),
+                                  _trainingRouteOptionsSheetBody(
+                                    modalContext,
+                                    hostContext,
+                                    ref,
+                                    event,
+                                    opts,
+                                  ),
+                                ],
+                              );
+                            }
+                            return _legacyLocationRouteSheetBody(
+                              modalContext,
+                              hostContext,
+                              ref,
+                              event,
                             );
-                          }
-                          return _legacyLocationRouteSheetBody(
+                          },
+                          loading: () => const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 28),
+                            child: Center(
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                          ),
+                          error: (_, __) => _legacyLocationRouteSheetBody(
                             modalContext,
                             hostContext,
                             ref,
                             event,
-                          );
-                        },
-                        loading: () => const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 28),
-                          child: Center(
-                            child: SizedBox(
-                              width: 28,
-                              height: 28,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
                           ),
-                        ),
-                        error: (_, __) => _legacyLocationRouteSheetBody(
-                          modalContext,
-                          hostContext,
-                          ref,
-                          event,
-                        ),
+                        );
+                      }
+                      return _legacyLocationRouteSheetBody(
+                        modalContext,
+                        hostContext,
+                        ref,
+                        event,
                       );
-                    }
-                    return _legacyLocationRouteSheetBody(
-                      modalContext,
-                      hostContext,
-                      ref,
-                      event,
-                    );
-                  },
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -2908,7 +2977,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                     color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.download, color: AppColors.primary),
+                  child: Icon(Icons.download, color: AppColors.primary),
                 ),
                 title: const Text('Şablonu İndir / Paylaş'),
                 subtitle: const Text(
@@ -2926,7 +2995,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                     color: AppColors.secondary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.upload, color: AppColors.secondary),
+                  child: Icon(Icons.upload, color: AppColors.secondary),
                 ),
                 title: const Text('Sonuçları İçe Aktar'),
                 subtitle: const Text(
@@ -3197,7 +3266,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
       builder: (dialogContext) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.warning, color: AppColors.warning),
+            Icon(Icons.warning, color: AppColors.warning),
             const SizedBox(width: 8),
             Text('${errors.length} Satırda Hata'),
           ],
@@ -3289,7 +3358,7 @@ class _ResultsModalContentState extends State<_ResultsModalContent> {
                   style: AppTypography.titleLarge,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -3307,7 +3376,7 @@ class _ResultsModalContentState extends State<_ResultsModalContent> {
                       child: Text(
                         'Sonuç bulunamadı',
                         style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -3390,13 +3459,13 @@ class _ResultsModalContentState extends State<_ResultsModalContent> {
                         decoration: BoxDecoration(
                           color: AppColors.neutral100,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.neutral300),
+                          border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: _selectedRankingType,
                             isExpanded: true,
-                            icon: const Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+                            icon: Icon(Icons.arrow_drop_down, color: ThemeBrightnessHolder.onSurfaceVariant),
                             style: AppTypography.bodyMedium.copyWith(
                               color: AppColors.neutral900,
                             ),
@@ -3433,13 +3502,13 @@ class _ResultsModalContentState extends State<_ResultsModalContent> {
                           decoration: BoxDecoration(
                             color: AppColors.neutral100,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.neutral300),
+                            border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                           ),
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String?>(
                               value: dropdownSelectedCategory,
                               isExpanded: true,
-                              icon: const Icon(Icons.arrow_drop_down, color: AppColors.neutral600),
+                              icon: Icon(Icons.arrow_drop_down, color: ThemeBrightnessHolder.onSurfaceVariant),
                               style: AppTypography.bodyMedium.copyWith(
                                 color: AppColors.neutral900,
                               ),
@@ -3468,7 +3537,7 @@ class _ResultsModalContentState extends State<_ResultsModalContent> {
                                 child: Text(
                                   'Bu kategoride sonuç bulunamadı',
                                   style: AppTypography.bodyMedium.copyWith(
-                                    color: AppColors.neutral500,
+                                    color: ThemeBrightnessHolder.onSurfaceVariant,
                                   ),
                                 ),
                               ),
@@ -3647,7 +3716,7 @@ class _ParticipantsTabSheet extends ConsumerWidget {
               children: [
                 Text('Katılımcılar', style: AppTypography.titleLarge),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -4031,7 +4100,7 @@ class _RaceCategoryBodyState extends State<_RaceCategoryBody>
           child: Text(
             'Yarış Kategorisi',
             style: AppTypography.labelSmall.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -4080,12 +4149,12 @@ class _FlatParticipantList extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.people_outline, size: 48, color: AppColors.neutral300),
+              Icon(Icons.people_outline, size: 48, color: ThemeBrightnessHolder.outlineVariant),
               const SizedBox(height: 12),
               Text(
                 'Bu kategoride katılımcı yok',
                 style: AppTypography.bodyMedium
-                    .copyWith(color: AppColors.neutral500),
+                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
             ],
           ),
@@ -4122,7 +4191,7 @@ class _FlatParticipantList extends StatelessWidget {
             ),
           ),
           trailing: p.checkedIn
-              ? const Icon(Icons.check_circle, color: AppColors.success)
+              ? Icon(Icons.check_circle, color: AppColors.success)
               : null,
         );
       },
@@ -4140,7 +4209,7 @@ class _SheetHandle extends StatelessWidget {
       width: 40,
       height: 4,
       decoration: BoxDecoration(
-        color: AppColors.neutral300,
+        color: ThemeBrightnessHolder.outlineVariant,
         borderRadius: BorderRadius.circular(2),
       ),
     );

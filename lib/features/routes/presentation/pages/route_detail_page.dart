@@ -15,6 +15,7 @@ import '../../domain/entities/route_entity.dart';
 import '../providers/route_provider.dart';
 import '../widgets/route_map_view.dart';
 import '../widgets/elevation_chart.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Rota Detay Sayfası
 class RouteDetailPage extends ConsumerStatefulWidget {
@@ -70,7 +71,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+              Icon(Icons.error_outline, size: 48, color: AppColors.error),
               const SizedBox(height: 16),
               Text('Hata: $error'),
               const SizedBox(height: 16),
@@ -157,7 +158,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
             title: Text(route.name),
             actions: [
               IconButton(
-                icon: const Icon(Icons.share),
+                icon: Icon(Icons.share),
                 onPressed: () => _shareRoute(route),
               ),
               if (isAdminOrCoach)
@@ -226,7 +227,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                                     'Mesafe',
                                     style: AppTypography.labelMedium.copyWith(
                                       fontWeight: FontWeight.w800,
-                                      color: AppColors.neutral700,
+                                      color: ThemeBrightnessHolder.onSurface,
                                     ),
                                   ),
                                 ),
@@ -253,7 +254,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                             Text(
                               '${route.gpxVariants.length} farklı rota seçeneği',
                               style: AppTypography.labelSmall.copyWith(
-                                color: AppColors.neutral600,
+                                color: ThemeBrightnessHolder.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -261,7 +262,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                               'Seçili Rota: ${selectedVariant?.label ?? route.gpxVariants[safeVariantIndex].label} • '
                               '${(selectedVariant?.formattedDistance ?? route.gpxVariants[safeVariantIndex].formattedDistance)}',
                               style: AppTypography.labelMedium.copyWith(
-                                color: AppColors.neutral800,
+                                color: ThemeBrightnessHolder.onSurface,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -340,7 +341,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                             heroTag: 'fullscreen',
                             onPressed: () => _openFullscreenMap(context, coordinatesAsync, route),
                             backgroundColor: Colors.white,
-                            child: const Icon(Icons.fullscreen, color: AppColors.primary),
+                            child: Icon(Icons.fullscreen, color: AppColors.primary),
                           ),
                         ),
                       ],
@@ -392,15 +393,15 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
   Widget _buildNoMapPlaceholder() {
     return Container(
       color: AppColors.neutral200,
-      child: const Center(
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.map_outlined, size: 48, color: AppColors.neutral400),
+            Icon(Icons.map_outlined, size: 48, color: ThemeBrightnessHolder.outline),
             SizedBox(height: 8),
             Text(
               'Harita verisi yok',
-              style: TextStyle(color: AppColors.neutral500),
+              style: TextStyle(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
           ],
         ),
@@ -537,7 +538,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
           Text(
             label,
             style: AppTypography.labelSmall.copyWith(
-              color: AppColors.neutral600,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
         ],
@@ -618,7 +619,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
             const SizedBox(width: 12),
             Text(
               'Konum',
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral600),
+              style: AppTypography.bodyMedium.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -701,11 +702,11 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
     return Row(
       crossAxisAlignment: isMultiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 20, color: AppColors.neutral500),
+        Icon(icon, size: 20, color: ThemeBrightnessHolder.onSurfaceVariant),
         const SizedBox(width: 12),
         Text(
           label,
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral600),
+          style: AppTypography.bodyMedium.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -856,7 +857,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                 ),
               ],
             ),
-            child: const Icon(Icons.arrow_back, color: AppColors.neutral700),
+            child: Icon(Icons.arrow_back, color: ThemeBrightnessHolder.onSurface),
           ),
           onPressed: () => Navigator.pop(context),
         ),

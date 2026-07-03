@@ -9,6 +9,8 @@ import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../data/models/engagement_excuse_model.dart';
 import '../providers/engagement_excuse_provider.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Admin mazaret yönetim sayfası
 class EngagementExcusesAdminPage extends ConsumerWidget {
@@ -142,7 +144,7 @@ class _ExcuseSectionState extends ConsumerState<_ExcuseSection> {
                         Text(
                           widget.subtitle,
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -150,7 +152,7 @@ class _ExcuseSectionState extends ConsumerState<_ExcuseSection> {
                   ),
                   Icon(
                     _isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ],
               ),
@@ -295,7 +297,7 @@ class _ExcuseItemCardState extends ConsumerState<_ExcuseItemCard> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.backgroundLight,
+        color: ThemeBrightnessHolder.scaffoldBackground,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.neutral200),
       ),
@@ -319,7 +321,7 @@ class _ExcuseItemCardState extends ConsumerState<_ExcuseItemCard> {
                     Text(
                       EngagementExcuseType.label(item.excuseType),
                       style: AppTypography.labelSmall.copyWith(
-                        color: AppColors.neutral600,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -330,12 +332,12 @@ class _ExcuseItemCardState extends ConsumerState<_ExcuseItemCard> {
           const SizedBox(height: 8),
           Text(
             'Gönderim: ${_formatDate(item.sentAt)}',
-            style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500),
+            style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
           ),
           if (item.submittedAt != null)
             Text(
               'Mazaret tarihi: ${_formatDate(item.submittedAt)}',
-              style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500),
+              style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
             ),
           if (widget.showExemptUntil)
             Text(
@@ -352,7 +354,7 @@ class _ExcuseItemCardState extends ConsumerState<_ExcuseItemCard> {
             Text(
               item.excuseText!,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral700,
+                color: ThemeBrightnessHolder.onSurface,
                 height: 1.4,
               ),
             ),
@@ -364,7 +366,7 @@ class _ExcuseItemCardState extends ConsumerState<_ExcuseItemCard> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: _isProcessing ? null : _accept,
-                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    icon: Icon(Icons.check_circle_outline, size: 18),
                     label: const Text('Kabul Et'),
                   ),
                 ),
@@ -372,7 +374,7 @@ class _ExcuseItemCardState extends ConsumerState<_ExcuseItemCard> {
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: _isProcessing ? null : _ban,
-                    icon: const Icon(Icons.block, size: 18),
+                    icon: Icon(Icons.block, size: 18),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.error,
                     ),
@@ -420,7 +422,7 @@ class _AcceptExcuseDialogState extends State<_AcceptExcuseDialog> {
           Text(
             'Bu süre boyunca kullanıcı ilgili listede görünmez.',
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral600,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 16),

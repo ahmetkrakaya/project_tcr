@@ -25,6 +25,7 @@ import '../../../auth/domain/entities/user_entity.dart';
 import '../../../admin/presentation/widgets/admin_home_menu_sheet.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../../partner_perks/presentation/widgets/partner_perks_home_banner.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Home Page Scroll Controller Provider
 final homePageScrollControllerProvider = StateNotifierProvider<HomePageScrollControllerNotifier, ScrollController?>((ref) {
@@ -99,29 +100,44 @@ class _HomePageState extends ConsumerState<HomePage> {
     // Infinite scroll için scroll listener
     _scrollController.addListener(_onScroll);
     // ScrollController'ı provider'a kaydet
+    _registerScrollController();
+  }
+
+  void _registerScrollController() {
     Future.microtask(() {
-      ref.read(homePageScrollControllerProvider.notifier).setController(_scrollController);
+      if (!mounted) return;
+      ref
+          .read(homePageScrollControllerProvider.notifier)
+          .setController(_scrollController);
+    });
+  }
+
+  void _unregisterScrollController() {
+    Future.microtask(() {
+      try {
+        ref.read(homePageScrollControllerProvider.notifier).setController(null);
+      } catch (_) {
+        // Provider scope kapanmış olabilir
+      }
     });
   }
 
   @override
+  void activate() {
+    super.activate();
+    _registerScrollController();
+  }
+
+  @override
   void deactivate() {
-    // Widget ağaçtan çıkmadan önce provider'ı temizle (widget tree build'den sonra)
-    Future.microtask(() {
-      try {
-        if (mounted) {
-          ref.read(homePageScrollControllerProvider.notifier).setController(null);
-        }
-      } catch (e) {
-        // Hata durumunda sessizce devam et
-      }
-    });
+    _unregisterScrollController();
     super.deactivate();
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
+    _unregisterScrollController();
     _scrollController.dispose();
     super.dispose();
   }
@@ -172,7 +188,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                             Text(
                               'Bugün koşmaya hazır mısın?',
                               style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.neutral500,
+                                color: ThemeBrightnessHolder.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -205,13 +221,13 @@ class _HomePageState extends ConsumerState<HomePage> {
                           Icon(
                             Icons.push_pin,
                             size: 20,
-                            color: AppColors.primary,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                           const SizedBox(width: 8),
                           Text(
                             'Etkinlikler',
                             style: AppTypography.titleMedium.copyWith(
-                              color: AppColors.neutral700,
+                              color: ThemeBrightnessHolder.onSurface,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -222,16 +238,31 @@ class _HomePageState extends ConsumerState<HomePage> {
                               queryParameters: {'tab': 'list'},
                             ),
                             style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              foregroundColor:
+                                  Theme.of(context).colorScheme.primary,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: Text(
-                              'Tümünü Gör',
-                              style: AppTypography.labelMedium.copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w500,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Tümünü Gör',
+                                  style: AppTypography.labelMedium.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                Icon(
+                                  Icons.chevron_right,
+                                  size: 18,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -272,13 +303,13 @@ class _HomePageState extends ConsumerState<HomePage> {
           Icon(
             Icons.article_outlined,
             size: 20,
-            color: AppColors.neutral500,
+            color: ThemeBrightnessHolder.onSurfaceVariant,
           ),
           const SizedBox(width: 8),
           Text(
             'Son Paylaşımlar',
             style: AppTypography.titleMedium.copyWith(
-              color: AppColors.neutral700,
+              color: ThemeBrightnessHolder.onSurface,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -286,8 +317,8 @@ class _HomePageState extends ConsumerState<HomePage> {
           if (isAdminOrCoach)
             IconButton(
               onPressed: () => context.pushNamed(RouteNames.createPost),
-              icon: const Icon(Icons.add_circle_outline),
-              color: AppColors.primary,
+              icon: Icon(Icons.add_circle_outline),
+              color: Theme.of(context).colorScheme.primary,
               iconSize: 22,
               tooltip: 'Duyuru ekle',
             ),
@@ -313,7 +344,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 children: [
                   Icon(
                     Icons.event_available,
-                    color: AppColors.neutral400,
+                    color: ThemeBrightnessHolder.outline,
                     size: 24,
                   ),
                   const SizedBox(width: 12),
@@ -321,7 +352,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     child: Text(
                       'Bu hafta için etkinlik bulunmuyor',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -570,7 +601,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                         color: AppColors.primary,
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.push_pin,
                         size: 14,
                         color: Colors.white,
@@ -630,7 +661,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       Text(
                         event.formattedTime,
                         style: AppTypography.labelSmall.copyWith(
-                          color: AppColors.neutral500,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                           fontSize: 11,
                         ),
                       ),
@@ -654,32 +685,32 @@ class _HomePageState extends ConsumerState<HomePage> {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.people_outline,
                       size: 12,
-                      color: AppColors.neutral500,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       '${event.participantCount} katılımcı',
                       style: AppTypography.labelSmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                         fontSize: 11,
                       ),
                     ),
                     if (locationText != null) ...[
                       const SizedBox(width: 8),
-                      const Icon(
+                      Icon(
                         Icons.location_on_outlined,
                         size: 12,
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           locationText,
                           style: AppTypography.labelSmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                             fontSize: 11,
                           ),
                           maxLines: 1,
@@ -890,7 +921,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           color: Theme.of(context).cardColor,
           border: Border(
             bottom: BorderSide(
-              color: AppColors.neutral300.withValues(alpha: 0.3),
+              color: ThemeBrightnessHolder.outlineVariant.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -993,7 +1024,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           color: Theme.of(context).cardColor,
           border: Border(
             bottom: BorderSide(
-              color: AppColors.neutral300.withValues(alpha: 0.3),
+              color: ThemeBrightnessHolder.outlineVariant.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -1041,16 +1072,16 @@ class _HomePageState extends ConsumerState<HomePage> {
                         const SizedBox(height: 2),
                         Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.article,
                               size: 14,
-                              color: AppColors.neutral500,
+                              color: ThemeBrightnessHolder.onSurfaceVariant,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               timeago.format(post.createdAt, locale: 'tr'),
                               style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.neutral500,
+                                color: ThemeBrightnessHolder.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -1062,10 +1093,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                     PopupMenuButton<String>(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.more_horiz,
                         size: 20,
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                       onSelected: (value) => _onPostMenuSelected(context, value, post),
                       itemBuilder: (context) => [
@@ -1151,7 +1182,7 @@ class _NotificationIcon extends ConsumerWidget {
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
-          const Icon(Icons.notifications_outlined, size: 24),
+          Icon(Icons.notifications_outlined, size: 24),
           if (count > 0)
             Positioned(
               right: -2,

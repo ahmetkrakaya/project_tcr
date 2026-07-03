@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/vdot_calculator.dart';
 import '../../../../shared/widgets/loading_widget.dart';
@@ -138,120 +137,139 @@ class _VdotThresholdListPageState extends ConsumerState<VdotThresholdListPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.85,
-        expand: false,
-        builder: (ctx, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.neutral300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
-                  children: [
-                    UserAvatar(
-                      size: 44,
-                      name: user.fullName,
-                      imageUrl: user.avatarUrl,
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user.fullName,
-                            style: AppTypography.titleMedium.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'VDOT ${vdot.toStringAsFixed(1)}',
-                                  style: AppTypography.labelSmall.copyWith(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Eşik: $thresholdPace /km',
-                                style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.secondary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              Expanded(
-                child: trainingTypesAsync.when(
-                  data: (types) {
-                    final activeTypes = types
-                        .where((t) => t.isActive && t.thresholdOffsetMinSeconds != null)
-                        .toList()
-                      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-
-                    if (activeTypes.isEmpty) {
-                      return const Center(
-                        child: Text('Antrenman türü bulunamadı'),
-                      );
-                    }
-
-                    return ListView.builder(
-                      controller: scrollController,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: activeTypes.length,
-                      itemBuilder: (ctx, index) {
-                        final type = activeTypes[index];
-                        return _buildTrainingTypePaceRow(type, vdot);
-                      },
-                    );
-                  },
-                  loading: () => const Center(child: LoadingWidget()),
-                  error: (_, __) => const Center(
-                    child: Text('Antrenman türleri yüklenemedi'),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.85,
+          expand: false,
+          builder: (ctx, scrollController) => Container(
+            decoration: BoxDecoration(
+              color: cs.surface,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: cs.outline,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Row(
+                    children: [
+                      UserAvatar(
+                        size: 44,
+                        name: user.fullName,
+                        imageUrl: user.avatarUrl,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user.fullName,
+                              style: AppTypography.titleMedium.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: cs.primary.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'VDOT ${vdot.toStringAsFixed(1)}',
+                                    style: AppTypography.labelSmall.copyWith(
+                                      color: cs.primary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Eşik: $thresholdPace /km',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: cs.secondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: cs.outlineVariant),
+                Expanded(
+                  child: trainingTypesAsync.when(
+                    data: (types) {
+                      final activeTypes = types
+                          .where((t) =>
+                              t.isActive && t.thresholdOffsetMinSeconds != null)
+                          .toList()
+                        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+                      if (activeTypes.isEmpty) {
+                        return Center(
+                          child: Text(
+                            'Antrenman türü bulunamadı',
+                            style: TextStyle(color: cs.onSurfaceVariant),
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: activeTypes.length,
+                        itemBuilder: (ctx, index) {
+                          final type = activeTypes[index];
+                          return _buildTrainingTypePaceRow(ctx, type, vdot);
+                        },
+                      );
+                    },
+                    loading: () => const Center(child: LoadingWidget()),
+                    error: (_, __) => Center(
+                      child: Text(
+                        'Antrenman türleri yüklenemedi',
+                        style: TextStyle(color: cs.onSurfaceVariant),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildTrainingTypePaceRow(TrainingTypeEntity type, double vdot) {
+  Widget _buildTrainingTypePaceRow(
+    BuildContext context,
+    TrainingTypeEntity type,
+    double vdot,
+  ) {
+    final cs = Theme.of(context).colorScheme;
     final paceRange = VdotCalculator.formatPaceRange(
       vdot,
       type.thresholdOffsetMinSeconds,
@@ -264,14 +282,17 @@ class _VdotThresholdListPageState extends ConsumerState<VdotThresholdListPage> {
       final hex = type.color.replaceFirst('#', '');
       typeColor = Color(int.parse('FF$hex', radix: 16));
     } catch (_) {
-      typeColor = AppColors.primary;
+      typeColor = cs.primary;
+    }
+    if (cs.brightness == Brightness.dark && typeColor.computeLuminance() < 0.45) {
+      typeColor = Color.lerp(typeColor, Colors.white, 0.45)!;
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: AppColors.neutral200, width: 0.5),
+          bottom: BorderSide(color: cs.outlineVariant, width: 0.5),
         ),
       ),
       child: Row(
@@ -280,7 +301,7 @@ class _VdotThresholdListPageState extends ConsumerState<VdotThresholdListPage> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: typeColor.withValues(alpha: 0.12),
+              color: typeColor.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(Icons.fitness_center, size: 18, color: typeColor),
@@ -294,13 +315,14 @@ class _VdotThresholdListPageState extends ConsumerState<VdotThresholdListPage> {
                   type.displayName,
                   style: AppTypography.bodyMedium.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
                   ),
                 ),
                 if (type.description.isNotEmpty)
                   Text(
                     type.description,
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral500,
+                      color: cs.onSurfaceVariant,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -335,6 +357,7 @@ class _VdotUserTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final vdot = user.vdot!;
     final thresholdPaceSec = VdotCalculator.getThresholdPace(vdot);
     final thresholdPace = VdotCalculator.formatPace(thresholdPaceSec);
@@ -346,7 +369,7 @@ class _VdotUserTile extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: AppColors.neutral200,
+              color: cs.outlineVariant,
               width: 0.5,
             ),
           ),
@@ -359,7 +382,7 @@ class _VdotUserTile extends StatelessWidget {
                 child: Text(
                   '$rank',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.neutral500,
+                    color: cs.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -377,6 +400,7 @@ class _VdotUserTile extends StatelessWidget {
                 user.fullName,
                 style: AppTypography.bodyMedium.copyWith(
                   fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -388,15 +412,16 @@ class _VdotUserTile extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
+                    color: cs.primary.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     'VDOT ${vdot.toStringAsFixed(1)}',
                     style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.primary,
+                      color: cs.primary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -406,7 +431,7 @@ class _VdotUserTile extends StatelessWidget {
                   '$thresholdPace /km',
                   style: AppTypography.titleSmall.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: AppColors.secondary,
+                    color: cs.secondary,
                   ),
                 ),
               ],

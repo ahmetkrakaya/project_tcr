@@ -16,6 +16,7 @@ import '../../../../shared/providers/auth_provider.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
 import '../../../events/presentation/providers/event_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Login Page
 class LoginPage extends ConsumerStatefulWidget {
@@ -219,7 +220,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             Text(
               'Kulübe katılmak için giriş yap',
               style: AppTypography.bodyLarge.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),
@@ -382,7 +383,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               Text(
                 'Hesabın yok mu? ',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
               ),
               TextButton(
@@ -416,7 +417,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       TextSpan(
         text: 'Devam ederek ',
         style: AppTypography.bodySmall.copyWith(
-          color: AppColors.neutral500,
+          color: ThemeBrightnessHolder.onSurfaceVariant,
         ),
         children: [
           TextSpan(

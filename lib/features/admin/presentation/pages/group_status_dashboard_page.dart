@@ -48,10 +48,13 @@ class GroupStatusDashboardPage extends ConsumerWidget {
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('Bu sayfaya erişim yetkiniz yok.',
-                    style: AppTypography.bodyMedium
-                        .copyWith(color: AppColors.neutral500),
-                    textAlign: TextAlign.center),
+                child: Text(
+                  'Bu sayfaya erişim yetkiniz yok.',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
             )
           : groupsAsync.when(
@@ -93,6 +96,7 @@ class _OverallBand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final totalMembers =
         groups.fold<int>(0, (s, g) => s + g.memberCount);
     final totalActive7d =
@@ -104,25 +108,33 @@ class _OverallBand extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          _stat('${groups.length}', 'Grup', AppColors.info),
-          _stat('$totalMembers', 'Üye', AppColors.primary),
-          _stat('$totalActive7d', '7g Aktif', AppColors.success),
-          _stat('$totalPending', 'Bekleyen', AppColors.warning),
+          _stat(cs, '${groups.length}', 'Grup', AppColors.info),
+          _stat(cs, '$totalMembers', 'Üye', cs.primary),
+          _stat(cs, '$totalActive7d', '7g Aktif', AppColors.success),
+          _stat(cs, '$totalPending', 'Bekleyen', AppColors.warning),
         ],
       ),
     );
   }
 
-  Widget _stat(String value, String label, Color color) => Expanded(
+  Widget _stat(ColorScheme cs, String value, String label, Color color) =>
+      Expanded(
         child: Column(
           children: [
-            Text(value,
-                style: AppTypography.titleLarge
-                    .copyWith(fontWeight: FontWeight.w700, color: color)),
+            Text(
+              value,
+              style: AppTypography.titleLarge.copyWith(
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
             const SizedBox(height: 2),
-            Text(label,
-                style: AppTypography.labelSmall
-                    .copyWith(color: AppColors.neutral500)),
+            Text(
+              label,
+              style: AppTypography.labelSmall.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       );
@@ -134,6 +146,7 @@ class _GroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final activeRatio = group.memberCount == 0
         ? 0.0
         : group.activeMembers7d / group.memberCount;
@@ -142,6 +155,7 @@ class _GroupCard extends StatelessWidget {
         : activeRatio >= 0.25
             ? AppColors.warning
             : AppColors.error;
+    final mutedMetricColor = cs.onSurfaceVariant;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -157,41 +171,62 @@ class _GroupCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(group.name,
-                      style: AppTypography.titleSmall
-                          .copyWith(fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    group.name,
+                    style: AppTypography.titleSmall.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 if (group.isPerformance)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
-                      color: AppColors.info.withValues(alpha: 0.12),
+                      color: cs.tertiary.withValues(alpha: 0.16),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text('Performans',
-                        style: AppTypography.labelSmall
-                            .copyWith(color: AppColors.info)),
+                    child: Text(
+                      'Performans',
+                      style: AppTypography.labelSmall.copyWith(
+                        color: cs.tertiary,
+                      ),
+                    ),
                   ),
                 const SizedBox(width: 8),
-                const Icon(Icons.chevron_right, color: AppColors.neutral400),
+                Icon(Icons.chevron_right, color: cs.outline),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                _metric('${group.memberCount}', 'Üye', AppColors.neutral600),
-                _metric('${group.activeMembers7d}', '7g Aktif', ratioColor),
-                _metric('${group.passiveMembers30d}', '30g Pasif',
-                    AppColors.neutral500),
-                _metric(group.distance7dKm.toStringAsFixed(0), '7g km',
-                    AppColors.info),
-                _metric('${group.pendingRequests}', 'Bekleyen',
-                    group.pendingRequests > 0
-                        ? AppColors.warning
-                        : AppColors.neutral500),
+                _metric(cs, '${group.memberCount}', 'Üye', mutedMetricColor),
+                _metric(cs, '${group.activeMembers7d}', '7g Aktif', ratioColor),
+                _metric(
+                  cs,
+                  '${group.passiveMembers30d}',
+                  '30g Pasif',
+                  mutedMetricColor,
+                ),
+                _metric(
+                  cs,
+                  group.distance7dKm.toStringAsFixed(0),
+                  '7g km',
+                  AppColors.info,
+                ),
+                _metric(
+                  cs,
+                  '${group.pendingRequests}',
+                  'Bekleyen',
+                  group.pendingRequests > 0
+                      ? AppColors.warning
+                      : mutedMetricColor,
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -200,7 +235,7 @@ class _GroupCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: activeRatio.clamp(0.0, 1.0),
                 minHeight: 6,
-                backgroundColor: AppColors.neutral200,
+                backgroundColor: cs.surfaceContainerHighest,
                 valueColor: AlwaysStoppedAnimation(ratioColor),
               ),
             ),
@@ -210,17 +245,25 @@ class _GroupCard extends StatelessWidget {
     );
   }
 
-  Widget _metric(String value, String label, Color color) => Expanded(
+  Widget _metric(ColorScheme cs, String value, String label, Color color) =>
+      Expanded(
         child: Column(
           children: [
-            Text(value,
-                style: AppTypography.titleSmall
-                    .copyWith(fontWeight: FontWeight.w700, color: color)),
+            Text(
+              value,
+              style: AppTypography.titleSmall.copyWith(
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
             const SizedBox(height: 2),
-            Text(label,
-                style: AppTypography.labelSmall
-                    .copyWith(color: AppColors.neutral500),
-                textAlign: TextAlign.center),
+            Text(
+              label,
+              style: AppTypography.labelSmall.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       );
@@ -233,18 +276,25 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Rapor yüklenemedi', style: AppTypography.titleSmall),
+            Text(
+              'Rapor yüklenemedi',
+              style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
+            ),
             const SizedBox(height: 8),
-            Text(error.toString(),
-                style: AppTypography.bodySmall
-                    .copyWith(color: AppColors.neutral500),
-                textAlign: TextAlign.center),
+            Text(
+              error.toString(),
+              style: AppTypography.bodySmall.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 16),
             FilledButton(onPressed: onRetry, child: const Text('Tekrar Dene')),
           ],

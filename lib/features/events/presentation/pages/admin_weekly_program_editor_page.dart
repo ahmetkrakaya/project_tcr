@@ -14,6 +14,7 @@ import '../../utils/coach_text_parser.dart';
 import '../providers/event_provider.dart';
 import '../widgets/admin_monthly_program_entry_card.dart';
 import '../widgets/program_editor_picker_sheet.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class _DayDraft {
   final TextEditingController workoutController;
@@ -870,11 +871,11 @@ class _AdminWeeklyProgramEditorPageState
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Row(
             children: [
-              Icon(Icons.bedtime_outlined, size: 18, color: AppColors.neutral500),
+              Icon(Icons.bedtime_outlined, size: 18, color: ThemeBrightnessHolder.onSurfaceVariant),
               const SizedBox(width: 8),
               Text(
                 'Dinlenme günü',
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral500),
+                style: AppTypography.bodyMedium.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
               ),
             ],
           ),
@@ -919,6 +920,7 @@ class _AdminWeeklyProgramEditorPageState
     required IconData icon,
     required String label,
     required Color accentColor,
+    required ColorScheme cs,
   }) {
     final disabled = onPressed == null;
 
@@ -951,7 +953,7 @@ class _AdminWeeklyProgramEditorPageState
                     child: Icon(
                       icon,
                       size: 20,
-                      color: disabled ? AppColors.neutral400 : accentColor,
+                      color: disabled ? cs.outline : accentColor,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -959,7 +961,7 @@ class _AdminWeeklyProgramEditorPageState
                     label,
                     style: AppTypography.labelSmall.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: disabled ? AppColors.neutral400 : AppColors.neutral700,
+                      color: disabled ? cs.outline : cs.onSurface,
                       height: 1.2,
                     ),
                     textAlign: TextAlign.center,
@@ -979,6 +981,7 @@ class _AdminWeeklyProgramEditorPageState
     required bool showCopyFromGroup,
     required List<TrainingTypeEntity> types,
     required List<TrainingGroupEntity> activeGroups,
+    required ColorScheme cs,
   }) {
     final disabled = _isLoadingWeek;
 
@@ -988,7 +991,8 @@ class _AdminWeeklyProgramEditorPageState
           onPressed: disabled ? null : () => _showWeekPreviewSheet(types),
           icon: Icons.visibility_outlined,
           label: 'Önizleme',
-          accentColor: AppColors.primary,
+          accentColor: cs.primary,
+          cs: cs,
         ),
         if (showCopyFromGroup) ...[
           const SizedBox(width: 10),
@@ -997,6 +1001,7 @@ class _AdminWeeklyProgramEditorPageState
             icon: Icons.copy_all_rounded,
             label: 'Gruptan kopyala',
             accentColor: AppColors.secondary,
+            cs: cs,
           ),
         ],
         const SizedBox(width: 10),
@@ -1005,6 +1010,7 @@ class _AdminWeeklyProgramEditorPageState
           icon: Icons.history_rounded,
           label: 'Geçen hafta',
           accentColor: AppColors.tertiary,
+          cs: cs,
         ),
       ],
     );
@@ -1061,6 +1067,7 @@ class _AdminWeeklyProgramEditorPageState
             .toList() ??
         [];
     final pendingSaveCount = _countPendingSaves();
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -1093,7 +1100,7 @@ class _AdminWeeklyProgramEditorPageState
                   children: [
                     IconButton(
                       onPressed: () => _shiftWeek(-1),
-                      icon: const Icon(Icons.chevron_left),
+                      icon: Icon(Icons.chevron_left),
                     ),
                     Expanded(
                       child: Text(
@@ -1101,12 +1108,13 @@ class _AdminWeeklyProgramEditorPageState
                         textAlign: TextAlign.center,
                         style: AppTypography.titleMedium.copyWith(
                           fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
                         ),
                       ),
                     ),
                     IconButton(
                       onPressed: () => _shiftWeek(1),
-                      icon: const Icon(Icons.chevron_right),
+                      icon: Icon(Icons.chevron_right),
                     ),
                   ],
                 ),
@@ -1176,6 +1184,7 @@ class _AdminWeeklyProgramEditorPageState
                           '${_dayLabels[i]} ${DateFormat('d MMM', 'tr_TR').format(date)}',
                           style: AppTypography.labelMedium.copyWith(
                             fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -1215,17 +1224,31 @@ class _AdminWeeklyProgramEditorPageState
                         TextField(
                           controller: _days[i].workoutController,
                           maxLines: 3,
-                          style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 14,
+                            color: cs.onSurface,
+                          ),
                           decoration: InputDecoration(
                             hintText: '60dk 6:00/5:50 veya REST',
+                            filled: true,
+                            fillColor: cs.surfaceContainerHighest,
                             border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
-                                color: hasError ? AppColors.error : AppColors.neutral300,
+                                color: hasError ? AppColors.error : cs.outlineVariant,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
-                                color: hasError ? AppColors.error : AppColors.neutral300,
+                                color: hasError ? AppColors.error : cs.outlineVariant,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: hasError ? AppColors.error : cs.primary,
                               ),
                             ),
                             isDense: true,
@@ -1245,10 +1268,25 @@ class _AdminWeeklyProgramEditorPageState
                         TextField(
                           controller: _days[i].notesController,
                           maxLines: 2,
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: cs.onSurface),
+                          decoration: InputDecoration(
                             labelText: 'Koç notu',
+                            labelStyle: TextStyle(color: cs.onSurfaceVariant),
                             hintText: 'Sporcuya görünecek serbest not (isteğe bağlı)',
-                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: cs.surfaceContainerHigh,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: cs.outlineVariant),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: cs.outlineVariant),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: cs.primary),
+                            ),
                             isDense: true,
                           ),
                         ),
@@ -1265,6 +1303,7 @@ class _AdminWeeklyProgramEditorPageState
                       !selectedGroup.isPerformanceGroup,
                   types: trainingTypesAsync.valueOrNull ?? [],
                   activeGroups: activeGroups,
+                  cs: cs,
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
@@ -1278,7 +1317,7 @@ class _AdminWeeklyProgramEditorPageState
                             color: Colors.white,
                           ),
                         )
-                      : const Icon(Icons.save),
+                      : Icon(Icons.save),
                   label: Text(
                     pendingSaveCount > 1
                         ? 'Tüm taslakları kaydet ($pendingSaveCount)'
@@ -1315,6 +1354,7 @@ class _WeekProgramPreviewSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final cs = Theme.of(context).colorScheme;
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -1325,7 +1365,7 @@ class _WeekProgramPreviewSheet extends StatelessWidget {
         expand: false,
         builder: (context, scrollController) => Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
+            color: cs.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
@@ -1335,7 +1375,7 @@ class _WeekProgramPreviewSheet extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral300,
+                  color: cs.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1347,12 +1387,12 @@ class _WeekProgramPreviewSheet extends StatelessWidget {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
+                        color: cs.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.visibility_outlined,
-                        color: AppColors.primary,
+                        color: cs.primary,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1364,12 +1404,13 @@ class _WeekProgramPreviewSheet extends StatelessWidget {
                             'Haftalık önizleme',
                             style: AppTypography.titleMedium.copyWith(
                               fontWeight: FontWeight.w700,
+                              color: cs.onSurface,
                             ),
                           ),
                           Text(
                             weekTitle,
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.neutral500,
+                              color: cs.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -1377,7 +1418,7 @@ class _WeekProgramPreviewSheet extends StatelessWidget {
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
+                      icon: Icon(Icons.close, color: cs.onSurfaceVariant),
                       tooltip: 'Kapat',
                     ),
                   ],
@@ -1402,6 +1443,7 @@ class _WeekProgramPreviewSheet extends StatelessWidget {
                                 day.header,
                                 style: AppTypography.titleSmall.copyWith(
                                   fontWeight: FontWeight.w700,
+                                  color: cs.onSurface,
                                 ),
                               ),
                               const Spacer(),

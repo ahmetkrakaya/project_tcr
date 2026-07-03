@@ -6,6 +6,7 @@ class NotificationTypes {
 
   static const String eventCreated = 'event_created';
   static const String eventUpdated = 'event_updated';
+  static const String eventRsvpReminder = 'event_rsvp_reminder';
   static const String carpoolApplication = 'carpool_application';
   static const String carpoolApplicationResponse = 'carpool_application_response';
   static const String eventChatMessage = 'event_chat_message';
@@ -26,6 +27,7 @@ class NotificationTypes {
   static const List<String> all = [
     eventCreated,
     eventUpdated,
+    eventRsvpReminder,
     carpoolApplication,
     carpoolApplicationResponse,
     eventChatMessage,
@@ -50,6 +52,8 @@ class NotificationTypes {
         return 'Etkinlik oluşturuldu';
       case eventUpdated:
         return 'Etkinlik güncellendi';
+      case eventRsvpReminder:
+        return 'Etkinlik hatırlatma';
       case carpoolApplication:
         return 'Ortak araç başvurusu';
       case carpoolApplicationResponse:
@@ -105,7 +109,11 @@ class NotificationCategories {
   static List<String> typesForCategory(String categoryId) {
     switch (categoryId) {
       case event:
-        return [NotificationTypes.eventCreated, NotificationTypes.eventUpdated];
+        return [
+          NotificationTypes.eventCreated,
+          NotificationTypes.eventUpdated,
+          NotificationTypes.eventRsvpReminder,
+        ];
       case carpool:
         return [
           NotificationTypes.carpoolApplication,

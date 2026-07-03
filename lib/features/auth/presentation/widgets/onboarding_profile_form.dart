@@ -8,6 +8,7 @@ import '../../../../core/utils/validators.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../domain/entities/user_entity.dart';
 import '../providers/auth_notifier.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class OnboardingProfileForm extends ConsumerStatefulWidget {
   const OnboardingProfileForm({
@@ -191,7 +192,7 @@ class OnboardingProfileFormState extends ConsumerState<OnboardingProfileForm> {
             Text(
               'Performans takibi ve doğru gruba yerleşim için bu bilgileri doldur.',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
                 height: 1.45,
               ),
             ),

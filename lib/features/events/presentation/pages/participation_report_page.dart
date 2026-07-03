@@ -12,6 +12,7 @@ import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/report_info_button.dart';
 import '../../data/models/event_report_model.dart';
 import '../providers/event_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 const _typeOrder = ['training', 'race', 'social', 'workshop', 'other'];
 
@@ -128,7 +129,7 @@ class _ParticipationReportPageState
                       Text(e.toString(),
                           textAlign: TextAlign.center,
                           style: AppTypography.bodySmall
-                              .copyWith(color: AppColors.neutral500)),
+                              .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant)),
                       const SizedBox(height: 16),
                       FilledButton(
                         onPressed: () => ref.invalidate(eventReportProvider((
@@ -240,7 +241,7 @@ class _ParticipationReportPageState
             Text(label,
                 textAlign: TextAlign.center,
                 style: AppTypography.labelSmall
-                    .copyWith(color: AppColors.neutral500)),
+                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant)),
           ],
         ),
       );
@@ -293,7 +294,7 @@ class _ParticipationReportPageState
                     ),
                     Text('${data.events} etkinlik · ',
                         style: AppTypography.labelMedium
-                            .copyWith(color: AppColors.neutral500)),
+                            .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant)),
                     Text('${data.participants} katılım',
                         style: AppTypography.labelMedium.copyWith(
                             color: color, fontWeight: FontWeight.w700)),
@@ -305,7 +306,7 @@ class _ParticipationReportPageState
                   child: LinearProgressIndicator(
                     value: ratio.clamp(0.0, 1.0),
                     minHeight: 8,
-                    backgroundColor: AppColors.neutral200,
+                    backgroundColor: ThemeBrightnessHolder.surfaceContainerHighest,
                     valueColor: AlwaysStoppedAnimation(color),
                   ),
                 ),
@@ -407,7 +408,7 @@ class _ParticipationReportPageState
                       Text(
                         DateFormat('d MMM yyyy', 'tr').format(e.eventDate),
                         style: AppTypography.labelSmall
-                            .copyWith(color: AppColors.neutral500),
+                            .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -415,8 +416,8 @@ class _ParticipationReportPageState
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.people,
-                        size: 15, color: AppColors.neutral500),
+                    Icon(Icons.people,
+                        size: 15, color: ThemeBrightnessHolder.onSurfaceVariant),
                     const SizedBox(width: 4),
                     Text('${e.participantCount}',
                         style: AppTypography.bodyMedium

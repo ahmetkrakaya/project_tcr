@@ -6,6 +6,7 @@ import 'package:timeago/timeago.dart' as timeago;
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/user_avatar.dart';
@@ -30,7 +31,7 @@ class ActivityDetailPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => context.pop(),
         ),
         title: const Text('Aktivite Detayı'),
@@ -77,7 +78,7 @@ class ActivityDetailPage extends ConsumerWidget {
               Text(
                 error.toString(),
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -94,6 +95,7 @@ class ActivityDetailPage extends ConsumerWidget {
   }
 
   Widget _buildContent(BuildContext context, ActivityEntity activity, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     // Strava aktivitesi ise detaylı verileri çek
     final isStravaActivity = activity.source == ActivitySource.strava && activity.externalId != null;
 
@@ -123,6 +125,7 @@ class ActivityDetailPage extends ConsumerWidget {
                             activity.userName,
                             style: AppTypography.titleMedium.copyWith(
                               fontWeight: FontWeight.bold,
+                              color: cs.onSurface,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -131,13 +134,13 @@ class ActivityDetailPage extends ConsumerWidget {
                               Icon(
                                 _getActivityIcon(activity.activityType),
                                 size: 16,
-                                color: AppColors.neutral500,
+                                color: cs.onSurfaceVariant,
                               ),
                               const SizedBox(width: 4),
                               Text(
                                 timeago.format(activity.startTime, locale: 'tr'),
                                 style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.neutral500,
+                                  color: cs.onSurfaceVariant,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -154,6 +157,7 @@ class ActivityDetailPage extends ConsumerWidget {
                   activity.title ?? _getDefaultTitle(activity.activityType),
                   style: AppTypography.headlineSmall.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: cs.onSurface,
                   ),
                 ),
               ],
@@ -170,10 +174,11 @@ class ActivityDetailPage extends ConsumerWidget {
                   'Temel Bilgiler',
                   style: AppTypography.titleMedium.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: cs.onSurface,
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildStatsGrid(activity),
+                _buildStatsGrid(context, activity),
               ],
             ),
           ),
@@ -189,10 +194,11 @@ class ActivityDetailPage extends ConsumerWidget {
                     'Detaylı Metrikler',
                     style: AppTypography.titleMedium.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: cs.onSurface,
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildDetailedMetrics(activity),
+                  _buildDetailedMetrics(context, activity),
                 ],
               ),
             ),
@@ -205,7 +211,7 @@ class ActivityDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatsGrid(ActivityEntity activity) {
+  Widget _buildStatsGrid(BuildContext context, ActivityEntity activity) {
     return GridView.count(
       crossAxisCount: 3,
       shrinkWrap: true,
@@ -215,36 +221,42 @@ class ActivityDetailPage extends ConsumerWidget {
       children: [
         if (activity.distanceMeters != null && activity.distanceMeters! > 0)
           _buildStatCard(
+            context,
             icon: Icons.straighten,
             label: 'Mesafe',
             value: '${activity.distanceKm.toStringAsFixed(2)} km',
           ),
         if (activity.averagePaceSeconds != null)
           _buildStatCard(
+            context,
             icon: Icons.speed,
             label: 'Pace',
             value: '${activity.formattedPace} /km',
           ),
         if (activity.durationSeconds != null)
           _buildStatCard(
+            context,
             icon: Icons.timer,
             label: 'Süre',
             value: activity.formattedDuration,
           ),
         if (activity.caloriesBurned != null)
           _buildStatCard(
+            context,
             icon: Icons.local_fire_department,
             label: 'Kalori',
             value: '${activity.caloriesBurned} Cal',
           ),
         if (activity.elevationGain != null && activity.elevationGain! > 0)
           _buildStatCard(
+            context,
             icon: Icons.terrain,
             label: 'Yükseklik',
             value: '${activity.elevationGain!.toStringAsFixed(0)} m',
           ),
         if (activity.averageHeartRate != null)
           _buildStatCard(
+            context,
             icon: Icons.favorite,
             label: 'Ort. KH',
             value: '${activity.averageHeartRate} bpm',
@@ -253,20 +265,24 @@ class ActivityDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatCard({
+  Widget _buildStatCard(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required String value,
   }) {
+    final cs = Theme.of(context).colorScheme;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, size: 32, color: AppColors.primary),
+        Icon(icon, size: 32, color: cs.primary),
         const SizedBox(height: 8),
         Text(
           value,
           style: AppTypography.titleMedium.copyWith(
             fontWeight: FontWeight.bold,
+            color: cs.onSurface,
           ),
           textAlign: TextAlign.center,
         ),
@@ -274,7 +290,7 @@ class ActivityDetailPage extends ConsumerWidget {
         Text(
           label,
           style: AppTypography.labelSmall.copyWith(
-            color: AppColors.neutral500,
+            color: cs.onSurfaceVariant,
           ),
           textAlign: TextAlign.center,
         ),
@@ -282,18 +298,24 @@ class ActivityDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildDetailedMetrics(ActivityEntity activity) {
+  Widget _buildDetailedMetrics(BuildContext context, ActivityEntity activity) {
+    final cs = Theme.of(context).colorScheme;
+    final successColor =
+        cs.brightness == Brightness.dark ? AppColors.secondaryLight : AppColors.success;
+
     return Column(
       children: [
         if (activity.bestPaceSeconds != null)
           _buildMetricRow(
+            context,
             icon: Icons.speed,
             label: 'En İyi Pace',
             value: '${activity.formattedBestPace} /km',
-            color: AppColors.success,
+            color: successColor,
           ),
         if (activity.maxHeartRate != null)
           _buildMetricRow(
+            context,
             icon: Icons.favorite,
             label: 'Max Kalp Atışı',
             value: '${activity.maxHeartRate} bpm',
@@ -301,17 +323,20 @@ class ActivityDetailPage extends ConsumerWidget {
           ),
         if (activity.averageCadence != null)
           _buildMetricRow(
+            context,
             icon: Icons.trending_up,
             label: 'Ortalama Kadans',
             value: '${activity.averageCadence!.toStringAsFixed(0)} spm',
           ),
         if (activity.endTime != null)
           _buildMetricRow(
+            context,
             icon: Icons.access_time,
             label: 'Bitiş Zamanı',
             value: '${activity.endTime!.hour.toString().padLeft(2, '0')}:${activity.endTime!.minute.toString().padLeft(2, '0')}',
           ),
         _buildMetricRow(
+          context,
           icon: Icons.schedule,
           label: 'Başlangıç Zamanı',
           value: '${activity.startTime.hour.toString().padLeft(2, '0')}:${activity.startTime.minute.toString().padLeft(2, '0')}',
@@ -320,12 +345,16 @@ class ActivityDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildMetricRow({
+  Widget _buildMetricRow(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required String value,
     Color? color,
   }) {
+    final cs = Theme.of(context).colorScheme;
+    final accent = color ?? cs.primary;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
@@ -333,27 +362,27 @@ class ActivityDetailPage extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: (color ?? AppColors.primary).withValues(alpha: 0.1),
+              color: accent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               icon,
               size: 20,
-              color: color ?? AppColors.primary,
+              color: accent,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               label,
-              style: AppTypography.bodyMedium,
+              style: AppTypography.bodyMedium.copyWith(color: cs.onSurface),
             ),
           ),
           Text(
             value,
             style: AppTypography.bodyMedium.copyWith(
               fontWeight: FontWeight.bold,
-              color: color ?? AppColors.neutral900,
+              color: color ?? cs.onSurface,
             ),
           ),
         ],
@@ -451,7 +480,7 @@ class ActivityDetailPage extends ConsumerWidget {
                 'KM',
                 style: AppTypography.labelSmall.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.neutral600,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
               ),
             ),
@@ -461,7 +490,7 @@ class ActivityDetailPage extends ConsumerWidget {
                 'Pace',
                 style: AppTypography.labelSmall.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.neutral600,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -472,7 +501,7 @@ class ActivityDetailPage extends ConsumerWidget {
                 'Süre',
                 style: AppTypography.labelSmall.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.neutral600,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -484,7 +513,7 @@ class ActivityDetailPage extends ConsumerWidget {
                   'KH',
                   style: AppTypography.labelSmall.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.neutral600,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -544,7 +573,14 @@ class ActivityDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildBestEffortsList(List<StravaBestEffortEntity> bestEfforts) {
+  Widget _buildBestEffortsList(
+    BuildContext context,
+    List<StravaBestEffortEntity> bestEfforts,
+  ) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
+    final successColor = isDark ? AppColors.secondaryLight : AppColors.success;
+
     return Column(
       children: bestEfforts.map((effort) {
         return Container(
@@ -552,11 +588,11 @@ class ActivityDetailPage extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: effort.isPersonalRecord
-                ? AppColors.success.withValues(alpha: 0.1)
-                : AppColors.neutral100,
+                ? successColor.withValues(alpha: 0.14)
+                : cs.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(8),
             border: effort.isPersonalRecord
-                ? Border.all(color: AppColors.success, width: 1)
+                ? Border.all(color: successColor, width: 1)
                 : null,
           ),
           child: Row(
@@ -571,20 +607,24 @@ class ActivityDetailPage extends ConsumerWidget {
                           effort.name,
                           style: AppTypography.bodyMedium.copyWith(
                             fontWeight: FontWeight.bold,
+                            color: cs.onSurface,
                           ),
                         ),
                         if (effort.isPersonalRecord) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: AppColors.success,
+                              color: successColor,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               'PR',
                               style: AppTypography.labelSmall.copyWith(
-                                color: Colors.white,
+                                color: cs.onPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 10,
                               ),
@@ -599,8 +639,8 @@ class ActivityDetailPage extends ConsumerWidget {
                       style: AppTypography.titleSmall.copyWith(
                         fontWeight: FontWeight.bold,
                         color: effort.isPersonalRecord
-                            ? AppColors.success
-                            : AppColors.neutral900,
+                            ? successColor
+                            : cs.onSurface,
                       ),
                     ),
                   ],
@@ -613,13 +653,14 @@ class ActivityDetailPage extends ConsumerWidget {
                     effort.formattedPace,
                     style: AppTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: cs.onSurface,
                     ),
                   ),
                   if (effort.averageHeartrate != null)
                     Text(
                       '${effort.averageHeartrate!.round()} bpm',
                       style: AppTypography.labelSmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                 ],
@@ -676,7 +717,7 @@ class ActivityDetailPage extends ConsumerWidget {
                   Text(
                     '${zone.formattedTime} (${percentage.toStringAsFixed(1)}%)',
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral600,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -687,7 +728,7 @@ class ActivityDetailPage extends ConsumerWidget {
                 child: LinearProgressIndicator(
                   value: percentage / 100,
                   minHeight: 8,
-                  backgroundColor: AppColors.neutral200,
+                  backgroundColor: ThemeBrightnessHolder.surfaceContainerHighest,
                   valueColor: AlwaysStoppedAnimation<Color>(
                     _getZoneColor(zone.max == -1 ? 999 : zone.max),
                   ),
@@ -697,7 +738,7 @@ class ActivityDetailPage extends ConsumerWidget {
               Text(
                 '$maxLabel bpm',
                 style: AppTypography.labelSmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                 ),
               ),
             ],
@@ -779,7 +820,7 @@ class ActivityDetailPage extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        _buildBestEffortsList(detailSnapshot.data!.bestEfforts),
+                        _buildBestEffortsList(context, detailSnapshot.data!.bestEfforts),
                       ],
                     ),
                   ),

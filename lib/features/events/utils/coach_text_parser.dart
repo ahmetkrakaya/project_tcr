@@ -505,6 +505,11 @@ class _DistanceBlock extends _ParsedBlock {
   _DistanceBlock({required this.distanceM, this.target});
 }
 
+class _RecoveryBlock extends _ParsedBlock {
+  final _RecoverySpec recovery;
+  _RecoveryBlock({required this.recovery});
+}
+
 String _normalizeBlock(String block) {
   return block.trim().replaceFirstMapped(
     RegExp(r'^(\d+(?:\.\d+)?)\s*(k|km|m)\s*/\s*', caseSensitive: false),
@@ -628,6 +633,41 @@ _IntervalBlock? _parseDistanceRepBlock(String block) {
   );
 }
 
+_RecoveryBlock? _parseStandaloneRecoveryBlock(String block) {
+  final trimmed = block.trim();
+  if (!RegExp(r'^R(?:\s|\d)', caseSensitive: false).hasMatch(trimmed)) {
+    return null;
+  }
+  final recRaw = trimmed.replaceFirst(RegExp(r'^R\s*', caseSensitive: false), '');
+  final recovery = _parseRecoveryClause(recRaw);
+  if (!_hasRecovery(recovery)) return null;
+  return _RecoveryBlock(recovery: recovery!);
+}
+
+_IntervalBlock? _parseDurationRepBlock(String block) {
+  final normalized = block.trim();
+  final split = _splitOnRecovery(normalized);
+  if (!_hasRecovery(split.recovery)) return null;
+
+  final m = RegExp(
+    '^(\\d+(?:\\.\\d+)?)\\s*${durationUnitPattern}(?:\\s+(.+))?\$',
+    caseSensitive: false,
+  ).firstMatch(split.work);
+  if (m == null) return null;
+
+  final minutes = double.parse(m.group(1)!).round();
+  final paceRaw = m.group(2)?.trim();
+  final pace = paceRaw != null ? parsePaceSpec(paceRaw) : null;
+
+  return _IntervalBlock(
+    repeat: 1,
+    distanceM: null,
+    durationMinutes: minutes,
+    target: pace != null ? CoachRepTarget(pace: pace) : null,
+    recovery: split.recovery,
+  );
+}
+
 _DurationBlock? _parseDurationBlock(String block) {
   final m = RegExp(
     '^(\\d+(?:\\.\\d+)?)\\s*${durationUnitPattern}(?:\\s+(.+))?\$',
@@ -716,6 +756,9 @@ List<Map<String, dynamic>> _blockToSteps(
   _ParsedBlock block,
   CoachSegmentKind kind,
 ) {
+  if (block is _RecoveryBlock) {
+    return [_buildRecoveryStep(block.recovery)];
+  }
   if (block is _DurationBlock) {
     return [buildDurationSegment(kind, block.minutes * 60, block.pace)];
   }
@@ -791,6 +834,7 @@ CoachSegmentKind _resolveSegmentKind(
   CoachSegmentKind? explicitKind,
 ) {
   if (block is _IntervalBlock) return CoachSegmentKind.main;
+  if (block is _RecoveryBlock) return CoachSegmentKind.recovery;
   return explicitKind ?? CoachSegmentKind.main;
 }
 
@@ -890,6 +934,8 @@ CoachParseResult parseCoachText(String rawInput) {
     _ParsedBlock? block = _parseIntervalBlock(part);
     block ??= _parseStandaloneRepBlock(part);
     block ??= _parseDistanceRepBlock(part);
+    block ??= _parseDurationRepBlock(part);
+    block ??= _parseStandaloneRecoveryBlock(part);
     block ??= _parseDurationBlock(part);
     block ??= _parseDistanceBlock(part);
     if (block == null) {

@@ -124,7 +124,7 @@ class _ActivityHistoryPageState extends ConsumerState<ActivityHistoryPage> {
             Text(
               activitiesState.error!,
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.neutral500,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),
@@ -176,6 +176,8 @@ class _ActivityHistoryPageState extends ConsumerState<ActivityHistoryPage> {
   }
 
   Widget _buildActivityCard(BuildContext context, ActivityEntity activity) {
+    final cs = Theme.of(context).colorScheme;
+
     return InkWell(
       onTap: () => context.pushNamed(
         RouteNames.activityDetail,
@@ -200,7 +202,9 @@ class _ActivityHistoryPageState extends ConsumerState<ActivityHistoryPage> {
                     children: [
                       Text(
                         activity.userName,
-                        style: AppTypography.titleSmall,
+                        style: AppTypography.titleSmall.copyWith(
+                          color: cs.onSurface,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Row(
@@ -208,20 +212,20 @@ class _ActivityHistoryPageState extends ConsumerState<ActivityHistoryPage> {
                           Icon(
                             _getActivityIcon(activity.activityType),
                             size: 14,
-                            color: AppColors.neutral500,
+                            color: cs.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             timeago.format(activity.startTime, locale: 'tr'),
                             style: AppTypography.labelSmall.copyWith(
-                              color: AppColors.neutral500,
+                              color: cs.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(width: 4),
                           Text(
                             '·',
                             style: AppTypography.labelSmall.copyWith(
-                              color: AppColors.neutral500,
+                              color: cs.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -240,6 +244,7 @@ class _ActivityHistoryPageState extends ConsumerState<ActivityHistoryPage> {
               activity.title ?? _getDefaultTitle(activity.activityType),
               style: AppTypography.titleMedium.copyWith(
                 fontWeight: FontWeight.bold,
+                color: cs.onSurface,
               ),
             ),
             const SizedBox(height: 12),
@@ -249,18 +254,21 @@ class _ActivityHistoryPageState extends ConsumerState<ActivityHistoryPage> {
               children: [
                 if (activity.distanceMeters != null && activity.distanceMeters! > 0)
                   _buildStatItem(
+                    context,
                     icon: Icons.straighten,
                     value: '${activity.distanceKm.toStringAsFixed(2)} km',
                     label: 'Mesafe',
                   ),
                 if (activity.averagePaceSeconds != null)
                   _buildStatItem(
+                    context,
                     icon: Icons.speed,
                     value: '${activity.formattedPace} /km',
                     label: 'Pace',
                   ),
                 if (activity.durationSeconds != null)
                   _buildStatItem(
+                    context,
                     icon: Icons.timer_outlined,
                     value: activity.formattedDuration,
                     label: 'Süre',
@@ -344,26 +352,30 @@ class _ActivityHistoryPageState extends ConsumerState<ActivityHistoryPage> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildStatItem({
+  Widget _buildStatItem(
+    BuildContext context, {
     required IconData icon,
     required String value,
     required String label,
   }) {
+    final cs = Theme.of(context).colorScheme;
+
     return Expanded(
       child: Column(
         children: [
-          Icon(icon, size: 18, color: AppColors.primary),
+          Icon(icon, size: 18, color: cs.primary),
           const SizedBox(height: 4),
           Text(
             value,
             style: AppTypography.titleSmall.copyWith(
               fontWeight: FontWeight.bold,
+              color: cs.onSurface,
             ),
           ),
           Text(
             label,
             style: AppTypography.labelSmall.copyWith(
-              color: AppColors.neutral500,
+              color: cs.onSurfaceVariant,
             ),
           ),
         ],

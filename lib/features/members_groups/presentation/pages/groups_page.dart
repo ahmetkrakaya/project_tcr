@@ -15,6 +15,7 @@ import '../../../chat/presentation/providers/chat_provider.dart';
 import '../providers/group_provider.dart';
 import '../widgets/group_card.dart';
 import '../../domain/entities/group_entity.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Gruplar Sayfası
 class GroupsPage extends ConsumerStatefulWidget {
@@ -93,9 +94,9 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                           ),
                         ),
                         backgroundColor: AppColors.warning,
-                        child: const Icon(Icons.inbox_outlined),
+                        child: Icon(Icons.inbox_outlined),
                       )
-                    : const Icon(Icons.inbox_outlined),
+                    : Icon(Icons.inbox_outlined),
               )
             : null,
         title: const Text('Gruplar ve Üyeler'),
@@ -122,19 +123,19 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                         ),
                       ),
                       backgroundColor: AppColors.warning,
-                      child: const Icon(Icons.group_off),
+                      child: Icon(Icons.group_off),
                     )
-                  : const Icon(Icons.group_off),
+                  : Icon(Icons.group_off),
             ),
           if (isAdmin && _tabController.index == 0)
             IconButton(
-              icon: const Icon(Icons.add),
+              icon: Icon(Icons.add),
               tooltip: 'Yeni Grup',
               onPressed: () => context.pushNamed(RouteNames.createGroup),
             ),
           if (_tabController.index == 1)
             IconButton(
-              icon: const Icon(Icons.cake_outlined),
+              icon: Icon(Icons.cake_outlined),
               tooltip: 'Yaklaşan Doğum Günleri',
               onPressed: () => context.pushNamed(RouteNames.upcomingBirthdays),
             ),
@@ -926,7 +927,7 @@ class _UserListItem {
                       ),
                       Icon(
                         isExpanded! ? Icons.expand_less : Icons.expand_more,
-                        color: AppColors.neutral500,
+                        color: ThemeBrightnessHolder.onSurfaceVariant,
                       ),
                     ],
                   ),
@@ -1083,13 +1084,13 @@ class _UserListItem {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.cancel, color: AppColors.error),
+                    icon: Icon(Icons.cancel, color: AppColors.error),
                     tooltip: 'Reddet',
                     visualDensity: VisualDensity.compact,
                     onPressed: () => onRejectUser(user.id),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.check_circle, color: AppColors.success),
+                    icon: Icon(Icons.check_circle, color: AppColors.success),
                     tooltip: 'Onayla',
                     visualDensity: VisualDensity.compact,
                     onPressed: () => onApproveUser(user.id),

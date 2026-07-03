@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/entities/route_entity.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Elevation Profili Grafiği
 class ElevationChart extends StatefulWidget {
@@ -116,7 +117,7 @@ class _ElevationChartState extends State<ElevationChart> {
         Text(
           label,
           style: AppTypography.labelSmall.copyWith(
-            color: AppColors.neutral600,
+            color: ThemeBrightnessHolder.onSurfaceVariant,
           ),
         ),
       ],
@@ -166,7 +167,7 @@ class _ElevationChartState extends State<ElevationChart> {
               return Text(
                 '${value.toInt()}m',
                 style: AppTypography.labelSmall.copyWith(
-                  color: AppColors.neutral500,
+                  color: ThemeBrightnessHolder.onSurfaceVariant,
                   fontSize: 10,
                 ),
               );
@@ -184,7 +185,7 @@ class _ElevationChartState extends State<ElevationChart> {
                 child: Text(
                   '${value.toStringAsFixed(1)}km',
                   style: AppTypography.labelSmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                     fontSize: 10,
                   ),
                 ),
@@ -240,7 +241,7 @@ class _ElevationChartState extends State<ElevationChart> {
           isCurved: true,
           curveSmoothness: 0.3,
           preventCurveOverShooting: true,
-          color: AppColors.neutral700,
+          color: ThemeBrightnessHolder.onSurface,
           barWidth: 2,
           isStrokeCapRound: true,
           dotData: FlDotData(

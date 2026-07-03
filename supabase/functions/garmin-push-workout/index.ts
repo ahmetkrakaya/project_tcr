@@ -700,6 +700,19 @@ async function createGarminSchedule(
 
 // ---------- Expired Workout Cleanup ----------
 
+async function isUserProgramEligible(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("users")
+    .select("is_active, user_status")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return data?.is_active === true && data?.user_status === "active";
+}
+
 async function cleanupExpiredWorkouts(
   supabase: ReturnType<typeof createClient>,
   accessToken: string,
@@ -760,9 +773,11 @@ serve(async (req: Request) => {
       // Cron: tüm Garmin bağlı kullanıcılar
       const { data: integrations } = await supabase
         .from("user_integrations")
-        .select("user_id")
+        .select("user_id, users!inner(is_active, user_status)")
         .eq("provider", "garmin")
-        .eq("sync_enabled", true);
+        .eq("sync_enabled", true)
+        .eq("users.is_active", true)
+        .eq("users.user_status", "active");
 
       userIds = (integrations ?? []).map((i: any) => i.user_id);
     }
@@ -804,6 +819,10 @@ async function syncUserWorkouts(
   supabase: ReturnType<typeof createClient>,
   userId: string
 ): Promise<{ sent: number; skipped: number; updated: number; cleaned: number }> {
+  if (!(await isUserProgramEligible(supabase, userId))) {
+    return { sent: 0, skipped: 0, updated: 0, cleaned: 0 };
+  }
+
   // 1. Integration bilgilerini al
   const { data: integration } = await supabase
     .from("user_integrations")
@@ -1033,6 +1052,13 @@ async function handleSinglePush(
     typeof viewLaneRaw === "number" && viewLaneRaw >= 1 && viewLaneRaw <= 8
       ? Math.round(viewLaneRaw)
       : null;
+
+  if (!(await isUserProgramEligible(supabase, user_id))) {
+    return new Response(JSON.stringify({ error: "User is not eligible for program sync" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   const { data: integration } = await supabase
     .from("user_integrations")

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../utils/logo_brand_color_extractor.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Marka rengi seçimi için palet bottom sheet.
 class BrandColorPickerSheet extends StatelessWidget {
@@ -85,7 +86,7 @@ class BrandColorPickerSheet extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.neutral300,
+                color: ThemeBrightnessHolder.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -109,7 +110,7 @@ class BrandColorPickerSheet extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: color,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.neutral300),
+                      border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -134,7 +135,7 @@ class BrandColorPickerSheet extends StatelessWidget {
             Text(
               'Logodan önerilen',
               style: AppTypography.labelMedium.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 8),
@@ -149,7 +150,7 @@ class BrandColorPickerSheet extends StatelessWidget {
           Text(
             'Palet',
             style: AppTypography.labelMedium.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 12),

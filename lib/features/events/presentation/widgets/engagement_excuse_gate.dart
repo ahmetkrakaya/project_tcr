@@ -6,6 +6,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/providers/auth_provider.dart';
 import '../../data/models/engagement_excuse_model.dart';
 import '../providers/engagement_excuse_provider.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Oturum açıkken bekleyen mazaret talebi varsa uygulamayı bloke eder.
 class EngagementExcuseGate extends ConsumerStatefulWidget {
@@ -145,7 +146,7 @@ class _EngagementExcuseBlockingOverlayState
                             color: AppColors.primary.withValues(alpha: 0.08),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.edit_note_rounded,
                             size: 36,
                             color: AppColors.primary,
@@ -183,7 +184,7 @@ class _EngagementExcuseBlockingOverlayState
                         Text(
                           widget.request.description,
                           style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.neutral700,
+                            color: ThemeBrightnessHolder.onSurface,
                             height: 1.45,
                           ),
                           textAlign: TextAlign.center,

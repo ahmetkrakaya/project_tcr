@@ -11,6 +11,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../providers/group_provider.dart';
 import '../widgets/group_avatar.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Grup Oluşturma Sayfası (Admin/Coach)
 class CreateGroupPage extends ConsumerStatefulWidget {
@@ -116,6 +117,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
   @override
   Widget build(BuildContext context) {
     final creationState = ref.watch(groupCreationProvider);
+    final cs = Theme.of(context).colorScheme;
 
     ref.listen<GroupCreationState>(groupCreationProvider, (prev, next) {
       if (next.createdGroup != null && prev?.createdGroup != next.createdGroup) {
@@ -151,7 +153,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
                   ),
                 )
               : IconButton(
-                  icon: const Icon(Icons.check),
+                  icon: Icon(Icons.check),
                   tooltip: _isEditing ? 'Güncelle' : 'Grup Oluştur',
                   onPressed: _submitForm,
                 ),
@@ -171,7 +173,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
               const SizedBox(height: 24),
 
               // Grup Türü
-              _buildGroupTypeSelector(),
+              _buildGroupTypeSelector(context),
               const SizedBox(height: 24),
 
               // Grup Adı
@@ -235,13 +237,11 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
                         width: 100,
                         child: DropdownButtonFormField<String>(
                           value: _targetDistanceUnit,
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                          decoration: const InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 14,
                             ),
-                            filled: true,
-                            fillColor: Theme.of(context).colorScheme.surface,
                           ),
                           items: const [
                             DropdownMenuItem(
@@ -271,11 +271,11 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
               // Zorluk Seviyesi
               Text('Zorluk Seviyesi', style: AppTypography.labelLarge),
               const SizedBox(height: 12),
-              _buildDifficultySelector(),
+              _buildDifficultySelector(context),
               const SizedBox(height: 24),
 
               // Görsel Türü
-              _buildVisualTypeSelector(),
+              _buildVisualTypeSelector(context),
               const SizedBox(height: 24),
 
               // Renk Seçimi
@@ -287,11 +287,11 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
               if (_visualType == 'icon') ...[
                 Text('Grup İkonu', style: AppTypography.labelLarge),
                 const SizedBox(height: 12),
-                _buildIconSelector(),
+                _buildIconSelector(context),
               ] else ...[
                 Text('Grup Fotoğrafı', style: AppTypography.labelLarge),
                 const SizedBox(height: 12),
-                _buildPhotoSelector(),
+                _buildPhotoSelector(context),
               ],
               const SizedBox(height: 40),
             ],
@@ -304,10 +304,10 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
               bottom: MediaQuery.of(context).viewInsets.bottom + 16,
               right: 20,
               child: Material(
-                color: AppColors.primary,
+                color: cs.primary,
                 borderRadius: BorderRadius.circular(20),
                 elevation: 8,
-                shadowColor: AppColors.primary.withValues(alpha: 0.5),
+                shadowColor: cs.primary.withValues(alpha: 0.5),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(20),
                   onTap: () {
@@ -317,10 +317,10 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
                     width: 44,
                     height: 44,
                     alignment: Alignment.center,
-                    child: const Icon(
+                    child: Icon(
                       Icons.keyboard_hide,
                       size: 24,
-                      color: Colors.white,
+                      color: cs.onPrimary,
                     ),
                   ),
                 ),
@@ -396,13 +396,14 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
     );
   }
 
-  Widget _buildGroupTypeSelector() {
+  Widget _buildGroupTypeSelector(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Grup Türü', style: AppTypography.labelLarge),
         const SizedBox(height: 12),
         _buildGroupTypeOption(
+          context,
           type: 'normal',
           title: 'Normal Grup',
           description: 'Antrenman programı tüm grup üyelerine uygulanır.',
@@ -410,6 +411,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
         ),
         const SizedBox(height: 8),
         _buildGroupTypeOption(
+          context,
           type: 'performance',
           title: 'Performans Grubu',
           description: 'Her üye için ayrı antrenman programı tanımlanır.',
@@ -418,21 +420,24 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
         const SizedBox(height: 8),
         Text(
           'Her iki grup türüne katılım admin onayı ile yapılır.',
-          style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+          style: AppTypography.bodySmall.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildGroupTypeOption({
+  Widget _buildGroupTypeOption(
+    BuildContext context, {
     required String type,
     required String title,
     required String description,
     required IconData icon,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final isSelected = _selectedGroupType == type;
-    final accentColor =
-        type == 'performance' ? AppColors.secondary : AppColors.primary;
+    final accentColor = type == 'performance' ? cs.secondary : cs.primary;
 
     return Material(
       color: Colors.transparent,
@@ -443,11 +448,11 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: isSelected
-                ? accentColor.withValues(alpha: 0.08)
-                : AppColors.neutral100,
+                ? accentColor.withValues(alpha: 0.12)
+                : cs.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? accentColor : AppColors.neutral200,
+              color: isSelected ? accentColor : cs.outlineVariant,
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -471,14 +476,14 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
                       title,
                       style: AppTypography.titleSmall.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: isSelected ? accentColor : null,
+                        color: isSelected ? accentColor : cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       description,
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.neutral500,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -493,7 +498,9 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
     );
   }
 
-  Widget _buildDifficultySelector() {
+  Widget _buildDifficultySelector(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Row(
       children: List.generate(5, (index) {
         final level = index + 1;
@@ -507,10 +514,12 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
               margin: EdgeInsets.only(right: index < 4 ? 8 : 0),
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: isSelected ? color.withValues(alpha: 0.2) : AppColors.neutral100,
+                color: isSelected
+                    ? color.withValues(alpha: 0.2)
+                    : cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: isSelected ? color : AppColors.neutral200,
+                  color: isSelected ? color : cs.outlineVariant,
                   width: isSelected ? 2 : 1,
                 ),
               ),
@@ -519,7 +528,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
                   Text(
                     '$level',
                     style: AppTypography.titleMedium.copyWith(
-                      color: isSelected ? color : AppColors.neutral600,
+                      color: isSelected ? color : cs.onSurface,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
@@ -527,7 +536,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
                   Text(
                     _getDifficultyText(level),
                     style: AppTypography.labelSmall.copyWith(
-                      color: isSelected ? color : AppColors.neutral500,
+                      color: isSelected ? color : cs.onSurfaceVariant,
                       fontSize: 9,
                     ),
                   ),
@@ -571,7 +580,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
                   : null,
             ),
             child: isSelected
-                ? const Icon(
+                ? Icon(
                     Icons.check,
                     color: Colors.white,
                     size: 24,
@@ -606,7 +615,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
     );
   }
 
-  Widget _buildVisualTypeSelector() {
+  Widget _buildVisualTypeSelector(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -616,6 +625,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
           children: [
             Expanded(
               child: _buildVisualTypeChip(
+                context,
                 type: 'icon',
                 label: 'İkon',
                 icon: Icons.emoji_emotions_outlined,
@@ -624,6 +634,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
             const SizedBox(width: 8),
             Expanded(
               child: _buildVisualTypeChip(
+                context,
                 type: 'photo',
                 label: 'Fotoğraf',
                 icon: Icons.photo_outlined,
@@ -635,11 +646,13 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
     );
   }
 
-  Widget _buildVisualTypeChip({
+  Widget _buildVisualTypeChip(
+    BuildContext context, {
     required String type,
     required String label,
     required IconData icon,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final isSelected = _visualType == type;
     return Material(
       color: Colors.transparent,
@@ -650,11 +663,11 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppColors.primary.withValues(alpha: 0.08)
-                : AppColors.neutral100,
+                ? cs.primary.withValues(alpha: 0.12)
+                : cs.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.neutral200,
+              color: isSelected ? cs.primary : cs.outlineVariant,
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -664,14 +677,14 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
               Icon(
                 icon,
                 size: 20,
-                color: isSelected ? AppColors.primary : AppColors.neutral500,
+                color: isSelected ? cs.primary : cs.onSurfaceVariant,
               ),
               const SizedBox(width: 8),
               Text(
                 label,
                 style: AppTypography.titleSmall.copyWith(
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? AppColors.primary : AppColors.neutral600,
+                  color: isSelected ? cs.primary : cs.onSurface,
                 ),
               ),
             ],
@@ -681,7 +694,8 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
     );
   }
 
-  Widget _buildPhotoSelector() {
+  Widget _buildPhotoSelector(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final hasPhoto =
         _localImageBytes != null || (_imageUrl != null && _imageUrl!.isNotEmpty);
 
@@ -694,9 +708,9 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                color: AppColors.neutral100,
+                color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.neutral200),
+                border: Border.all(color: cs.outlineVariant),
               ),
               child: _isUploadingImage
                   ? const Center(child: CircularProgressIndicator())
@@ -724,13 +738,13 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
                             Icon(
                               Icons.add_a_photo_outlined,
                               size: 32,
-                              color: AppColors.neutral400,
+                              color: cs.outline,
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'Fotoğraf Seç',
                               style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.neutral500,
+                                color: cs.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -742,10 +756,10 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
               right: 0,
               bottom: 0,
               child: Material(
-                color: AppColors.primary,
+                color: cs.primary,
                 shape: const CircleBorder(),
                 child: IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.white, size: 18),
+                  icon: Icon(Icons.edit, color: cs.onPrimary, size: 18),
                   onPressed: _pickGroupPhoto,
                 ),
               ),
@@ -762,12 +776,12 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_library),
+              leading: Icon(Icons.photo_library),
               title: const Text('Galeriden Seç'),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             ListTile(
-              leading: const Icon(Icons.camera_alt),
+              leading: Icon(Icons.camera_alt),
               title: const Text('Kamera ile Çek'),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),
@@ -844,7 +858,9 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
     }
   }
 
-  Widget _buildIconSelector() {
+  Widget _buildIconSelector(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Wrap(
       spacing: 12,
       runSpacing: 12,
@@ -858,16 +874,18 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: isSelected ? color.withValues(alpha: 0.15) : AppColors.neutral100,
+              color: isSelected
+                  ? color.withValues(alpha: 0.15)
+                  : cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isSelected ? color : AppColors.neutral200,
+                color: isSelected ? color : cs.outlineVariant,
                 width: isSelected ? 2 : 1,
               ),
             ),
             child: Icon(
               option['iconData'] as IconData,
-              color: isSelected ? color : AppColors.neutral500,
+              color: isSelected ? color : cs.onSurfaceVariant,
               size: 28,
             ),
           ),
@@ -935,7 +953,7 @@ class _CreateGroupPageState extends ConsumerState<CreateGroupPage> {
       final hex = colorHex.replaceFirst('#', '');
       return Color(int.parse('FF$hex', radix: 16));
     } catch (_) {
-      return AppColors.primary;
+      return ThemeBrightnessHolder.primary;
     }
   }
 

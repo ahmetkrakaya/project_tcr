@@ -10,6 +10,7 @@ import '../../../integrations/shared/weekly_program_device_sync.dart';
 import '../../../workout/data/models/workout_model.dart';
 import '../../../workout/domain/entities/workout_entity.dart';
 import '../../../workout/utils/segment_target_resolver.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Aylık plan satırı: özet + yapılandırılmış antrenman adımları.
 /// [enableLanePicker] true ise sporcu pist kulvarını değiştirip pace/süre dönüşümü görebilir.
@@ -147,7 +148,7 @@ class _AdminMonthlyProgramEntryCardState
                   child: Text(
                     'Koç $ref. kulvar için hazırladı. Farklı kulvarda koşacaksanız seçin; tempo aynı kalır, süreler güncellenir.',
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.neutral600,
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -169,7 +170,7 @@ class _AdminMonthlyProgramEntryCardState
                             ? Text(
                                 'Koç',
                                 style: AppTypography.labelSmall.copyWith(
-                                  color: AppColors.neutral500,
+                                  color: ThemeBrightnessHolder.onSurfaceVariant,
                                 ),
                               )
                             : null,
@@ -306,7 +307,7 @@ class _AdminMonthlyProgramEntryCardState
                       Text(
                         '${planDate.month}.${planDate.year}',
                         style: AppTypography.labelSmall.copyWith(
-                          color: AppColors.neutral600,
+                          color: ThemeBrightnessHolder.onSurfaceVariant,
                           fontSize: 10,
                         ),
                       ),
@@ -323,6 +324,7 @@ class _AdminMonthlyProgramEntryCardState
                         groupName,
                         style: AppTypography.titleSmall.copyWith(
                           fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     const SizedBox(height: 4),
@@ -351,7 +353,7 @@ class _AdminMonthlyProgramEntryCardState
             Text(
               coachNotes,
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.neutral800,
+                color: ThemeBrightnessHolder.onSurface,
                 height: 1.4,
               ),
             ),
@@ -361,7 +363,7 @@ class _AdminMonthlyProgramEntryCardState
             Text(
               programContent,
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.neutral800,
+                color: ThemeBrightnessHolder.onSurface,
                 height: 1.35,
               ),
             ),
@@ -371,7 +373,7 @@ class _AdminMonthlyProgramEntryCardState
             Text(
               'Antrenman yapısı',
               style: AppTypography.labelSmall.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.4,
               ),
@@ -391,7 +393,7 @@ class _AdminMonthlyProgramEntryCardState
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.sync, size: 18),
+                    : Icon(Icons.sync, size: 18),
                 label: Text(
                   laneChanged
                       ? 'Kulvar ${_viewLane} ile cihazlara senkronize et'
@@ -410,7 +412,7 @@ class _AdminMonthlyProgramEntryCardState
                 child: Text(
                   'Bağlı cihaz yok. Bağlantılar ekranından Garmin veya saat uygulamanızı bağlayın.',
                   style: AppTypography.labelSmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                     height: 1.35,
                   ),
                 ),
@@ -421,7 +423,7 @@ class _AdminMonthlyProgramEntryCardState
                 child: Text(
                   'Hedef: ${deviceTargets.join(', ')} · Seçili kulvar ve sürelerle güncellenir',
                   style: AppTypography.labelSmall.copyWith(
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                     height: 1.35,
                   ),
                 ),
@@ -567,14 +569,14 @@ class _AdminMonthlyProgramEntryCardState
                               Text(
                                 ' · ',
                                 style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.neutral600,
+                                  color: ThemeBrightnessHolder.onSurfaceVariant,
                                   height: 1.35,
                                 ),
                               ),
                             Text(
                               details[i],
                               style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.neutral600,
+                                color: ThemeBrightnessHolder.onSurfaceVariant,
                                 height: 1.35,
                               ),
                             ),

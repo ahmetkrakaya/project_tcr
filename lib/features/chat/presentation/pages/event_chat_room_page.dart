@@ -70,6 +70,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
   }
 
   PreferredSizeWidget _buildAppBar(AsyncValue<ChatRoomModel?> chatRoomAsync) {
+    final cs = Theme.of(context).colorScheme;
     return AppBar(
       title: Row(
         children: [
@@ -80,7 +81,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
               color: AppColors.secondaryContainer,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.event, color: AppColors.secondary, size: 20),
+            child: Icon(Icons.event, color: AppColors.secondary, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -89,14 +90,14 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
               children: [
                 Text(
                   chatRoomAsync.valueOrNull?.name ?? 'Etkinlik Sohbeti',
-                  style: AppTypography.titleSmall,
+                  style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   chatRoomAsync.isLoading
                       ? 'Yükleniyor...'
                       : '${chatRoomAsync.valueOrNull?.memberCount ?? 0} katılımcı',
-                  style: AppTypography.labelSmall.copyWith(color: AppColors.neutral500),
+                  style: AppTypography.labelSmall.copyWith(color: cs.onSurfaceVariant),
                 ),
               ],
             ),
@@ -106,7 +107,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
       actions: [
         if (chatRoomAsync.hasValue && chatRoomAsync.value != null)
           IconButton(
-            icon: const Icon(Icons.people_outline),
+            icon: Icon(Icons.people_outline),
             onPressed: () => _showMembersSheet(context, chatRoomAsync.value!.id),
           ),
       ],
@@ -114,20 +115,21 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
   }
 
   Widget _buildNoChatRoom() {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.chat_bubble_outline, size: 64, color: AppColors.neutral400),
+          Icon(Icons.chat_bubble_outline, size: 64, color: cs.outline),
           const SizedBox(height: 16),
           Text(
             'Sohbet odası bulunamadı',
-            style: AppTypography.titleMedium.copyWith(color: AppColors.neutral600),
+            style: AppTypography.titleMedium.copyWith(color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
           Text(
             'Bu etkinlik için henüz sohbet odası oluşturulmamış.',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral500),
+            style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
             textAlign: TextAlign.center,
           ),
         ],
@@ -136,6 +138,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
   }
 
   Widget _buildError(BuildContext context, Object error) {
+    final cs = Theme.of(context).colorScheme;
     if (isContentNotFoundError(error)) {
       return ContentNotFoundWidget(
         onGoToNotifications: () => context.goNamed(RouteNames.notifications),
@@ -154,7 +157,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
             const SizedBox(height: 8),
             Text(
               error.toString(),
-              style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -170,6 +173,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
   }
 
   Widget _buildLoadingSkeleton() {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Expanded(
@@ -188,7 +192,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: AppColors.neutral200,
+                          color: cs.surfaceContainerHigh,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -198,7 +202,9 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                       width: 150 + (index * 20 % 80),
                       height: 50,
                       decoration: BoxDecoration(
-                        color: isMe ? AppColors.primary.withValues(alpha: 0.3) : AppColors.neutral200,
+                        color: isMe
+                            ? cs.primary.withValues(alpha: 0.3)
+                            : cs.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(18),
                       ),
                     ),
@@ -216,7 +222,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                 child: Container(
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.neutral200,
+                    color: cs.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(24),
                   ),
                 ),
@@ -226,7 +232,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.5),
+                  color: cs.primary.withValues(alpha: 0.5),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -282,15 +288,26 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
         Expanded(
           child: filteredMessages.isEmpty && !messagesState.isLoading
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.chat_bubble_outline, size: 64, color: AppColors.neutral300),
-                      const SizedBox(height: 16),
-                      Text('Henüz mesaj yok', style: AppTypography.titleMedium.copyWith(color: AppColors.neutral500)),
-                      const SizedBox(height: 8),
-                      Text('İlk mesajı gönderen siz olun!', style: AppTypography.bodyMedium.copyWith(color: AppColors.neutral400)),
-                    ],
+                  child: Builder(
+                    builder: (context) {
+                      final cs = Theme.of(context).colorScheme;
+                      return Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.chat_bubble_outline, size: 64, color: cs.outlineVariant),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Henüz mesaj yok',
+                            style: AppTypography.titleMedium.copyWith(color: cs.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'İlk mesajı gönderen siz olun!',
+                            style: AppTypography.bodyMedium.copyWith(color: cs.outline),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 )
               : ListView.builder(
@@ -323,30 +340,42 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
   }
 
   Widget _buildReplyIndicator() {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariantLight,
-        border: Border(top: BorderSide(color: AppColors.neutral200)),
+        color: cs.surfaceContainerHighest,
+        border: Border(top: BorderSide(color: cs.outlineVariant)),
       ),
       child: Row(
         children: [
           Container(
             width: 4,
             height: 40,
-            decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2)),
+            decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(2)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_replyToMessage!.senderName ?? 'Anonim', style: AppTypography.labelMedium.copyWith(color: AppColors.primary)),
-                Text(_replyToMessage!.content, style: AppTypography.bodySmall.copyWith(color: AppColors.neutral600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(
+                  _replyToMessage!.senderName ?? 'Anonim',
+                  style: AppTypography.labelMedium.copyWith(color: cs.primary),
+                ),
+                Text(
+                  _replyToMessage!.content,
+                  style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
-          IconButton(icon: const Icon(Icons.close, size: 20), onPressed: _clearReply),
+          IconButton(
+            icon: Icon(Icons.close, size: 20, color: cs.onSurfaceVariant),
+            onPressed: _clearReply,
+          ),
         ],
       ),
     );
@@ -361,6 +390,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
     VoidCallback? onReport,
     VoidCallback? onBlock,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final isTempMessage = message.id.startsWith('temp_');
     
     return Padding(
@@ -390,7 +420,10 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                       padding: const EdgeInsets.only(bottom: 4, left: 12),
                       child: Text(
                         message.senderName ?? 'Anonim',
-                        style: AppTypography.labelSmall.copyWith(color: AppColors.primary, fontWeight: FontWeight.w600),
+                        style: AppTypography.labelSmall.copyWith(
+                          color: cs.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   Opacity(
@@ -398,7 +431,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: isMe ? AppColors.primary : AppColors.surfaceVariantLight,
+                        color: isMe ? cs.primary : cs.surfaceContainerHighest,
                         borderRadius: BorderRadius.only(
                           topLeft: const Radius.circular(18),
                           topRight: const Radius.circular(18),
@@ -413,7 +446,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                             Text(
                               'Bu mesaj silindi',
                               style: AppTypography.bodyMedium.copyWith(
-                                color: isMe ? Colors.white : AppColors.neutral800,
+                                color: isMe ? cs.onPrimary : cs.onSurfaceVariant,
                                 fontStyle: FontStyle.italic,
                               ),
                             )
@@ -422,12 +455,12 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                               text: message.content,
                               selectable: false,
                               style: AppTypography.bodyMedium.copyWith(
-                                color: isMe ? Colors.white : AppColors.neutral800,
+                                color: isMe ? cs.onPrimary : cs.onSurface,
                               ),
                               linkStyle: AppTypography.bodyMedium.copyWith(
-                                color: isMe ? Colors.white : AppColors.primary,
+                                color: isMe ? cs.onPrimary : cs.primary,
                                 decoration: TextDecoration.underline,
-                                decorationColor: isMe ? Colors.white : AppColors.primary,
+                                decorationColor: isMe ? cs.onPrimary : cs.primary,
                               ),
                             ),
                           const SizedBox(height: 4),
@@ -437,7 +470,9 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                               Text(
                                 isTempMessage ? 'Gönderiliyor...' : message.formattedTime,
                                 style: AppTypography.labelSmall.copyWith(
-                                  color: isMe ? Colors.white.withValues(alpha: 0.7) : AppColors.neutral400,
+                                  color: isMe
+                                      ? cs.onPrimary.withValues(alpha: 0.7)
+                                      : cs.onSurfaceVariant,
                                   fontSize: 10,
                                 ),
                               ),
@@ -446,7 +481,9 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                                 Text(
                                   '(düzenlendi)',
                                   style: AppTypography.labelSmall.copyWith(
-                                    color: isMe ? Colors.white.withValues(alpha: 0.7) : AppColors.neutral400,
+                                    color: isMe
+                                        ? cs.onPrimary.withValues(alpha: 0.7)
+                                        : cs.onSurfaceVariant,
                                     fontSize: 10,
                                     fontStyle: FontStyle.italic,
                                   ),
@@ -468,6 +505,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
   }
 
   Widget _buildMessageInput(String roomId) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: EdgeInsets.only(
         left: 16,
@@ -476,7 +514,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
         bottom: MediaQuery.of(context).viewInsets.bottom > 0 ? 12 : MediaQuery.of(context).padding.bottom + 12,
       ),
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        color: cs.surface,
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
       ),
       child: Row(
@@ -484,10 +522,12 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
           Expanded(
             child: TextField(
               controller: _messageController,
+              style: TextStyle(color: cs.onSurface),
               decoration: InputDecoration(
                 hintText: 'Mesaj yaz...',
+                hintStyle: TextStyle(color: cs.onSurfaceVariant),
                 filled: true,
-                fillColor: AppColors.surfaceVariantLight,
+                fillColor: cs.surfaceContainerHighest,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
               ),
@@ -501,8 +541,8 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
           GestureDetector(
             onTap: () => _sendMessage(roomId),
             child: CircleAvatar(
-              backgroundColor: AppColors.primary,
-              child: const Icon(Icons.send, color: Colors.white, size: 20),
+              backgroundColor: cs.primary,
+              child: Icon(Icons.send, color: cs.onPrimary, size: 20),
             ),
           ),
         ],
@@ -668,7 +708,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.copy_outlined),
+                leading: Icon(Icons.copy_outlined),
                 title: const Text('Kopyala'),
                 onTap: () {
                   Navigator.pop(context);
@@ -684,7 +724,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
               ),
               if (onReply != null)
                 ListTile(
-                  leading: const Icon(Icons.reply),
+                  leading: Icon(Icons.reply),
                   title: const Text('Yanıtla'),
                   onTap: () {
                     Navigator.pop(context);
@@ -693,7 +733,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                 ),
               if (onReport != null)
                 ListTile(
-                  leading: const Icon(Icons.flag_outlined),
+                  leading: Icon(Icons.flag_outlined),
                   title: const Text('Mesajı Bildir'),
                   onTap: () {
                     Navigator.pop(context);
@@ -747,7 +787,7 @@ class _EventChatRoomPageState extends ConsumerState<EventChatRoomPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Katılımcılar', style: AppTypography.titleLarge),
-                        IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                        IconButton(icon: Icon(Icons.close), onPressed: () => Navigator.pop(context)),
                       ],
                     ),
                   ),

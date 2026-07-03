@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../core/utils/extensions.dart';
 
 /// TCR App Button Variants
 enum AppButtonVariant { primary, secondary, outlined, text, danger }
@@ -35,42 +36,43 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final buttonChild = child ?? _buildButtonContent();
+    final cs = context.colorScheme;
+    final buttonChild = child ?? _buildButtonContent(cs);
 
     Widget button;
     switch (variant) {
       case AppButtonVariant.primary:
         button = ElevatedButton(
           onPressed: isLoading ? null : onPressed,
-          style: _primaryStyle,
+          style: _primaryStyle(cs),
           child: buttonChild,
         );
         break;
       case AppButtonVariant.secondary:
         button = ElevatedButton(
           onPressed: isLoading ? null : onPressed,
-          style: _secondaryStyle,
+          style: _secondaryStyle(cs),
           child: buttonChild,
         );
         break;
       case AppButtonVariant.outlined:
         button = OutlinedButton(
           onPressed: isLoading ? null : onPressed,
-          style: _outlinedStyle,
+          style: _outlinedStyle(cs),
           child: buttonChild,
         );
         break;
       case AppButtonVariant.text:
         button = TextButton(
           onPressed: isLoading ? null : onPressed,
-          style: _textStyle,
+          style: _textStyle(cs),
           child: buttonChild,
         );
         break;
       case AppButtonVariant.danger:
         button = ElevatedButton(
           onPressed: isLoading ? null : onPressed,
-          style: _dangerStyle,
+          style: _dangerStyle(),
           child: buttonChild,
         );
         break;
@@ -82,14 +84,14 @@ class AppButton extends StatelessWidget {
     return button;
   }
 
-  Widget _buildButtonContent() {
+  Widget _buildButtonContent(ColorScheme cs) {
     if (isLoading) {
       return SizedBox(
         width: _iconSize,
         height: _iconSize,
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(_loadingColor),
+          valueColor: AlwaysStoppedAnimation<Color>(_loadingColor(cs)),
         ),
       );
     }
@@ -170,21 +172,21 @@ class AppButton extends StatelessWidget {
     }
   }
 
-  Color get _loadingColor {
+  Color _loadingColor(ColorScheme cs) {
     switch (variant) {
       case AppButtonVariant.primary:
       case AppButtonVariant.danger:
-        return Colors.white;
+        return cs.onPrimary;
       case AppButtonVariant.secondary:
       case AppButtonVariant.outlined:
       case AppButtonVariant.text:
-        return AppColors.primary;
+        return cs.primary;
     }
   }
 
-  ButtonStyle get _primaryStyle => ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+  ButtonStyle _primaryStyle(ColorScheme cs) => ElevatedButton.styleFrom(
+        backgroundColor: cs.primary,
+        foregroundColor: cs.onPrimary,
         minimumSize: Size(0, _height),
         padding: _padding,
         shape: RoundedRectangleBorder(
@@ -193,9 +195,9 @@ class AppButton extends StatelessWidget {
         elevation: 0,
       );
 
-  ButtonStyle get _secondaryStyle => ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primaryContainer,
-        foregroundColor: AppColors.primary,
+  ButtonStyle _secondaryStyle(ColorScheme cs) => ElevatedButton.styleFrom(
+        backgroundColor: cs.primaryContainer,
+        foregroundColor: cs.onPrimaryContainer,
         minimumSize: Size(0, _height),
         padding: _padding,
         shape: RoundedRectangleBorder(
@@ -204,18 +206,18 @@ class AppButton extends StatelessWidget {
         elevation: 0,
       );
 
-  ButtonStyle get _outlinedStyle => OutlinedButton.styleFrom(
-        foregroundColor: AppColors.primary,
+  ButtonStyle _outlinedStyle(ColorScheme cs) => OutlinedButton.styleFrom(
+        foregroundColor: cs.primary,
         minimumSize: Size(0, _height),
         padding: _padding,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        side: const BorderSide(color: AppColors.primary, width: 1.5),
+        side: BorderSide(color: cs.primary, width: 1.5),
       );
 
-  ButtonStyle get _textStyle => TextButton.styleFrom(
-        foregroundColor: AppColors.primary,
+  ButtonStyle _textStyle(ColorScheme cs) => TextButton.styleFrom(
+        foregroundColor: cs.primary,
         minimumSize: Size(0, _height),
         padding: _padding,
         shape: RoundedRectangleBorder(
@@ -223,9 +225,9 @@ class AppButton extends StatelessWidget {
         ),
       );
 
-  ButtonStyle get _dangerStyle => ElevatedButton.styleFrom(
+  ButtonStyle _dangerStyle() => ElevatedButton.styleFrom(
         backgroundColor: AppColors.error,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.onError,
         minimumSize: Size(0, _height),
         padding: _padding,
         shape: RoundedRectangleBorder(
@@ -252,6 +254,7 @@ class SocialLoginButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = context.colorScheme;
     return SizedBox(
       width: double.infinity,
       height: 52,
@@ -261,13 +264,16 @@ class SocialLoginButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          side: BorderSide(color: Colors.grey.shade300),
+          side: BorderSide(color: cs.outlineVariant),
         ),
         child: isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 24,
                 height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: cs.primary,
+                ),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -277,7 +283,7 @@ class SocialLoginButton extends StatelessWidget {
                   Text(
                     text,
                     style: AppTypography.buttonText.copyWith(
-                      color: AppColors.neutral800,
+                      color: cs.onSurface,
                     ),
                   ),
                 ],

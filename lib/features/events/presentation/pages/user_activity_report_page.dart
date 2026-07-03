@@ -8,6 +8,7 @@ import '../../data/models/user_activity_report_model.dart';
 import '../providers/event_provider.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class UserActivityReportPage extends ConsumerWidget {
   final String userId;
@@ -54,7 +55,7 @@ class UserActivityReportPage extends ConsumerWidget {
             Text(
               dateRangeText,
               style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral600,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
             ),
           ],
@@ -174,7 +175,7 @@ class UserActivityReportPage extends ConsumerWidget {
           Icon(
             icon,
             size: 18,
-            color: AppColors.neutral600,
+            color: ThemeBrightnessHolder.onSurfaceVariant,
           ),
           const SizedBox(height: 4),
           Text(
@@ -188,7 +189,7 @@ class UserActivityReportPage extends ConsumerWidget {
           Text(
             label,
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
         ],
@@ -245,37 +246,37 @@ class UserActivityReportPage extends ConsumerWidget {
             Text(
               subtitleDate,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.neutral500,
+                color: ThemeBrightnessHolder.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 8),
             Row(
               children: [
-                Icon(Icons.route, size: 14, color: AppColors.neutral500),
+                Icon(Icons.route, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
                 const SizedBox(width: 4),
                 Text(
                   '${distanceKm.toStringAsFixed(2)} km',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral600,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Icon(Icons.timer_outlined,
-                    size: 14, color: AppColors.neutral500),
+                    size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
                 const SizedBox(width: 4),
                 Text(
                   durationStr,
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral600,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(width: 12),
-                Icon(Icons.speed, size: 14, color: AppColors.neutral500),
+                Icon(Icons.speed, size: 14, color: ThemeBrightnessHolder.onSurfaceVariant),
                 const SizedBox(width: 4),
                 Text(
                   '$paceStr dk/km',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.neutral600,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                   ),
                 ),
               ],

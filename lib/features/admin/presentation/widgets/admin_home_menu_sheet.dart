@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../../shared/widgets/user_avatar.dart';
+import '../../../../core/utils/extensions.dart';
 
 enum AdminMenuAction {
   profile,
@@ -28,8 +28,8 @@ class AdminHomeMenuSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final cs = context.colorScheme;
+    final surfaceColor = cs.surface;
 
     return Container(
       decoration: BoxDecoration(
@@ -46,7 +46,7 @@ class AdminHomeMenuSheet extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.neutral400,
+                color: cs.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -69,6 +69,7 @@ class AdminHomeMenuSheet extends StatelessWidget {
                           user?.fullName ?? 'Yönetici',
                           style: AppTypography.titleMedium.copyWith(
                             fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -78,13 +79,13 @@ class AdminHomeMenuSheet extends StatelessWidget {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.12),
+                            color: cs.primaryContainer,
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             'Yönetici',
                             style: AppTypography.labelSmall.copyWith(
-                              color: AppColors.primary,
+                              color: cs.onPrimaryContainer,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -101,21 +102,21 @@ class AdminHomeMenuSheet extends StatelessWidget {
               icon: Icons.person_outline,
               title: 'Profil',
               subtitle: 'Profil bilgileri ve ayarlar',
-              iconColor: AppColors.primary,
+              iconColor: cs.primary,
               onTap: () => Navigator.pop(context, AdminMenuAction.profile),
             ),
             _MenuItem(
               icon: Icons.assessment_outlined,
               title: 'Raporlar',
               subtitle: 'Dashboard ve tüm raporlar',
-              iconColor: AppColors.tertiary,
+              iconColor: cs.tertiary,
               onTap: () => Navigator.pop(context, AdminMenuAction.reports),
             ),
             _MenuItem(
               icon: Icons.admin_panel_settings_outlined,
               title: 'Yönetim',
               subtitle: 'Araçlar, kullanıcı ve uygulama ayarları',
-              iconColor: AppColors.secondary,
+              iconColor: cs.secondary,
               onTap: () => Navigator.pop(context, AdminMenuAction.management),
             ),
             const SizedBox(height: 12),
@@ -143,22 +144,26 @@ class _MenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = context.colorScheme;
     return ListTile(
       leading: Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: iconColor.withValues(alpha: 0.1),
+          color: iconColor.withValues(alpha: 0.16),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(icon, color: iconColor, size: 22),
       ),
-      title: Text(title, style: AppTypography.titleSmall),
+      title: Text(
+        title,
+        style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
+      ),
       subtitle: Text(
         subtitle,
-        style: AppTypography.bodySmall.copyWith(color: AppColors.neutral500),
+        style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
       ),
-      trailing: const Icon(Icons.chevron_right, color: AppColors.neutral400),
+      trailing: Icon(Icons.chevron_right, color: cs.outline),
       onTap: onTap,
     );
   }

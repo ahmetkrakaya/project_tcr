@@ -19,6 +19,8 @@ import '../../data/models/partner_campaign_model.dart';
 import '../../utils/logo_brand_color_extractor.dart';
 import '../providers/partner_campaign_provider.dart';
 import '../widgets/brand_color_picker_sheet.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 
 class AdminPartnerCampaignFormPage extends ConsumerStatefulWidget {
   const AdminPartnerCampaignFormPage({super.key, this.campaignId});
@@ -45,12 +47,16 @@ class _AdminPartnerCampaignFormPageState
   late final TextEditingController _redemptionHintController;
   late final TextEditingController _locationNameController;
   late final TextEditingController _locationAddressController;
+  late final TextEditingController _promoCodeController;
+  late final TextEditingController _websiteUrlController;
   late final TextEditingController _sortOrderController;
   late final TextEditingController _usageLimitCountController;
   late final TextEditingController _successMessageController;
 
   bool _isActive = true;
+  bool _adminOnly = false;
   bool _qrRedemptionEnabled = false;
+  bool _hasPromoCode = false;
   String _usageLimitType = 'once_per_day';
   DateTime? _startsAt;
   DateTime? _endsAt;
@@ -79,6 +85,8 @@ class _AdminPartnerCampaignFormPageState
     _redemptionHintController = TextEditingController();
     _locationNameController = TextEditingController();
     _locationAddressController = TextEditingController();
+    _promoCodeController = TextEditingController();
+    _websiteUrlController = TextEditingController();
     _sortOrderController = TextEditingController();
     _usageLimitCountController = TextEditingController(text: '1');
     _successMessageController = TextEditingController();
@@ -97,6 +105,8 @@ class _AdminPartnerCampaignFormPageState
     _redemptionHintController.dispose();
     _locationNameController.dispose();
     _locationAddressController.dispose();
+    _promoCodeController.dispose();
+    _websiteUrlController.dispose();
     _sortOrderController.dispose();
     _usageLimitCountController.dispose();
     _successMessageController.dispose();
@@ -122,8 +132,12 @@ class _AdminPartnerCampaignFormPageState
     _locationAddressController.text = campaign.locationAddress ?? '';
     _locationLat = campaign.locationLat;
     _locationLng = campaign.locationLng;
+    _promoCodeController.text = campaign.promoCode ?? '';
+    _hasPromoCode = campaign.promoCode != null && campaign.promoCode!.isNotEmpty;
+    _websiteUrlController.text = campaign.websiteUrl ?? '';
     _sortOrderController.text = campaign.sortOrder.toString();
     _isActive = campaign.isActive;
+    _adminOnly = campaign.adminOnly;
     _qrRedemptionEnabled = campaign.qrRedemptionEnabled;
     _usageLimitType = campaign.usageLimitType;
     _usageLimitCountController.text =
@@ -250,6 +264,26 @@ class _AdminPartnerCampaignFormPageState
     });
   }
 
+  String? _normalizeWebsiteUrl(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    return 'https://$trimmed';
+  }
+
+  String? _websiteUrlError(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) return null;
+    final normalized = _normalizeWebsiteUrl(trimmed);
+    final uri = Uri.tryParse(normalized ?? '');
+    if (uri == null || !uri.hasAuthority) {
+      return 'Geçerli bir web adresi girin';
+    }
+    return null;
+  }
+
   String _slugify(String input) {
     return input
         .toLowerCase()
@@ -337,6 +371,9 @@ class _AdminPartnerCampaignFormPageState
       final usageLimitCount = _needsUsageLimitCount
           ? int.tryParse(_usageLimitCountController.text.trim())
           : null;
+      final promoCode =
+          _hasPromoCode ? _promoCodeController.text.trim() : null;
+      final websiteUrl = _normalizeWebsiteUrl(_websiteUrlController.text);
 
       if (existingId != null) {
         await repo.updateCampaign(
@@ -354,10 +391,13 @@ class _AdminPartnerCampaignFormPageState
           locationAddress: _locationAddressController.text,
           locationLat: _locationLat,
           locationLng: _locationLng,
+          promoCode: promoCode,
+          websiteUrl: websiteUrl,
           startsAt: _startsAt,
           endsAt: _hasEndsAt ? _endsAt : null,
           clearEndsAt: !_hasEndsAt,
           isActive: _isActive,
+          adminOnly: _adminOnly,
           sortOrder: sortOrder,
           qrRedemptionEnabled: _qrRedemptionEnabled,
           usageLimitType: _usageLimitType,
@@ -379,9 +419,12 @@ class _AdminPartnerCampaignFormPageState
           locationAddress: _locationAddressController.text,
           locationLat: _locationLat,
           locationLng: _locationLng,
+          promoCode: promoCode,
+          websiteUrl: websiteUrl,
           startsAt: _startsAt,
           endsAt: _hasEndsAt ? _endsAt : null,
           isActive: _isActive,
+          adminOnly: _adminOnly,
           sortOrder: sortOrder,
           qrRedemptionEnabled: _qrRedemptionEnabled,
           usageLimitType: _usageLimitType,
@@ -422,7 +465,7 @@ class _AdminPartnerCampaignFormPageState
     final isAdmin = ref.watch(isAdminOrCoachProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor =
-        isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+        ThemeBrightnessHolder.scaffoldBackground;
 
     if (!isAdmin) {
       return Scaffold(
@@ -433,7 +476,7 @@ class _AdminPartnerCampaignFormPageState
           child: Text(
             'Bu sayfaya erişim yetkiniz yok.',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.neutral500,
+              color: ThemeBrightnessHolder.onSurfaceVariant,
             ),
           ),
         ),
@@ -514,7 +557,7 @@ class _AdminPartnerCampaignFormPageState
                   decoration: BoxDecoration(
                     color: AppColors.neutral200,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.neutral300),
+                    border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: _localLogoBytes != null
@@ -530,14 +573,14 @@ class _AdminPartnerCampaignFormPageState
                               children: [
                                 Icon(
                                   Icons.add_photo_alternate_outlined,
-                                  color: AppColors.neutral500,
+                                  color: ThemeBrightnessHolder.onSurfaceVariant,
                                   size: 32,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   'Logo ekle',
                                   style: AppTypography.labelSmall.copyWith(
-                                    color: AppColors.neutral500,
+                                    color: ThemeBrightnessHolder.onSurfaceVariant,
                                   ),
                                 ),
                               ],
@@ -641,6 +684,40 @@ class _AdminPartnerCampaignFormPageState
               onClear: _clearLocation,
             ),
             const SizedBox(height: 12),
+            AppTextField(
+              controller: _websiteUrlController,
+              label: 'Web sitesi (opsiyonel)',
+              hint: 'www.ornek.com',
+              keyboardType: TextInputType.url,
+              validator: _websiteUrlError,
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('İndirim kodu tanımla'),
+              subtitle: const Text(
+                'Online alışverişlerde kullanılacak sabit indirim kodu',
+              ),
+              value: _hasPromoCode,
+              onChanged: (v) => setState(() {
+                _hasPromoCode = v;
+                if (!v) _promoCodeController.clear();
+              }),
+            ),
+            if (_hasPromoCode) ...[
+              const SizedBox(height: 8),
+              AppTextField(
+                controller: _promoCodeController,
+                label: 'İndirim kodu',
+                hint: 'tcr10',
+                validator: (v) {
+                  if (!_hasPromoCode) return null;
+                  if (v == null || v.trim().isEmpty) return 'Zorunlu';
+                  return null;
+                },
+              ),
+            ],
+            const SizedBox(height: 12),
             _DateRangeFields(
               startsAt: _startsAt,
               endsAt: _endsAt,
@@ -696,6 +773,15 @@ class _AdminPartnerCampaignFormPageState
               value: _isActive,
               onChanged: (v) => setState(() => _isActive = v),
             ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Sadece admin görsün'),
+              subtitle: const Text(
+                'Açıksa yalnızca yönetici ve koçlar bu kampanyayı görür',
+              ),
+              value: _adminOnly,
+              onChanged: (v) => setState(() => _adminOnly = v),
+            ),
           ],
         ),
       ),
@@ -731,7 +817,7 @@ class _UsageLimitDropdown extends StatelessWidget {
         Text(
           'Kullanım limiti',
           style: AppTypography.labelMedium.copyWith(
-            color: AppColors.neutral600,
+            color: ThemeBrightnessHolder.onSurfaceVariant,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -740,7 +826,7 @@ class _UsageLimitDropdown extends StatelessWidget {
           value: value,
           decoration: InputDecoration(
             filled: true,
-            fillColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+            fillColor: ThemeBrightnessHolder.surface,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
           items: _options.entries
@@ -829,13 +915,13 @@ class _DateTile extends StatelessWidget {
         Text(
           label,
           style: AppTypography.labelMedium.copyWith(
-            color: AppColors.neutral600,
+            color: ThemeBrightnessHolder.onSurfaceVariant,
             fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 8),
         Material(
-          color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+          color: ThemeBrightnessHolder.surface,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             onTap: onTap,
@@ -853,10 +939,10 @@ class _DateTile extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.calendar_today_outlined, size: 20),
+                  Icon(Icons.calendar_today_outlined, size: 20),
                   const SizedBox(width: 12),
                   Expanded(child: Text(value)),
-                  const Icon(Icons.chevron_right, color: AppColors.neutral400),
+                  Icon(Icons.chevron_right, color: ThemeBrightnessHolder.outline),
                 ],
               ),
             ),
@@ -890,13 +976,13 @@ class _LocationPickerField extends StatelessWidget {
         Text(
           'Adres (opsiyonel)',
           style: AppTypography.labelMedium.copyWith(
-            color: AppColors.neutral600,
+            color: ThemeBrightnessHolder.onSurfaceVariant,
             fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 8),
         Material(
-          color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+          color: ThemeBrightnessHolder.surface,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             onTap: onPick,
@@ -945,14 +1031,14 @@ class _LocationPickerField extends StatelessWidget {
                   if (hasLocation)
                     IconButton(
                       tooltip: 'Adresi kaldır',
-                      icon: const Icon(Icons.clear, size: 20),
-                      color: AppColors.neutral500,
+                      icon: Icon(Icons.clear, size: 20),
+                      color: ThemeBrightnessHolder.onSurfaceVariant,
                       onPressed: onClear,
                     )
                   else
                     Icon(
                       Icons.chevron_right,
-                      color: AppColors.neutral400,
+                      color: ThemeBrightnessHolder.outline,
                     ),
                 ],
               ),
@@ -986,13 +1072,13 @@ class _BrandColorField extends StatelessWidget {
         Text(
           'Marka rengi',
           style: AppTypography.labelMedium.copyWith(
-            color: AppColors.neutral600,
+            color: ThemeBrightnessHolder.onSurfaceVariant,
             fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 8),
         Material(
-          color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+          color: ThemeBrightnessHolder.surface,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             onTap: isLoading ? null : onTap,
@@ -1015,7 +1101,7 @@ class _BrandColorField extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: color,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.neutral300),
+                      border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
                     ),
                     child: isLoading
                         ? const Padding(
@@ -1038,7 +1124,7 @@ class _BrandColorField extends StatelessWidget {
                         Text(
                           'Logodan otomatik dolar · Paleti açmak için dokun',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.neutral500,
+                            color: ThemeBrightnessHolder.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -1046,7 +1132,7 @@ class _BrandColorField extends StatelessWidget {
                   ),
                   Icon(
                     Icons.palette_outlined,
-                    color: AppColors.neutral500,
+                    color: ThemeBrightnessHolder.onSurfaceVariant,
                     size: 22,
                   ),
                 ],
@@ -1089,7 +1175,7 @@ class _SaveIconButton extends StatelessWidget {
                       color: AppColors.primary,
                     ),
                   )
-                : const Icon(
+                : Icon(
                     Icons.check_rounded,
                     color: AppColors.primary,
                     size: 22,

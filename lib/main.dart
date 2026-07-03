@@ -15,17 +15,20 @@ import 'core/app_shortcuts/app_shortcuts_handler.dart';
 import 'core/constants/app_constants.dart';
 import 'core/deep_link/deep_link_handler.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_brightness_holder.dart';
 import 'core/router/app_router.dart';
 import 'core/notifications/fcm_service.dart';
 import 'core/notifications/notification_handler.dart';
+import 'core/notifications/notification_open_handler.dart';
+import 'core/notifications/app_icon_badge_sync.dart';
 import 'core/permissions/app_permissions.dart';
 import 'features/auth/presentation/providers/auth_notifier.dart' as auth_providers;
 import 'shared/providers/auth_provider.dart';
+import 'shared/providers/theme_mode_provider.dart';
 import 'core/services/app_open_tracker.dart';
 import 'core/ui/keyboard_dismisser.dart';
 import 'features/events/presentation/widgets/engagement_excuse_gate.dart';
 import 'features/integrations/presentation/widgets/strava_onboarding_gate.dart';
-
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -68,16 +71,6 @@ Future<void> main() async {
       DeviceOrientation.portraitUp,
     ]);
 
-    // Set system UI overlay style
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        systemNavigationBarColor: Colors.white,
-        systemNavigationBarIconBrightness: Brightness.dark,
-      ),
-    );
-
     // Deep link ile açıldıysa hemen yakala (2 sn bekleyince intent kaybolabiliyor)
     final initialUri = await getInitialUri();
     final path = parseUriToAppPath(initialUri);
@@ -92,9 +85,16 @@ Future<void> main() async {
     const quickActions = QuickActions();
     initAppShortcuts(quickActions);
 
+    final savedThemeMode = await ThemeModeNotifier.loadSavedThemeMode();
+
     runApp(
-      const ProviderScope(
-        child: TCRApp(),
+      ProviderScope(
+        overrides: [
+          themeModeProvider.overrideWith(
+            (ref) => ThemeModeNotifier(initialMode: savedThemeMode),
+          ),
+        ],
+        child: const TCRApp(),
       ),
     );
   }, (error, stack) {
@@ -236,9 +236,11 @@ class TCRApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
-    // Bildirim tıklanınca yönlendirme callback'i
+    // Bildirim tıklanınca okundu işaretle + yönlendir
     setNotificationNavigationCallback((message) {
+      unawaited(handleNotificationOpen(ref, message));
       navigateFromNotification(router, message);
     });
     // Uygulama kapalıyken bildirimle açıldıysa ilk mesajı işle
@@ -264,7 +266,8 @@ class TCRApp extends ConsumerWidget {
         title: AppConstants.appFullName,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        themeMode: ThemeMode.light,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: themeMode,
         routerConfig: router,
         // Localization settings for Turkish
         locale: const Locale('tr', 'TR'),
@@ -284,16 +287,23 @@ class TCRApp extends ConsumerWidget {
         // Küçük ekranlarda metni biraz küçült, büyük ekranda 1.0 bırak
         final rawScale = width / baseWidth;
         final textScale = rawScale.clamp(0.8, 1.0);
+        final overlayStyle = AppTheme.systemUiOverlayFor(
+          Theme.of(context).brightness,
+        );
+        ThemeBrightnessHolder.update(Theme.of(context).brightness);
 
-        return KeyboardDismisser(
-          child: _AuthLinkErrorListener(
-            child: EngagementExcuseGate(
-              child: StravaOnboardingGate(
-                child: MediaQuery(
-                  data: mq.copyWith(
-                    textScaler: TextScaler.linear(textScale),
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: overlayStyle,
+          child: KeyboardDismisser(
+            child: _AuthLinkErrorListener(
+              child: EngagementExcuseGate(
+                child: StravaOnboardingGate(
+                  child: MediaQuery(
+                    data: mq.copyWith(
+                      textScaler: TextScaler.linear(textScale),
+                    ),
+                    child: child ?? const SizedBox.shrink(),
                   ),
-                  child: child ?? const SizedBox.shrink(),
                 ),
               ),
             ),
@@ -307,16 +317,17 @@ class TCRApp extends ConsumerWidget {
 }
 
 /// Uygulama ön plana geldiğinde son kullanım zamanını günceller.
-class _AppActivityListener extends StatefulWidget {
+class _AppActivityListener extends ConsumerStatefulWidget {
   const _AppActivityListener({required this.child});
 
   final Widget child;
 
   @override
-  State<_AppActivityListener> createState() => _AppActivityListenerState();
+  ConsumerState<_AppActivityListener> createState() =>
+      _AppActivityListenerState();
 }
 
-class _AppActivityListenerState extends State<_AppActivityListener>
+class _AppActivityListenerState extends ConsumerState<_AppActivityListener>
     with WidgetsBindingObserver {
   @override
   void initState() {
@@ -334,6 +345,10 @@ class _AppActivityListenerState extends State<_AppActivityListener>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(AppOpenTracker.touchActivityIfNeeded());
+      final authState = ref.read(auth_providers.authNotifierProvider);
+      if (authState is auth_providers.AuthAuthenticated) {
+        unawaited(refreshAppIconBadge(ref));
+      }
     }
   }
 
