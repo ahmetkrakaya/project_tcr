@@ -6,7 +6,6 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
-import '../../../../core/utils/extensions.dart';
 import '../../../../core/theme/theme_brightness_holder.dart';
 
 class AdminReportsHubPage extends ConsumerWidget {
@@ -15,12 +14,9 @@ class AdminReportsHubPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isAdmin = ref.watch(isAdminProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor =
-        ThemeBrightnessHolder.scaffoldBackground;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text('Yönetim'),
       ),
@@ -52,7 +48,7 @@ class AdminReportsHubPage extends ConsumerWidget {
                   icon: Icons.route_outlined,
                   title: 'Rotalar',
                   subtitle: 'GPX rotalarını görüntüle ve yönet',
-                  iconColor: AppColors.tertiary,
+                  iconColor: cs.tertiary,
                   onTap: () => context.pushNamed(RouteNames.routes),
                 ),
                 const SizedBox(height: 12),
@@ -69,7 +65,7 @@ class AdminReportsHubPage extends ConsumerWidget {
                   icon: Icons.local_offer_outlined,
                   title: 'Üye Avantajları',
                   subtitle: 'Partner kampanyalarını ekle ve yönet',
-                  iconColor: const Color(0xFF1B4332),
+                  iconColor: AppColors.secondaryLight,
                   onTap: () =>
                       context.pushNamed(RouteNames.adminPartnerCampaigns),
                 ),
@@ -89,7 +85,7 @@ class AdminReportsHubPage extends ConsumerWidget {
                   icon: Icons.system_update_alt_outlined,
                   title: 'App Versiyon',
                   subtitle: 'iOS ve Android güncelleme ayarları',
-                  iconColor: AppColors.primary,
+                  iconColor: cs.primary,
                   onTap: () => context.pushNamed(RouteNames.adminAppVersions),
                 ),
               ],
@@ -135,15 +131,17 @@ class _MenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = ThemeBrightnessHolder.surface;
+    final cs = Theme.of(context).colorScheme;
 
     return Material(
-      color: cardColor,
-      borderRadius: BorderRadius.circular(16),
+      color: cs.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: cs.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -166,13 +164,14 @@ class _MenuCard extends StatelessWidget {
                       title,
                       style: AppTypography.titleSmall.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
                       style: AppTypography.bodySmall.copyWith(
-                        color: ThemeBrightnessHolder.onSurfaceVariant,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -180,7 +179,7 @@ class _MenuCard extends StatelessWidget {
               ),
               Icon(
                 Icons.chevron_right,
-                color: ThemeBrightnessHolder.outline,
+                color: cs.outline,
               ),
             ],
           ),

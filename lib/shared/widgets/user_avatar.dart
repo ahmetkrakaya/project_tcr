@@ -28,6 +28,7 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     Widget avatar = Container(
       width: size,
       height: size,
@@ -35,7 +36,7 @@ class UserAvatar extends StatelessWidget {
         shape: BoxShape.circle,
         border: showBorder
             ? Border.all(
-                color: borderColor ?? AppColors.primary,
+                color: borderColor ?? cs.primary,
                 width: borderWidth,
               )
             : null,
@@ -45,10 +46,10 @@ class UserAvatar extends StatelessWidget {
             ? CachedNetworkImage(
                 imageUrl: imageUrl!,
                 fit: BoxFit.cover,
-                placeholder: (_, __) => _buildPlaceholder(),
-                errorWidget: (_, __, ___) => _buildPlaceholder(),
+                placeholder: (_, __) => _buildPlaceholder(context),
+                errorWidget: (_, __, ___) => _buildPlaceholder(context),
               )
-            : _buildPlaceholder(),
+            : _buildPlaceholder(context),
       ),
     );
 
@@ -86,22 +87,23 @@ class UserAvatar extends StatelessWidget {
     return avatar;
   }
 
-  Widget _buildPlaceholder() {
+  Widget _buildPlaceholder(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: AppColors.primaryContainer,
+      color: cs.primaryContainer,
       child: Center(
         child: name != null && name!.isNotEmpty
             ? Text(
                 _getInitials(name!),
                 style: TextStyle(
-                  color: AppColors.primary,
+                  color: cs.primary,
                   fontSize: size * 0.4,
                   fontWeight: FontWeight.bold,
                 ),
               )
             : Icon(
                 Icons.person,
-                color: AppColors.primary,
+                color: cs.primary,
                 size: size * 0.5,
               ),
       ),
@@ -138,6 +140,7 @@ class AvatarGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final displayCount = imageUrls.length > maxCount ? maxCount : imageUrls.length;
     final remaining = (totalCount ?? imageUrls.length) - displayCount;
 
@@ -164,7 +167,7 @@ class AvatarGroup extends StatelessWidget {
                 width: size,
                 height: size,
                 decoration: BoxDecoration(
-                  color: AppColors.neutral200,
+                  color: cs.surfaceContainerHighest,
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: ThemeBrightnessHolder.scaffoldBackground,

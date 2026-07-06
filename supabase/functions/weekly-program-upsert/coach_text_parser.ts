@@ -3,7 +3,7 @@
  * Dart: lib/features/events/utils/coach_text_parser.dart
  */
 
-import { normalizeCoachInput, DURATION_UNIT_PATTERN } from "./coach_text_normalizer";
+import { normalizeCoachInput, DURATION_UNIT_PATTERN } from "./coach_text_normalizer.ts";
 
 export type SegmentKind = "warmup" | "main" | "recovery" | "cooldown";
 
@@ -287,18 +287,30 @@ function parseRecoveryClause(raw: string): RecoverySpec | null {
 
   const spec: RecoverySpec = {};
 
-  const distMatch = remaining.match(
-    /^(\d+(?:\.\d+)?)\s*(m|k|km)?(?:\s+|$)/i,
+  const distWithUnit = remaining.match(
+    /^(\d+(?:\.\d+)?)\s*(m|k|km)(?:\s+|$)/i,
   );
-  if (distMatch) {
-    const val = Number(distMatch[1]);
-    const unitRaw = distMatch[2]?.toLowerCase();
-    const unit = unitRaw ?? "m";
+  if (distWithUnit) {
+    const val = Number(distWithUnit[1]);
+    const unitRaw = distWithUnit[2]!.toLowerCase();
     spec.distanceM = parseDistanceMeters(
       val,
-      unit === "k" || unit === "km" ? "k" : unit,
+      unitRaw === "k" || unitRaw === "km" ? "k" : unitRaw,
     );
-    remaining = remaining.slice(distMatch[0].length).trim();
+    remaining = remaining.slice(distWithUnit[0].length).trim();
+  } else {
+    const bareNum = remaining.match(/^(\d+(?:\.\d+)?)(?:\s+|$)/);
+    if (bareNum) {
+      const afterNum = remaining.slice(bareNum[1]!.length);
+      const looksLikeDuration = new RegExp(
+        `^\\s*${DURATION_UNIT_PATTERN}\\b`,
+        "i",
+      ).test(afterNum);
+      if (!looksLikeDuration) {
+        spec.distanceM = Math.round(Number(bareNum[1]));
+        remaining = remaining.slice(bareNum[0].length).trim();
+      }
+    }
   }
 
   const dkMatch = remaining.match(

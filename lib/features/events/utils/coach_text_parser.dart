@@ -334,19 +334,31 @@ _RecoverySpec? _parseRecoveryClause(String raw) {
   int? durationSec;
   CoachPaceSpec? pace;
 
-  final distMatch = RegExp(
-    r'^(\d+(?:\.\d+)?)\s*(m|k|km)?(?:\s+|$)',
+  final distWithUnit = RegExp(
+    r'^(\d+(?:\.\d+)?)\s*(m|k|km)(?:\s+|$)',
     caseSensitive: false,
   ).firstMatch(remaining);
-  if (distMatch != null) {
-    final val = double.parse(distMatch.group(1)!);
-    final unitRaw = distMatch.group(2)?.toLowerCase();
-    final unit = unitRaw ?? 'm';
+  if (distWithUnit != null) {
+    final val = double.parse(distWithUnit.group(1)!);
+    final unitRaw = distWithUnit.group(2)!.toLowerCase();
     distanceM = _parseDistanceMeters(
       val,
-      unit == 'k' || unit == 'km' ? 'k' : unit,
+      unitRaw == 'k' || unitRaw == 'km' ? 'k' : unitRaw,
     );
-    remaining = remaining.substring(distMatch.group(0)!.length).trim();
+    remaining = remaining.substring(distWithUnit.group(0)!.length).trim();
+  } else {
+    final bareNum = RegExp(r'^(\d+(?:\.\d+)?)(?:\s+|$)').firstMatch(remaining);
+    if (bareNum != null) {
+      final afterNum = remaining.substring(bareNum.group(1)!.length);
+      final looksLikeDuration = RegExp(
+        '^\\s*$durationUnitPattern\\b',
+        caseSensitive: false,
+      ).hasMatch(afterNum);
+      if (!looksLikeDuration) {
+        distanceM = double.parse(bareNum.group(1)!).round();
+        remaining = remaining.substring(bareNum.group(0)!.length).trim();
+      }
+    }
   }
 
   final dkMatch = RegExp(

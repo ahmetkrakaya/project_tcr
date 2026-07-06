@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/loading_widget.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../providers/app_versions_admin_provider.dart';
-import '../../../../core/utils/extensions.dart';
 import '../../../../core/theme/theme_brightness_holder.dart';
 
 class AdminAppVersionsPage extends ConsumerStatefulWidget {
@@ -129,12 +127,9 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(isAdminProvider);
     final versionsAsync = ref.watch(appVersionsAdminProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor =
-        ThemeBrightnessHolder.scaffoldBackground;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text('App Versiyon'),
       ),
@@ -196,7 +191,7 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
                     _PlatformSection(
                       title: 'iOS',
                       icon: Icons.phone_iphone_rounded,
-                      iconColor: AppColors.primary,
+                      iconColor: cs.primary,
                       updatedAt: data['ios']?.updatedAt,
                       versionController: _iosVersionController,
                       storeUrlController: _iosStoreUrlController,
@@ -207,7 +202,6 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
                           setState(() => _iosForceUpdate = value),
                       isSaving: _iosSaving,
                       onSave: _saveIos,
-                      isDark: isDark,
                     ),
                     const SizedBox(height: 16),
                     _PlatformSection(
@@ -225,7 +219,6 @@ class _AdminAppVersionsPageState extends ConsumerState<AdminAppVersionsPage> {
                           setState(() => _androidForceUpdate = value),
                       isSaving: _androidSaving,
                       onSave: _saveAndroid,
-                      isDark: isDark,
                     ),
                   ],
                 );
@@ -249,7 +242,6 @@ class _PlatformSection extends StatelessWidget {
     required this.onForceUpdateChanged,
     required this.isSaving,
     required this.onSave,
-    required this.isDark,
   });
 
   final String title;
@@ -264,19 +256,16 @@ class _PlatformSection extends StatelessWidget {
   final ValueChanged<bool> onForceUpdateChanged;
   final bool isSaving;
   final VoidCallback onSave;
-  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
-    final cardColor = ThemeBrightnessHolder.surface;
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
       decoration: BoxDecoration(
-        color: cardColor,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? AppColors.surfaceVariantDark : AppColors.neutral300,
-        ),
+        border: Border.all(color: cs.outlineVariant),
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -303,6 +292,7 @@ class _PlatformSection extends StatelessWidget {
                       title,
                       style: AppTypography.titleMedium.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
                       ),
                     ),
                     if (updatedAt != null)
@@ -341,11 +331,16 @@ class _PlatformSection extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             title: Text(
               'Zorunlu güncelleme',
-              style: AppTypography.titleSmall,
+              style: AppTypography.titleSmall.copyWith(color: cs.onSurface),
             ),
             value: isForceUpdate,
             onChanged: onForceUpdateChanged,
-            activeColor: AppColors.primary,
+            activeTrackColor: cs.primary.withValues(alpha: 0.5),
+            inactiveTrackColor: cs.surfaceContainerHighest,
+            thumbColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) return cs.primary;
+              return cs.outline;
+            }),
           ),
         ],
       ),
@@ -364,10 +359,12 @@ class _SaveIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Tooltip(
       message: 'Kaydet',
       child: Material(
-        color: AppColors.primary.withValues(alpha: 0.1),
+        color: cs.primary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: isSaving ? null : onPressed,
@@ -376,16 +373,16 @@ class _SaveIconButton extends StatelessWidget {
             width: 40,
             height: 40,
             child: isSaving
-                ? const Padding(
-                    padding: EdgeInsets.all(10),
+                ? Padding(
+                    padding: const EdgeInsets.all(10),
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: AppColors.primary,
+                      color: cs.primary,
                     ),
                   )
                 : Icon(
                     Icons.check_rounded,
-                    color: AppColors.primary,
+                    color: cs.primary,
                     size: 22,
                   ),
           ),

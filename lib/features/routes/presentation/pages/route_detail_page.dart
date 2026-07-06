@@ -92,6 +92,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
     AsyncValue<List<RouteCoordinate>> coordinatesAsync,
     bool isAdminOrCoach,
   ) {
+    final cs = Theme.of(context).colorScheme;
     final safeVariantIndex = _selectedVariantIndex.clamp(
       0,
       (route.gpxVariants.length - 1).clamp(0, 999999),
@@ -310,11 +311,11 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                           right: 12,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: cs.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(20),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
+                                  color: Colors.black.withValues(alpha: 0.2),
                                   blurRadius: 4,
                                 ),
                               ],
@@ -340,8 +341,8 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                           child: FloatingActionButton.small(
                             heroTag: 'fullscreen',
                             onPressed: () => _openFullscreenMap(context, coordinatesAsync, route),
-                            backgroundColor: Colors.white,
-                            child: Icon(Icons.fullscreen, color: AppColors.primary),
+                            backgroundColor: cs.surfaceContainerHighest,
+                            child: Icon(Icons.fullscreen, color: cs.primary),
                           ),
                         ),
                       ],
@@ -391,8 +392,9 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
   }
 
   Widget _buildNoMapPlaceholder() {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: AppColors.neutral200,
+      color: cs.surfaceContainerHighest,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -410,6 +412,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
   }
 
   Widget _buildMapStyleButton(IconData icon, String tooltip, bool isSelected, VoidCallback onTap) {
+    final cs = Theme.of(context).colorScheme;
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
@@ -417,13 +420,13 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : Colors.transparent,
+            color: isSelected ? cs.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Icon(
             icon,
             size: 22,
-            color: isSelected ? Colors.white : AppColors.neutral600,
+            color: isSelected ? cs.onPrimary : cs.onSurfaceVariant,
           ),
         ),
       ),
@@ -437,6 +440,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
     required double? selectedElevationLoss,
     required double? selectedMaxElevation,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -454,14 +458,17 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
         children: [
           Text(
             'Rota İstatistikleri',
-            style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
+            style: AppTypography.titleMedium.copyWith(
+              fontWeight: FontWeight.bold,
+              color: cs.onSurface,
+            ),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(child: _buildStatCard(
                 icon: Icons.straighten,
-                iconColor: AppColors.primary,
+                iconColor: cs.primary,
                 value: selectedTotalDistance == null
                     ? '-'
                     : '${selectedTotalDistance.toStringAsFixed(1)} km',
@@ -511,6 +518,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
     required String value,
     required String label,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -529,6 +537,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                   value,
                   style: AppTypography.titleLarge.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: cs.onSurface,
                   ),
                 ),
               ),
@@ -547,6 +556,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
   }
 
   Widget _buildRouteInfo(RouteEntity route) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -564,7 +574,10 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
         children: [
           Text(
             'Rota Bilgileri',
-            style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
+            style: AppTypography.titleMedium.copyWith(
+              fontWeight: FontWeight.bold,
+              color: cs.onSurface,
+            ),
           ),
           const SizedBox(height: 16),
           if (route.locationLat != null && route.locationLng != null) ...[
@@ -607,6 +620,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
     required RouteEntity route,
     required VoidCallback onTap,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final hasName = route.locationName != null && route.locationName!.isNotEmpty;
     return InkWell(
       onTap: onTap,
@@ -615,7 +629,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
-            Icon(Icons.location_on, size: 20, color: AppColors.primary),
+            Icon(Icons.location_on, size: 20, color: cs.primary),
             const SizedBox(width: 12),
             Text(
               'Konum',
@@ -633,7 +647,7 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                         route.locationName!,
                         style: AppTypography.bodyMedium.copyWith(
                           fontWeight: FontWeight.w500,
-                          color: AppColors.primary,
+                          color: cs.primary,
                         ),
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
@@ -645,11 +659,11 @@ class _RouteDetailPageState extends ConsumerState<RouteDetailPage>
                     'Yol Tarifi Al',
                     style: AppTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.w500,
-                      color: AppColors.primary,
+                      color: cs.primary,
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Icon(Icons.open_in_new, size: 16, color: AppColors.primary),
+                  Icon(Icons.open_in_new, size: 16, color: cs.primary),
                 ],
               ),
             ),
@@ -839,6 +853,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -848,16 +863,16 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: cs.surfaceContainerHighest,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 4,
                 ),
               ],
             ),
-            child: Icon(Icons.arrow_back, color: ThemeBrightnessHolder.onSurface),
+            child: Icon(Icons.arrow_back, color: cs.onSurface),
           ),
           onPressed: () => Navigator.pop(context),
         ),
@@ -866,11 +881,11 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: _isFlyoverActive ? AppColors.primary : Colors.white,
+              color: _isFlyoverActive ? cs.primary : cs.surfaceContainerHighest,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 4,
                 ),
               ],
@@ -878,7 +893,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
             child: IconButton(
               icon: Icon(
                 _isFlyoverActive ? Icons.stop : Icons.play_arrow,
-                color: _isFlyoverActive ? Colors.white : AppColors.primary,
+                color: _isFlyoverActive ? cs.onPrimary : cs.primary,
               ),
               tooltip: _isFlyoverActive ? 'Flyover Durdur' : 'Flyover Başlat',
               onPressed: _toggleFlyover,
@@ -888,11 +903,11 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
           Container(
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 4,
                 ),
               ],
@@ -941,6 +956,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
   }
 
   Widget _buildMapStyleButton(IconData icon, String tooltip, bool isSelected, VoidCallback onTap) {
+    final cs = Theme.of(context).colorScheme;
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
@@ -948,13 +964,13 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : Colors.transparent,
+            color: isSelected ? cs.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Icon(
             icon,
             size: 22,
-            color: isSelected ? Colors.white : AppColors.neutral600,
+            color: isSelected ? cs.onPrimary : cs.onSurfaceVariant,
           ),
         ),
       ),

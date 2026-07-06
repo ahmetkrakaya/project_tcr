@@ -42,26 +42,33 @@ class WorkoutSegmentModel {
     this.powerWattsMax,
   });
 
+  static int? _jsonInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return null;
+  }
+
   factory WorkoutSegmentModel.fromJson(Map<String, dynamic> json) {
     return WorkoutSegmentModel(
       segmentType: json['segment_type'] as String? ?? json['segmentType'] as String? ?? 'warmup',
       targetType: json['target_type'] as String? ?? json['targetType'] as String? ?? 'duration',
       target: json['target'] as String? ?? 'none',
-      durationSeconds: json['duration_seconds'] as int? ?? json['durationSeconds'] as int?,
-      durationSecondsMin: json['duration_seconds_min'] as int? ?? json['durationSecondsMin'] as int?,
-      durationSecondsMax: json['duration_seconds_max'] as int? ?? json['durationSecondsMax'] as int?,
+      durationSeconds: _jsonInt(json['duration_seconds'] ?? json['durationSeconds']),
+      durationSecondsMin: _jsonInt(json['duration_seconds_min'] ?? json['durationSecondsMin']),
+      durationSecondsMax: _jsonInt(json['duration_seconds_max'] ?? json['durationSecondsMax']),
       distanceMeters: (json['distance_meters'] as num?)?.toDouble() ?? (json['distanceMeters'] as num?)?.toDouble(),
-      paceSecondsPerKm: json['pace_seconds_per_km'] as int? ?? json['paceSecondsPerKm'] as int?,
-      paceSecondsPerKmMin: json['pace_seconds_per_km_min'] as int? ?? json['paceSecondsPerKmMin'] as int?,
-      paceSecondsPerKmMax: json['pace_seconds_per_km_max'] as int? ?? json['paceSecondsPerKmMax'] as int?,
-      customPaceSecondsPerKm: json['custom_pace_seconds_per_km'] as int? ?? json['customPaceSecondsPerKm'] as int?,
+      paceSecondsPerKm: _jsonInt(json['pace_seconds_per_km'] ?? json['paceSecondsPerKm']),
+      paceSecondsPerKmMin: _jsonInt(json['pace_seconds_per_km_min'] ?? json['paceSecondsPerKmMin']),
+      paceSecondsPerKmMax: _jsonInt(json['pace_seconds_per_km_max'] ?? json['paceSecondsPerKmMax']),
+      customPaceSecondsPerKm: _jsonInt(json['custom_pace_seconds_per_km'] ?? json['customPaceSecondsPerKm']),
       useVdotForPace: json['use_vdot_for_pace'] as bool? ?? json['useVdotForPace'] as bool?,
-      heartRateBpmMin: json['heart_rate_bpm_min'] as int? ?? json['heartRateBpmMin'] as int?,
-      heartRateBpmMax: json['heart_rate_bpm_max'] as int? ?? json['heartRateBpmMax'] as int?,
-      cadenceMin: json['cadence_min'] as int? ?? json['cadenceMin'] as int?,
-      cadenceMax: json['cadence_max'] as int? ?? json['cadenceMax'] as int?,
-      powerWattsMin: json['power_watts_min'] as int? ?? json['powerWattsMin'] as int?,
-      powerWattsMax: json['power_watts_max'] as int? ?? json['powerWattsMax'] as int?,
+      heartRateBpmMin: _jsonInt(json['heart_rate_bpm_min'] ?? json['heartRateBpmMin']),
+      heartRateBpmMax: _jsonInt(json['heart_rate_bpm_max'] ?? json['heartRateBpmMax']),
+      cadenceMin: _jsonInt(json['cadence_min'] ?? json['cadenceMin']),
+      cadenceMax: _jsonInt(json['cadence_max'] ?? json['cadenceMax']),
+      powerWattsMin: _jsonInt(json['power_watts_min'] ?? json['powerWattsMin']),
+      powerWattsMax: _jsonInt(json['power_watts_max'] ?? json['powerWattsMax']),
     );
   }
 
@@ -179,7 +186,7 @@ class WorkoutStepModel {
     return WorkoutStepModel(
       type: type,
       segment: segmentJson != null ? WorkoutSegmentModel.fromJson(segmentJson) : null,
-      repeatCount: json['repeat_count'] as int? ?? json['repeatCount'] as int?,
+      repeatCount: WorkoutSegmentModel._jsonInt(json['repeat_count'] ?? json['repeatCount']),
       steps: stepsList
           ?.map((e) => WorkoutStepModel.fromJson(e as Map<String, dynamic>))
           .toList(),

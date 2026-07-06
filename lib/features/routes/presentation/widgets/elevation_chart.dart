@@ -30,6 +30,8 @@ class _ElevationChartState extends State<ElevationChart> {
       return const SizedBox.shrink();
     }
 
+    final cs = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -52,17 +54,18 @@ class _ElevationChartState extends State<ElevationChart> {
                 'Yükseklik Profili',
                 style: AppTypography.titleMedium.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
                 ),
               ),
               if (_touchedIndex != null && _touchedIndex! < widget.elevationProfile.length)
-                _buildTouchedInfo(),
+                _buildTouchedInfo(cs),
             ],
           ),
           const SizedBox(height: 16),
           SizedBox(
             height: 180,
             child: LineChart(
-              _buildChartData(),
+              _buildChartData(cs),
               duration: const Duration(milliseconds: 150),
             ),
           ),
@@ -83,18 +86,18 @@ class _ElevationChartState extends State<ElevationChart> {
     );
   }
 
-  Widget _buildTouchedInfo() {
+  Widget _buildTouchedInfo(ColorScheme cs) {
     final point = widget.elevationProfile[_touchedIndex!];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.1),
+        color: cs.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         '${point.distance.toStringAsFixed(1)} km • ${point.elevation.toInt()} m',
         style: AppTypography.labelMedium.copyWith(
-          color: AppColors.primary,
+          color: cs.primary,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -124,7 +127,7 @@ class _ElevationChartState extends State<ElevationChart> {
     );
   }
 
-  LineChartData _buildChartData() {
+  LineChartData _buildChartData(ColorScheme cs) {
     // Calculate min/max elevation
     double minElev = double.infinity;
     double maxElev = -double.infinity;
@@ -151,7 +154,7 @@ class _ElevationChartState extends State<ElevationChart> {
         horizontalInterval: horizontalInterval,
         getDrawingHorizontalLine: (value) {
           return FlLine(
-            color: AppColors.neutral200,
+            color: cs.outlineVariant.withValues(alpha: 0.5),
             strokeWidth: 1,
             dashArray: [5, 5],
           );
@@ -213,7 +216,7 @@ class _ElevationChartState extends State<ElevationChart> {
           });
         },
         touchTooltipData: LineTouchTooltipData(
-          getTooltipColor: (touchedSpot) => AppColors.neutral800,
+          getTooltipColor: (touchedSpot) => cs.inverseSurface,
           tooltipRoundedRadius: 8,
           tooltipPadding: const EdgeInsets.all(8),
           getTooltipItems: (touchedSpots) {
@@ -221,7 +224,7 @@ class _ElevationChartState extends State<ElevationChart> {
               return LineTooltipItem(
                 '${spot.y.toInt()} m\n${spot.x.toStringAsFixed(1)} km',
                 AppTypography.labelSmall.copyWith(
-                  color: Colors.white,
+                  color: cs.onInverseSurface,
                   fontWeight: FontWeight.w500,
                 ),
               );
@@ -251,9 +254,9 @@ class _ElevationChartState extends State<ElevationChart> {
               if (index == _touchedIndex) {
                 return FlDotCirclePainter(
                   radius: 6,
-                  color: AppColors.primary,
+                  color: cs.primary,
                   strokeWidth: 2,
-                  strokeColor: Colors.white,
+                  strokeColor: cs.surface,
                 );
               }
               return FlDotCirclePainter(
@@ -268,8 +271,8 @@ class _ElevationChartState extends State<ElevationChart> {
             show: true,
             gradient: LinearGradient(
               colors: [
-                AppColors.neutral300.withValues(alpha: 0.2),
-                AppColors.neutral300.withValues(alpha: 0.0),
+                cs.primary.withValues(alpha: 0.2),
+                cs.primary.withValues(alpha: 0.0),
               ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,

@@ -407,6 +407,18 @@ R 400m 7 pace''';
       expect(recovery['segment_type'], 'recovery');
       expect(recovery['distance_meters'], 400);
     });
+
+    test('recovery spaced duration is not parsed as meters', () {
+      final r = parseCoachText(
+        '2x4k(5:40 pace/5:30pace) R 2 dk 7:30pace/7:00pace',
+      );
+      expect(r.ok, isTrue, reason: r.error);
+      final recovery = (((r.workoutDefinition!['steps'] as List).first as Map)['steps'] as List)[1] as Map;
+      final seg = recovery['segment'] as Map;
+      expect(seg['duration_seconds'], 120);
+      expect(seg['distance_meters'], isNull);
+      expect(seg['pace_seconds_per_km_min'], isNotNull);
+    });
   });
 }
 

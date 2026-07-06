@@ -3699,12 +3699,13 @@ class _ParticipantsTabSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final screenH = MediaQuery.of(context).size.height;
     return Container(
       height: screenH * 0.88,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         children: [
@@ -3714,15 +3715,18 @@ class _ParticipantsTabSheet extends ConsumerWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Katılımcılar', style: AppTypography.titleLarge),
+                Text(
+                  'Katılımcılar',
+                  style: AppTypography.titleLarge.copyWith(color: cs.onSurface),
+                ),
                 IconButton(
-                  icon: Icon(Icons.close),
+                  icon: Icon(Icons.close, color: cs.onSurfaceVariant),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1, color: cs.outlineVariant),
           Expanded(
             child: participantsAsync.when(
               loading: () => const Center(child: LoadingWidget()),
@@ -3894,6 +3898,7 @@ class _TrainingMultiRouteBodyState extends State<_TrainingMultiRouteBody>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         TabBar(
@@ -3903,14 +3908,15 @@ class _TrainingMultiRouteBodyState extends State<_TrainingMultiRouteBody>
             fontWeight: FontWeight.w600,
           ),
           unselectedLabelStyle: AppTypography.labelMedium,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.neutral500,
-          indicatorColor: AppColors.primary,
+          labelColor: cs.primary,
+          unselectedLabelColor: cs.onSurfaceVariant,
+          indicatorColor: cs.primary,
+          dividerColor: cs.outlineVariant,
           tabs: widget.routeOptions
               .map((r) => Tab(text: r.displayName))
               .toList(),
         ),
-        const Divider(height: 1),
+        Divider(height: 1, color: cs.outlineVariant),
         Expanded(
           child: TabBarView(
             controller: _routeTabController,
@@ -3994,6 +4000,7 @@ class _GroupTabBodyState extends State<_GroupTabBody>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final groups = widget.orderedGroups;
     final tabs = <Tab>[
       const Tab(text: 'Tümü'),
@@ -4026,12 +4033,13 @@ class _GroupTabBodyState extends State<_GroupTabBody>
             fontWeight: FontWeight.w600,
           ),
           unselectedLabelStyle: AppTypography.labelMedium,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.neutral500,
-          indicatorColor: AppColors.primary,
+          labelColor: cs.primary,
+          unselectedLabelColor: cs.onSurfaceVariant,
+          indicatorColor: cs.primary,
+          dividerColor: cs.outlineVariant,
           tabs: tabs,
         ),
-        const Divider(height: 1),
+        Divider(height: 1, color: cs.outlineVariant),
         Expanded(
           child: TabBarView(
             controller: _groupTabController,
@@ -4077,6 +4085,7 @@ class _RaceCategoryBodyState extends State<_RaceCategoryBody>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final tabs = <Tab>[
       const Tab(text: 'Tümü'),
       ...widget.labels.map((l) => Tab(text: l)),
@@ -4100,7 +4109,7 @@ class _RaceCategoryBodyState extends State<_RaceCategoryBody>
           child: Text(
             'Yarış Kategorisi',
             style: AppTypography.labelSmall.copyWith(
-              color: ThemeBrightnessHolder.onSurfaceVariant,
+              color: cs.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -4112,12 +4121,13 @@ class _RaceCategoryBodyState extends State<_RaceCategoryBody>
             fontWeight: FontWeight.w600,
           ),
           unselectedLabelStyle: AppTypography.labelMedium,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.neutral500,
-          indicatorColor: AppColors.primary,
+          labelColor: cs.primary,
+          unselectedLabelColor: cs.onSurfaceVariant,
+          indicatorColor: cs.primary,
+          dividerColor: cs.outlineVariant,
           tabs: tabs,
         ),
-        const Divider(height: 1),
+        Divider(height: 1, color: cs.outlineVariant),
         Expanded(
           child: TabBarView(
             controller: _tabController,
@@ -4142,6 +4152,7 @@ class _FlatParticipantList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     if (participants.isEmpty) {
       return Center(
         child: Padding(
@@ -4149,12 +4160,13 @@ class _FlatParticipantList extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.people_outline, size: 48, color: ThemeBrightnessHolder.outlineVariant),
+              Icon(Icons.people_outline, size: 48, color: cs.outlineVariant),
               const SizedBox(height: 12),
               Text(
                 'Bu kategoride katılımcı yok',
-                style: AppTypography.bodyMedium
-                    .copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -4182,12 +4194,17 @@ class _FlatParticipantList extends StatelessWidget {
             name: p.userName,
             imageUrl: p.userAvatarUrl,
           ),
-          title: Text(p.userName),
+          title: Text(
+            p.userName,
+            style: AppTypography.bodyMedium.copyWith(
+              color: cs.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           subtitle: Text(
             subtitleParts.join(' • '),
             style: TextStyle(
-              color:
-                  p.checkedIn ? AppColors.success : AppColors.neutral500,
+              color: p.checkedIn ? AppColors.success : cs.onSurfaceVariant,
             ),
           ),
           trailing: p.checkedIn
@@ -4204,12 +4221,13 @@ class _FlatParticipantList extends StatelessWidget {
 class _SheetHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(top: 12, bottom: 4),
       width: 40,
       height: 4,
       decoration: BoxDecoration(
-        color: ThemeBrightnessHolder.outlineVariant,
+        color: cs.outline,
         borderRadius: BorderRadius.circular(2),
       ),
     );

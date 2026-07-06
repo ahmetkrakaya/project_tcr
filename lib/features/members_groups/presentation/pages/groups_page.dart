@@ -577,7 +577,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
               },
               child: Text(
                 'Kaydet',
-                style: TextStyle(color: AppColors.primary),
+                style: TextStyle(color: Theme.of(context).colorScheme.primary),
               ),
             ),
           ],
@@ -891,6 +891,7 @@ class _UserListItem {
                   '$title (${count!}${totalCount != null ? ' / $totalCount' : ''})',
                   style: AppTypography.titleMedium.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ],
@@ -922,6 +923,7 @@ class _UserListItem {
                           '$title (${count!}${totalCount != null ? ' / $totalCount' : ''})',
                           style: AppTypography.titleMedium.copyWith(
                             fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -957,6 +959,7 @@ class _UserListItem {
     // Rol değiştirme ve pasifleştirme: admin kullanıcılara uygulanamaz
     final canManage = isAdmin && isNotSelf && !user.isAdmin;
     final isLoading = approvalState.isLoading || roleUpdateState.isLoading;
+    final cs = Theme.of(context).colorScheme;
 
     // Kullanıcının ana rolünü belirle (super_admin > coach > member)
     final primaryRole = user.isAdmin
@@ -977,7 +980,7 @@ class _UserListItem {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: AppColors.neutral200,
+                color: cs.outlineVariant,
                 width: 1,
               ),
             ),
@@ -1002,6 +1005,7 @@ class _UserListItem {
                       user.fullName,
                       style: AppTypography.titleSmall.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1013,10 +1017,13 @@ class _UserListItem {
               if (canManage) ...[
                 const SizedBox(width: 8),
                 isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 24,
                         height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: cs.primary,
+                        ),
                       )
                     : Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1026,7 +1033,7 @@ class _UserListItem {
                             ref: ref,
                             user: user,
                             icon: Icons.admin_panel_settings,
-                            color: AppColors.primary,
+                            color: cs.primary,
                             tooltip: 'Rolü Değiştir',
                             onPressed: () => onShowRoleChangeDialog(user),
                           ),
@@ -1120,7 +1127,7 @@ class _UserListItem {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -1156,6 +1163,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(
@@ -1169,6 +1177,7 @@ class _SectionHeader extends StatelessWidget {
                 title,
                 style: AppTypography.titleMedium.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
                 ),
               ),
             ],

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/track_lane_calculator.dart';
+import '../../../../core/utils/vdot_calculator.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../integrations/shared/monthly_program_device_sync_service.dart';
 import '../../../integrations/shared/weekly_program_device_sync.dart';
@@ -84,15 +85,48 @@ class _AdminMonthlyProgramEntryCardState
 
   String? _paceLine(WorkoutSegmentEntity s) {
     if (s.useVdotForPace == true) return 'VDOT pace';
-    final pace = effectivePaceDisplay(s, isAdminView: true);
-    if (pace != null) return 'Tempo $pace';
-    return null;
+    final range = effectivePaceRange(s);
+    if (range == null) return null;
+    final (min, max) = range;
+    String formatPaceKm(int sec) => '${VdotCalculator.formatPace(sec)}/km';
+    if (min != max) {
+      return 'Tempo ${formatPaceKm(min)}-${formatPaceKm(max)}';
+    }
+    return 'Tempo ${formatPaceKm(min)}';
   }
 
   String? _splitLine(WorkoutSegmentEntity s) {
+    if (s.targetType != WorkoutTargetType.distance || !hasSplitTarget(s)) {
+      return null;
+    }
     final split = effectiveSplitDisplay(s);
     if (split != null) return 'Süre $split';
     return null;
+  }
+
+  List<String> _segmentDetailLines(WorkoutSegmentEntity s) {
+    final details = <String>[];
+    if (s.targetType == WorkoutTargetType.duration && s.durationSeconds != null) {
+      details.add(_formatDurationSec(s.durationSeconds!));
+    }
+    final distM = s.distanceMeters;
+    if (distM != null && distM > 0) {
+      details.add(
+        distM >= 1000
+            ? '${(distM / 1000).toStringAsFixed(distM % 1000 == 0 ? 0 : 1)} km'
+            : '${distM.round()} m',
+      );
+    }
+    final split = _splitLine(s);
+    if (split != null) details.add(split);
+    final pace = _paceLine(s);
+    if (pace != null) details.add(pace);
+    final viewLane = _viewLane ?? _referenceLane;
+    if (viewLane != null) {
+      final lapTime = _lapTimeLine(s, viewLane);
+      if (lapTime != null) details.add(lapTime);
+    }
+    return details;
   }
 
   String? _lapTimeLine(WorkoutSegmentEntity s, int viewLane) {
@@ -508,25 +542,7 @@ class _AdminMonthlyProgramEntryCardState
     final pad = EdgeInsets.only(left: depth * 12.0, bottom: 12);
     if (step.isSegment && step.segment != null) {
       final s = step.segment!;
-      final dur = s.targetType == WorkoutTargetType.duration && s.durationSeconds != null
-          ? _formatDurationSec(s.durationSeconds!)
-          : null;
-      final distM = s.distanceMeters;
-      final dist = distM != null && distM > 0
-          ? (distM >= 1000
-              ? '${(distM / 1000).toStringAsFixed(distM % 1000 == 0 ? 0 : 1)} km'
-              : '${distM.round()} m')
-          : null;
-      final split = _splitLine(s);
-      final pace = _paceLine(s);
-      final viewLane = _viewLane ?? _referenceLane;
-      final lapTime = viewLane != null ? _lapTimeLine(s, viewLane) : null;
-      final details = <String>[];
-      if (dur != null) details.add(dur);
-      if (dist != null) details.add(dist);
-      if (split != null) details.add(split);
-      if (pace != null) details.add(pace);
-      if (lapTime != null) details.add(lapTime);
+      final details = _segmentDetailLines(s);
 
       return Padding(
         padding: pad,

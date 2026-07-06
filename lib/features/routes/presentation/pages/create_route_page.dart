@@ -16,7 +16,6 @@ import '../../domain/entities/route_entity.dart';
 import '../../data/datasources/route_remote_datasource.dart';
 import '../providers/route_provider.dart';
 import '../widgets/route_location_picker.dart';
-import '../../../../core/theme/theme_brightness_holder.dart';
 
 /// Rota Ekleme / Düzenleme Sayfası
 class CreateRoutePage extends ConsumerStatefulWidget {
@@ -257,12 +256,16 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
   }
 
   Widget _buildGpxPicker() {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'GPX Varyantları (opsiyonel)',
-          style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600),
+          style: AppTypography.labelLarge.copyWith(
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: 8),
 
@@ -270,24 +273,26 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.neutral100,
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.neutral200),
+              border: Border.all(color: cs.outlineVariant),
             ),
             child: Row(
               children: [
-                Icon(Icons.route_outlined, color: ThemeBrightnessHolder.onSurfaceVariant),
+                Icon(Icons.route_outlined, color: cs.onSurfaceVariant),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Farklı mesafeler için birden fazla GPX ekleyebilirsiniz.',
-                    style: AppTypography.bodyMedium.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 IconButton(
                   tooltip: 'Mesafe ekle',
                   icon: Icon(Icons.add_circle_outline),
-                  color: AppColors.primary,
+                  color: cs.primary,
                   onPressed: () {
                     setState(() {
                       final nextIndex = _gpxVariants.length + 1;
@@ -313,17 +318,17 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: v.isValid
-                          ? AppColors.success.withValues(alpha: 0.08)
+                          ? AppColors.success.withValues(alpha: 0.12)
                           : v.error != null
-                              ? AppColors.error.withValues(alpha: 0.08)
-                              : AppColors.neutral100,
+                              ? AppColors.error.withValues(alpha: 0.12)
+                              : cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: v.isValid
                             ? AppColors.success
                             : v.error != null
                                 ? AppColors.error
-                                : AppColors.neutral300,
+                                : cs.outlineVariant,
                         width: 1.5,
                       ),
                     ),
@@ -342,7 +347,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                                   ? AppColors.success
                                   : v.error != null
                                       ? AppColors.error
-                                      : AppColors.neutral500,
+                                      : cs.onSurfaceVariant,
                               size: 24,
                             ),
                             const SizedBox(width: 12),
@@ -361,7 +366,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                             IconButton(
                               tooltip: 'Varyantı kaldır',
                               icon: Icon(Icons.delete_outline),
-                              color: ThemeBrightnessHolder.onSurfaceVariant,
+                              color: cs.onSurfaceVariant,
                               onPressed: () {
                                 setState(() {
                                   _gpxVariants.removeAt(i);
@@ -378,21 +383,23 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: cs.surface,
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: ThemeBrightnessHolder.outlineVariant),
+                              border: Border.all(color: cs.outlineVariant),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
                                   hasFile ? Icons.edit_document : Icons.upload_file,
-                                  color: AppColors.primary,
+                                  color: cs.primary,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
                                   hasFile ? (v.fileName ?? 'GPX yüklendi') : 'GPX seçin',
-                                  style: AppTypography.bodyMedium.copyWith(color: ThemeBrightnessHolder.onSurface),
+                                  style: AppTypography.bodyMedium.copyWith(
+                                    color: cs.onSurface,
+                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -411,7 +418,9 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                           const SizedBox(height: 8),
                           Text(
                             'İsteğe bağlı. Desteklenen format: .gpx',
-                            style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
+                            style: AppTypography.labelSmall.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ],
@@ -448,13 +457,17 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
   }
 
   Widget _buildLocationSection() {
+    final cs = Theme.of(context).colorScheme;
     final hasLocation = _locationLat != null && _locationLng != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Konum',
-          style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600),
+          style: AppTypography.labelLarge.copyWith(
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: 8),
         Material(
@@ -466,11 +479,11 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
                 color: hasLocation
-                    ? AppColors.success.withValues(alpha: 0.08)
-                    : AppColors.neutral100,
+                    ? AppColors.success.withValues(alpha: 0.12)
+                    : cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: hasLocation ? AppColors.success : AppColors.neutral300,
+                  color: hasLocation ? AppColors.success : cs.outlineVariant,
                   width: 1.5,
                 ),
               ),
@@ -478,7 +491,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                 children: [
                   Icon(
                     hasLocation ? Icons.location_on : Icons.add_location_alt,
-                    color: hasLocation ? AppColors.success : AppColors.neutral500,
+                    color: hasLocation ? AppColors.success : cs.onSurfaceVariant,
                     size: 24,
                   ),
                   const SizedBox(width: 12),
@@ -488,7 +501,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                           ? '${_locationLat!.toStringAsFixed(5)}, ${_locationLng!.toStringAsFixed(5)}'
                           : 'Konum seçmek için dokunun',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: hasLocation ? AppColors.success : AppColors.neutral600,
+                        color: hasLocation ? AppColors.success : cs.onSurfaceVariant,
                         fontFamily: hasLocation ? 'monospace' : null,
                       ),
                     ),
@@ -500,20 +513,20 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                         IconButton(
                           tooltip: 'Konum Seç',
                           icon: Icon(Icons.add_location_alt),
-                          color: AppColors.primary,
+                          color: cs.primary,
                           onPressed: _showLocationPickerSheet,
                         ),
                       if (hasLocation) ...[
                         IconButton(
                           tooltip: 'Değiştir',
                           icon: Icon(Icons.edit_location_alt),
-                          color: AppColors.primary,
+                          color: cs.primary,
                           onPressed: _showLocationPickerSheet,
                         ),
                         IconButton(
                           tooltip: 'Kaldır',
                           icon: Icon(Icons.clear),
-                          color: ThemeBrightnessHolder.onSurfaceVariant,
+                          color: cs.onSurfaceVariant,
                           onPressed: () {
                             setState(() {
                               _locationLat = null;
@@ -552,12 +565,16 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
   }
 
   Widget _buildTerrainTypeSelector() {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Tür',
-          style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600),
+          style: AppTypography.labelLarge.copyWith(
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: 12),
         Row(
@@ -573,12 +590,12 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? AppColors.primary.withValues(alpha: 0.1)
-                        : AppColors.neutral100,
+                        ? cs.primary.withValues(alpha: 0.16)
+                        : cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: isSelected ? AppColors.primary : Colors.transparent,
-                      width: 2,
+                      color: isSelected ? cs.primary : cs.outlineVariant,
+                      width: isSelected ? 2 : 1,
                     ),
                   ),
                   child: Column(
@@ -591,9 +608,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                       Text(
                         terrain.displayName,
                         style: AppTypography.labelMedium.copyWith(
-                          color: isSelected
-                              ? AppColors.primary
-                              : AppColors.neutral600,
+                          color: isSelected ? cs.primary : cs.onSurfaceVariant,
                           fontWeight:
                               isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
@@ -610,12 +625,16 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
   }
 
   Widget _buildRouteCategorySelector() {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Kategori',
-          style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600),
+          style: AppTypography.labelLarge.copyWith(
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: 12),
         Row(
@@ -627,22 +646,26 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
                     color: _isRace
-                        ? AppColors.primary.withValues(alpha: 0.1)
-                        : AppColors.neutral100,
+                        ? cs.primary.withValues(alpha: 0.16)
+                        : cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _isRace ? AppColors.primary : Colors.transparent,
-                      width: 2,
+                      color: _isRace ? cs.primary : cs.outlineVariant,
+                      width: _isRace ? 2 : 1,
                     ),
                   ),
                   child: Column(
                     children: [
-                      Icon(Icons.emoji_events, size: 26),
+                      Icon(
+                        Icons.emoji_events,
+                        size: 26,
+                        color: _isRace ? cs.primary : cs.onSurfaceVariant,
+                      ),
                       const SizedBox(height: 6),
                       Text(
                         'Yarış Rotası',
                         style: AppTypography.labelMedium.copyWith(
-                          color: _isRace ? AppColors.primary : AppColors.neutral600,
+                          color: _isRace ? cs.primary : cs.onSurfaceVariant,
                           fontWeight: _isRace ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
@@ -659,22 +682,26 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
                     color: !_isRace
-                        ? AppColors.primary.withValues(alpha: 0.1)
-                        : AppColors.neutral100,
+                        ? cs.primary.withValues(alpha: 0.16)
+                        : cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: !_isRace ? AppColors.primary : Colors.transparent,
-                      width: 2,
+                      color: !_isRace ? cs.primary : cs.outlineVariant,
+                      width: !_isRace ? 2 : 1,
                     ),
                   ),
                   child: Column(
                     children: [
-                      Icon(Icons.map_outlined, size: 26),
+                      Icon(
+                        Icons.map_outlined,
+                        size: 26,
+                        color: !_isRace ? cs.primary : cs.onSurfaceVariant,
+                      ),
                       const SizedBox(height: 6),
                       Text(
                         'Normal Rota',
                         style: AppTypography.labelMedium.copyWith(
-                          color: !_isRace ? AppColors.primary : AppColors.neutral600,
+                          color: !_isRace ? cs.primary : cs.onSurfaceVariant,
                           fontWeight: !_isRace ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
@@ -690,6 +717,7 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
   }
 
   Widget _buildDifficultySelector() {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -698,7 +726,10 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
           children: [
             Text(
               'Zorluk Seviyesi',
-              style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600),
+              style: AppTypography.labelLarge.copyWith(
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -740,11 +771,11 @@ class _CreateRoutePageState extends ConsumerState<CreateRoutePage> {
           children: [
             Text(
               'Çok Kolay',
-              style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
+              style: AppTypography.labelSmall.copyWith(color: cs.onSurfaceVariant),
             ),
             Text(
               'Çok Zor',
-              style: AppTypography.labelSmall.copyWith(color: ThemeBrightnessHolder.onSurfaceVariant),
+              style: AppTypography.labelSmall.copyWith(color: cs.onSurfaceVariant),
             ),
           ],
         ),
@@ -949,6 +980,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
       minChildSize: 0.5,
@@ -974,10 +1006,11 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                         'Konum Seç',
                         style: AppTypography.titleMedium.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: cs.onSurface,
                         ),
                       ),
                       IconButton(
-                        icon: Icon(Icons.close),
+                        icon: Icon(Icons.close, color: cs.onSurfaceVariant),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
@@ -988,7 +1021,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                   child: Text(
                     'Haritada dokunarak veya arama yaparak konum seçin',
                     style: AppTypography.bodySmall.copyWith(
-                      color: ThemeBrightnessHolder.onSurfaceVariant,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                 ),
