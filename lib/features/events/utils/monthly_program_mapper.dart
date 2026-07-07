@@ -1,4 +1,6 @@
 import '../../members_groups/data/models/group_model.dart';
+import '../../members_groups/domain/entities/group_entity.dart';
+import '../../integrations/shared/weekly_program_device_sync.dart';
 import '../../workout/data/models/workout_model.dart';
 
 WorkoutDefinitionModel? _parseWorkoutDefinition(dynamic raw) {
@@ -90,4 +92,81 @@ bool monthlyRowHasProgramContent(Map<String, dynamic> row) {
   final hasWorkout = wd != null &&
       ((wd is Map && wd.isNotEmpty) || (wd is List && wd.isNotEmpty));
   return content.isNotEmpty || hasWorkout;
+}
+
+Map<String, dynamic> _trainingTypeMap({
+  String? name,
+  String? description,
+  String? color,
+  int? offsetMin,
+  int? offsetMax,
+}) {
+  final map = <String, dynamic>{};
+  if (name != null) map['display_name'] = name;
+  if (description != null) map['description'] = description;
+  if (color != null) map['color'] = color;
+  if (offsetMin != null) map['threshold_offset_min_seconds'] = offsetMin;
+  if (offsetMax != null) map['threshold_offset_max_seconds'] = offsetMax;
+  return map;
+}
+
+Map<String, dynamic> eventGroupProgramToMonthlyRow(
+  EventGroupProgramEntity program, {
+  int? trackLane,
+}) {
+  final row = <String, dynamic>{
+    'id': program.id,
+    'program_content': program.programContent,
+    'coach_notes': program.coachNotes,
+    'training_groups': <String, dynamic>{
+      if (program.groupName != null) 'name': program.groupName,
+      if (program.groupColor != null) 'color': program.groupColor,
+    },
+    'training_types': _trainingTypeMap(
+      name: program.trainingTypeName,
+      description: program.trainingTypeDescription,
+      color: program.trainingTypeColor,
+      offsetMin: program.thresholdOffsetMinSeconds,
+      offsetMax: program.thresholdOffsetMaxSeconds,
+    ),
+  };
+  final workoutJson = workoutDefinitionJson(program.workoutDefinition);
+  if (workoutJson != null) {
+    row['workout_definition'] = workoutJson;
+  }
+  if (trackLane != null) {
+    row['track_lane'] = trackLane;
+  }
+  return row;
+}
+
+Map<String, dynamic> eventMemberProgramToMonthlyRow(
+  EventMemberProgramEntity program, {
+  String? displayGroupName,
+  int? trackLane,
+}) {
+  final row = <String, dynamic>{
+    'id': program.id,
+    'program_content': program.programContent,
+    'coach_notes': program.coachNotes,
+    'training_groups': <String, dynamic>{
+      'name': displayGroupName ?? program.groupName,
+      if (program.groupColor != null) 'color': program.groupColor,
+    },
+    'training_types': _trainingTypeMap(
+      name: program.trainingTypeName,
+      description: program.trainingTypeDescription,
+      color: program.trainingTypeColor,
+      offsetMin: program.thresholdOffsetMinSeconds,
+      offsetMax: program.thresholdOffsetMaxSeconds,
+    ),
+  };
+  final workoutJson = workoutDefinitionJson(program.workoutDefinition);
+  if (workoutJson != null) {
+    row['workout_definition'] = workoutJson;
+  }
+  if (trackLane != null) {
+    row['track_lane'] = trackLane;
+  }
+  return row;
 }

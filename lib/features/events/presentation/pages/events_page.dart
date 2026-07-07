@@ -907,8 +907,10 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                             margin: const EdgeInsets.symmetric(horizontal: 1),
                             width: 4,
                             height: 4,
-                            decoration: const BoxDecoration(
-                              color: AppColors.secondary,
+                            decoration: BoxDecoration(
+                              color: ThemeBrightnessHolder.isDark
+                                  ? AppColors.secondaryLight
+                                  : AppColors.secondary,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -988,7 +990,9 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             padding: const EdgeInsets.symmetric(vertical: 5),
             decoration: BoxDecoration(
               color: effectiveEvent.isToday
-                  ? AppColors.secondary
+                  ? (ThemeBrightnessHolder.isDark
+                      ? AppColors.secondaryLight
+                      : AppColors.secondary)
                   : colorScheme.primaryContainer,
               borderRadius: BorderRadius.circular(12),
             ),
@@ -1200,15 +1204,19 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   Color _getEventTypeColor(EventType type) {
     switch (type) {
       case EventType.training:
-        return AppColors.secondary;
+        return ThemeBrightnessHolder.isDark
+            ? AppColors.secondaryLight
+            : AppColors.secondary;
       case EventType.race:
-        return AppColors.error;
+        return ThemeBrightnessHolder.isDark ? AppColors.errorLight : AppColors.error;
       case EventType.social:
-        return AppColors.tertiary;
+        return ThemeBrightnessHolder.isDark
+            ? AppColors.tertiaryLight
+            : AppColors.tertiary;
       case EventType.workshop:
-        return AppColors.primary;
+        return ThemeBrightnessHolder.primary;
       case EventType.other:
-        return AppColors.neutral600;
+        return ThemeBrightnessHolder.onSurfaceVariant;
     }
   }
 

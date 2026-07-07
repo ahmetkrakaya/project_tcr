@@ -1,23 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/theme/theme_brightness_holder.dart';
 import '../../../../core/utils/vdot_calculator.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
-import '../../../events/domain/entities/event_entity.dart' show EventEntity;
+import '../../../events/domain/entities/event_entity.dart';
 import '../../../events/presentation/providers/event_provider.dart';
+import '../../../events/presentation/widgets/admin_monthly_program_entry_card.dart';
+import '../../../events/utils/monthly_program_mapper.dart';
+import '../../../../core/utils/track_lane_calculator.dart';
 import '../../../routes/presentation/providers/route_provider.dart';
-import '../../../workout/domain/entities/workout_entity.dart'
-    show WorkoutDefinitionEntity, WorkoutStepEntity, WorkoutSegmentEntity, WorkoutSegmentType, WorkoutTargetType;
-import '../../../workout/utils/segment_target_resolver.dart';
-import '../../domain/entities/group_entity.dart';
 import '../../data/datasources/group_remote_datasource.dart';
+import '../../domain/entities/group_entity.dart';
 import '../providers/group_provider.dart';
-import '../../../../core/theme/theme_brightness_holder.dart';
 
 final _currentUserGroupIdProvider = FutureProvider<String?>((ref) async {
   final ds = GroupRemoteDataSource(Supabase.instance.client);
@@ -209,7 +207,9 @@ class UserGroupProgramViewer extends ConsumerWidget {
             Icon(
               hasPersonalProgram ? Icons.star : Icons.fitness_center,
               size: 20,
-              color: hasPersonalProgram ? AppColors.secondary : AppColors.primary,
+              color: hasPersonalProgram
+                  ? _accentColor(light: AppColors.secondary, dark: AppColors.secondaryLight)
+                  : ThemeBrightnessHolder.primary,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -219,7 +219,13 @@ class UserGroupProgramViewer extends ConsumerWidget {
               ),
             ),
             if (allGroupPrograms.isNotEmpty)
-              _buildAllProgramsButton(context, ref, allGroupPrograms, event),
+              _buildAllProgramsButton(
+                context,
+                ref,
+                allGroupPrograms,
+                event,
+                trackLengthKm: trackLengthKm,
+              ),
           ],
         ),
         const SizedBox(height: 12),
@@ -248,6 +254,60 @@ class UserGroupProgramViewer extends ConsumerWidget {
     return _buildProgramsColumn(context, ref, programs, userVdot, event, trackLengthKm, false);
   }
 
+  Color _accentColor({required Color light, required Color dark}) =>
+      ThemeBrightnessHolder.isDark ? dark : light;
+
+  bool _shouldOfferLanePicker(EventEntity event, EventGroupProgramEntity program) {
+    final def = program.workoutDefinition;
+    if (def == null || def.isEmpty) return false;
+    if (event.laneConfig != null) return true;
+    return event.eventType == EventType.training;
+  }
+
+  int? _referenceTrackLane(
+    EventGroupProgramEntity program,
+    EventEntity event,
+    double? userVdot,
+  ) {
+    if (!_shouldOfferLanePicker(event, program)) return null;
+
+    final laneConfig = event.laneConfig;
+    if (laneConfig != null && userVdot != null && userVdot > 0) {
+      final paceRange = VdotCalculator.getPaceRangeFromOffsets(
+        userVdot,
+        program.thresholdOffsetMinSeconds,
+        program.thresholdOffsetMaxSeconds,
+      );
+      if (paceRange != null) {
+        final matched = laneConfig.laneNumberForPace(paceRange.$1);
+        if (matched != null) return matched;
+      }
+      if (laneConfig.lanes.isNotEmpty) {
+        return laneConfig.lanes.first.laneNumber;
+      }
+    }
+
+    return TrackLaneCalculator.minLane;
+  }
+
+  double? _lane1Km(EventEntity event, double? trackLengthKm) =>
+      event.laneConfig?.trackLengthKm ?? trackLengthKm;
+
+  Widget _buildEntryCard({
+    required Map<String, dynamic> row,
+    required EventEntity event,
+    double? trackLengthKm,
+    bool enableLanePicker = false,
+  }) {
+    return AdminMonthlyProgramEntryCard(
+      row: row,
+      enableLanePicker: enableLanePicker,
+      enableDeviceSync: false,
+      showPlanDate: false,
+      lane1Km: _lane1Km(event, trackLengthKm),
+    );
+  }
+
   Widget _buildProgramCard(
     BuildContext context,
     WidgetRef ref,
@@ -256,634 +316,23 @@ class UserGroupProgramViewer extends ConsumerWidget {
     required EventEntity event,
     double? trackLengthKm,
   }) {
-    int? userPaceSecPerKm;
-    if (userVdot != null && userVdot > 0) {
-      final paceRange = VdotCalculator.getPaceRangeFromOffsets(
-        userVdot,
-        program.thresholdOffsetMinSeconds,
-        program.thresholdOffsetMaxSeconds,
-      );
-      if (paceRange != null) {
-        userPaceSecPerKm = paceRange.$1;
-      }
-    }
-    final userLaneNumber = event.laneConfig != null && userPaceSecPerKm != null
-        ? event.laneConfig!.laneNumberForPace(userPaceSecPerKm)
+    final offerLanePicker = _shouldOfferLanePicker(event, program);
+    final trackLane = offerLanePicker
+        ? _referenceTrackLane(program, event, userVdot)
         : null;
-
-    final trainingColor = _parseColor(program.trainingTypeColor ?? '#6366F1');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: trainingColor.withValues(alpha: 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Üst şerit: grup + (opsiyonel) kulvar
-          if ((program.groupName != null && program.groupName!.trim().isNotEmpty) || userLaneNumber != null)
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 16, 8, 16),
-              decoration: const BoxDecoration(color: AppColors.neutral200),
-              child: Row(
-                children: [
-                  if (program.groupName != null && program.groupName!.trim().isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: trainingColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        program.groupName!.trim(),
-                        style: AppTypography.labelMedium.copyWith(
-                          color: trainingColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  if (program.groupName != null && program.groupName!.trim().isNotEmpty && userLaneNumber != null)
-                    const SizedBox(width: 10),
-                  if (userLaneNumber != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.tertiary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.track_changes, size: 18, color: AppColors.tertiary),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Kulvar $userLaneNumber',
-                            style: AppTypography.labelMedium.copyWith(
-                              color: AppColors.tertiary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-          // Program segmentleri
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (program.coachNotes?.trim().isNotEmpty == true) ...[
-                  Text(
-                    program.coachNotes!,
-                    style: AppTypography.bodyLarge.copyWith(
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                ],
-                if (program.workoutDefinition != null &&
-                    !program.workoutDefinition!.isEmpty &&
-                    (userVdot == null || userVdot <= 0) &&
-                    program.workoutDefinition!.hasVdotPaceSegments) ...[
-                  _buildVdotRequiredCard(context),
-                ] else if (program.workoutDefinition != null && !program.workoutDefinition!.isEmpty) ...[
-                  Text(
-                    'Program',
-                    style: AppTypography.labelSmall.copyWith(
-                      color: ThemeBrightnessHolder.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  ..._buildStructuredWorkoutSummary(
-                    program.workoutDefinition!,
-                    userVdot,
-                    offsetMin: program.thresholdOffsetMinSeconds,
-                    offsetMax: program.thresholdOffsetMaxSeconds,
-                    trackLengthKm: trackLengthKm != null && userLaneNumber != null
-                        ? _trackLengthKmForLane(trackLengthKm, userLaneNumber)
-                        : trackLengthKm,
-                  ),
-                ] else
-                  Text(
-                    program.programContent,
-                    style: AppTypography.bodyLarge.copyWith(
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
-                    ),
-                  ),
-
-                // Antrenman türü + açıklama + kişisel pace
-                if (program.trainingTypeName != null) ...[
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: trainingColor.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: trainingColor.withValues(alpha: 0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.fitness_center,
-                              size: 18,
-                              color: trainingColor,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                program.trainingTypeName!,
-                                style: AppTypography.titleSmall.copyWith(
-                                  color: trainingColor,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (program.trainingTypeDescription != null &&
-                            program.trainingTypeDescription!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            program.trainingTypeDescription!,
-                            style: AppTypography.bodySmall.copyWith(
-                              color: ThemeBrightnessHolder.onSurfaceVariant,
-                              height: 1.45,
-                            ),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-
-                // Rota (varsa)
-                if (program.routeId != null && program.routeName != null) ...[
-                  const SizedBox(height: 14),
-                  InkWell(
-                    onTap: () => context.pushNamed(
-                      RouteNames.routeDetail,
-                      pathParameters: {'routeId': program.routeId!},
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.tertiary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.map_outlined, size: 20, color: AppColors.tertiary),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              program.routeName!,
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.tertiary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Icon(Icons.chevron_right, size: 20, color: AppColors.tertiary),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
+    final row = eventGroupProgramToMonthlyRow(
+      program,
+      trackLane: trackLane,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _buildEntryCard(
+        row: row,
+        event: event,
+        trackLengthKm: trackLengthKm,
+        enableLanePicker: offerLanePicker && trackLane != null,
       ),
     );
-  }
-
-  Widget _buildVdotRequiredCard(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.pushNamed(RouteNames.paceCalculator),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.speed, size: 36, color: AppColors.primary),
-            const SizedBox(height: 12),
-            Text(
-              'Antrenman programını görmek için\nVDOT değerini gir',
-              textAlign: TextAlign.center,
-              style: AppTypography.titleSmall.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Bu antrenman kişisel pace değerlerine göre hazırlandı. Programı görüntülemek için VDOT hesaplayıcıdan değerini kaydet.',
-              textAlign: TextAlign.center,
-              style: AppTypography.bodySmall.copyWith(
-                color: ThemeBrightnessHolder.onSurfaceVariant,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                'VDOT Hesapla',
-                style: AppTypography.labelMedium.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _parseColor(String colorHex) {
-    try {
-      final hex = colorHex.replaceFirst('#', '');
-      return Color(int.parse('FF$hex', radix: 16));
-    } catch (_) {
-      return AppColors.primary;
-    }
-  }
-
-  /// Süreyi "5:18" formatında gösterir (dakika:saniye)
-  static String _formatDuration(int seconds) {
-    final minutes = seconds ~/ 60;
-    final secs = seconds % 60;
-    return '$minutes:${secs.toString().padLeft(2, '0')}';
-  }
-
-  /// Segment için pace (sn/km) hesapla (VDOT veya manuel)
-  int? _segmentPaceSec(
-    dynamic s,
-    double? userVdot, {
-    int? offsetMin,
-    int? offsetMax,
-  }) {
-    int? paceSec = s.customPaceSecondsPerKm ?? s.paceSecondsPerKm ?? s.paceSecondsPerKmMin;
-    if (paceSec == null && s.useVdotForPace == true && userVdot != null && userVdot > 0) {
-      final paceRange = VdotCalculator.getPaceRangeForSegmentType(
-        userVdot,
-        s.segmentType.name,
-        offsetMin,
-        offsetMax,
-      );
-      if (paceRange != null) {
-        paceSec = paceRange.$1; // Hızlı pace (hesaplama için)
-      }
-    }
-    return paceSec;
-  }
-
-  /// Kulvar 1 uzunluğundan (km) verilen kulvar numarasının uzunluğunu hesaplar (IAAF: kulvar genişliği 1.22 m)
-  static double _trackLengthKmForLane(double lane1TrackKm, int laneNumber) {
-    if (laneNumber <= 1) return lane1TrackKm;
-    const laneWidthM = 1.22;
-    const extraMetersPerLane = 2 * 3.14159265359 * laneWidthM; // ~7.67 m per lane
-    return lane1TrackKm + (laneNumber - 1) * (extraMetersPerLane / 1000);
-  }
-
-  /// Ana antrenman/toparlanma segmenti için pist tur sayısı ve tur süresi metni (ısınma/soğuma hariç)
-  /// Kulvar uzunluğuna göre hem tur sayısı hem tur süresi hesaplanır (her kulvar farklı uzunlukta).
-  String? _segmentTurAndLapTime(
-    dynamic s,
-    double trackLengthKm,
-    double? userVdot, {
-    int? offsetMin,
-    int? offsetMax,
-  }) {
-    double? segmentMeters;
-    if (s.distanceMeters != null) {
-      segmentMeters = s.distanceMeters;
-    } else if (s.durationSeconds != null) {
-      final paceSec = _segmentPaceSec(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
-      if (paceSec != null && paceSec > 0) {
-        segmentMeters = s.durationSeconds! * (1000.0 / paceSec);
-      }
-    }
-    if (segmentMeters == null || segmentMeters <= 0) return null;
-    final trackM = trackLengthKm * 1000;
-    final exactLaps = segmentMeters / trackM;
-    if (exactLaps <= 0) return null;
-    final km = segmentMeters / 1000;
-    // Tur sayısını kulvara göre göster: tam sayıysa "4 tur", değilse "3.9 tur" (kulvar değişince sayı değişsin)
-    final lapsText = exactLaps == exactLaps.roundToDouble()
-        ? '${exactLaps.round()} tur'
-        : '${exactLaps.toStringAsFixed(1)} tur';
-    final lapParts = <String>['$lapsText (~${km.toStringAsFixed(1)} km)'];
-    final paceSec = _segmentPaceSec(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
-    if (paceSec != null && paceSec > 0) {
-      final lapTimeSec = (trackLengthKm * paceSec).round();
-      lapParts.add('tur ~${_formatDuration(lapTimeSec)}');
-    }
-    return lapParts.join(' · ');
-  }
-
-  List<Widget> _buildStructuredWorkoutSummary(
-    WorkoutDefinitionEntity def,
-    double? userVdot, {
-    int? offsetMin,
-    int? offsetMax,
-    double? trackLengthKm,
-    bool isAdminView = false,
-  }) {
-    // Segmentleri kategorilere ayır: Isınma en üstte, Soğuma en altta
-    final warmupSteps = <WorkoutStepEntity>[];
-    final middleSteps = <WorkoutStepEntity>[];
-    final cooldownSteps = <WorkoutStepEntity>[];
-    
-    for (final step in def.steps) {
-      if (step.isSegment && step.segment != null) {
-        if (step.segment!.segmentType == WorkoutSegmentType.warmup) {
-          warmupSteps.add(step);
-        } else if (step.segment!.segmentType == WorkoutSegmentType.cooldown) {
-          cooldownSteps.add(step);
-        } else {
-          middleSteps.add(step);
-        }
-      } else {
-        // Yineleme blokları ortada
-        middleSteps.add(step);
-      }
-    }
-    
-    // Sıralı liste: Isınma -> Ortadaki -> Soğuma
-    final sortedSteps = <WorkoutStepEntity>[
-      ...warmupSteps,
-      ...middleSteps,
-      ...cooldownSteps,
-    ];
-    
-    final widgets = <Widget>[];
-    for (final step in sortedSteps) {
-      if (step.isSegment && step.segment != null) {
-        final s = step.segment!;
-        final dur = s.targetType == WorkoutTargetType.duration && s.durationSeconds != null
-            ? _formatDuration(s.durationSeconds!)
-            : null;
-        final dist = s.distanceMeters != null ? '${(s.distanceMeters! / 1000).toStringAsFixed(1)} km' : null;
-        final split = effectiveSplitDisplay(s);
-        final pace = _segmentPaceDisplay(s, userVdot, offsetMin: offsetMin, offsetMax: offsetMax, isAdminView: isAdminView);
-
-        final parts = <String>[s.segmentType.displayName];
-        if (dur != null) parts.add(dur);
-        if (dist != null) parts.add(dist);
-        if (split != null && s.targetType == WorkoutTargetType.distance) parts.add('$split split');
-        if (pace != null) parts.add('$pace pace');
-        // Pist kulvarda tur/mesafe ve tur süresi: sadece ana antrenman ve toparlanma (ısınma/soğuma hariç)
-        if (trackLengthKm != null && trackLengthKm > 0 &&
-            s.segmentType != WorkoutSegmentType.warmup &&
-            s.segmentType != WorkoutSegmentType.cooldown) {
-          final turLap = _segmentTurAndLapTime(
-            s,
-            trackLengthKm,
-            userVdot,
-            offsetMin: offsetMin,
-            offsetMax: offsetMax,
-          );
-          if (turLap != null && turLap.isNotEmpty) parts.add(turLap);
-        }
-        final segmentIconData = _getSegmentIconAndColor(s.segmentType);
-        widgets.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: segmentIconData.color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(segmentIconData.icon, size: 18, color: segmentIconData.color),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        s.segmentType.displayName,
-                        style: AppTypography.titleSmall.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.neutral900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatSegmentDetails(parts, s.segmentType.displayName),
-                        style: AppTypography.bodySmall.copyWith(
-                          color: ThemeBrightnessHolder.onSurfaceVariant,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      } else if (step.isRepeat && step.repeatCount != null && step.steps != null && step.steps!.isNotEmpty) {
-        // Tekrar bloğu: başlık + her segment (Ana Antrenman, Toparlanma) ayrı satırda, pace ile
-        final innerSegmentRows = <Widget>[];
-        for (final e in step.steps!) {
-          if (e.isSegment && e.segment != null) {
-            final seg = e.segment!;
-            final dur = seg.targetType == WorkoutTargetType.duration && seg.durationSeconds != null
-                ? _formatDuration(seg.durationSeconds!)
-                : null;
-            final dist = seg.distanceMeters != null
-                ? '${(seg.distanceMeters! / 1000).toStringAsFixed(1)} km'
-                : null;
-            final split = effectiveSplitDisplay(seg);
-            final paceStr = _segmentPaceDisplay(seg, userVdot, offsetMin: offsetMin, offsetMax: offsetMax, isAdminView: isAdminView);
-            final parts = <String>[];
-            if (dur != null) parts.add(dur);
-            if (dist != null) parts.add(dist);
-            if (split != null && seg.targetType == WorkoutTargetType.distance) parts.add('$split split');
-            if (paceStr != null) parts.add('$paceStr pace');
-            if (trackLengthKm != null && trackLengthKm > 0 &&
-                seg.segmentType != WorkoutSegmentType.warmup &&
-                seg.segmentType != WorkoutSegmentType.cooldown) {
-              final turLap = _segmentTurAndLapTime(seg, trackLengthKm, userVdot, offsetMin: offsetMin, offsetMax: offsetMax);
-              if (turLap != null && turLap.isNotEmpty) parts.add(turLap);
-            }
-            final detailLine = parts.join(' · ');
-            final innerSegmentIconData = _getSegmentIconAndColor(seg.segmentType);
-            innerSegmentRows.add(
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Icon(innerSegmentIconData.icon, size: 16, color: innerSegmentIconData.color),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            seg.segmentType.displayName,
-                            style: AppTypography.titleSmall.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.neutral900,
-                            ),
-                          ),
-                          if (detailLine.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              detailLine,
-                              style: AppTypography.bodySmall.copyWith(
-                                color: ThemeBrightnessHolder.onSurfaceVariant,
-                                height: 1.35,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-        }
-        widgets.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '${step.repeatCount}×',
-                    style: AppTypography.labelMedium.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.secondary,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Tekrar',
-                        style: AppTypography.titleSmall.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.neutral900,
-                        ),
-                      ),
-                      ...innerSegmentRows,
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-    }
-    return widgets;
-  }
-
-  /// Bir segment için gösterilecek pace metni (VDOT veya manuel). Isınma/tekrar içi aynı mantık.
-  /// [isAdminView] true ise VDOT bazlı pace yerine "VDOT Pace Değeri" metni döner.
-  String? _segmentPaceDisplay(
-    WorkoutSegmentEntity s,
-    double? userVdot, {
-    int? offsetMin,
-    int? offsetMax,
-    bool isAdminView = false,
-  }) {
-    return effectivePaceDisplay(
-      s,
-      userVdot: userVdot,
-      offsetMin: offsetMin,
-      offsetMax: offsetMax,
-      isAdminView: isAdminView,
-    );
-  }
-
-  /// Segment başlığını çıkarıp sadece detayları döndürür (süre, pace, tur vb.)
-  String _formatSegmentDetails(List<String> parts, String segmentName) {
-    if (parts.length <= 1) return parts.join(' · ');
-    final rest = parts.skip(1).toList();
-    return rest.join(' · ');
-  }
-
-  /// Segment türüne göre uygun ikon ve renk döndürür
-  ({IconData icon, Color color}) _getSegmentIconAndColor(WorkoutSegmentType segmentType) {
-    switch (segmentType) {
-      case WorkoutSegmentType.warmup:
-        return (icon: Icons.local_fire_department, color: AppColors.error);
-      case WorkoutSegmentType.cooldown:
-        return (icon: Icons.ac_unit, color: AppColors.primary);
-      case WorkoutSegmentType.recovery:
-        return (icon: Icons.favorite, color: AppColors.success);
-      case WorkoutSegmentType.main:
-        return (icon: Icons.directions_run, color: AppColors.primary);
-    }
   }
 
   // ==================== Admin/Koç: Tüm Grup Programları ====================
@@ -892,25 +341,32 @@ class UserGroupProgramViewer extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     List<EventGroupProgramEntity> allPrograms,
-    EventEntity event,
-  ) {
+    EventEntity event, {
+    double? trackLengthKm,
+  }) {
     return Material(
-      color: AppColors.primary.withValues(alpha: 0.08),
+      color: ThemeBrightnessHolder.primary.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: () => _showAllGroupProgramsSheet(context, ref, allPrograms, event),
+        onTap: () => _showAllGroupProgramsSheet(
+          context,
+          ref,
+          allPrograms,
+          event,
+          trackLengthKm: _lane1Km(event, trackLengthKm),
+        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.groups, size: 18, color: AppColors.primary),
+              Icon(Icons.groups, size: 18, color: ThemeBrightnessHolder.primary),
               const SizedBox(width: 6),
               Text(
                 'Tüm Programlar',
                 style: AppTypography.labelSmall.copyWith(
-                  color: AppColors.primary,
+                  color: ThemeBrightnessHolder.primary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -932,7 +388,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Icon(Icons.fitness_center, size: 20, color: AppColors.primary),
+            Icon(Icons.fitness_center, size: 20, color: ThemeBrightnessHolder.primary),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -952,8 +408,9 @@ class UserGroupProgramViewer extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     List<EventGroupProgramEntity> allPrograms,
-    EventEntity event,
-  ) {
+    EventEntity event, {
+    double? trackLengthKm,
+  }) {
     const placeholderPersonalProgramContent = 'Kişiye özel program';
     final normalPrograms = allPrograms.where((p) {
       final content = (p.programContent).trim();
@@ -986,9 +443,9 @@ class UserGroupProgramViewer extends ConsumerWidget {
         minChildSize: 0.4,
         maxChildSize: 0.95,
         builder: (_, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: ThemeBrightnessHolder.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
@@ -1005,7 +462,7 @@ class UserGroupProgramViewer extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.groups, color: AppColors.primary, size: 24),
+                    Icon(Icons.groups, color: ThemeBrightnessHolder.primary, size: 24),
                     const SizedBox(width: 10),
                     Text(
                       'Tüm Grup Programları',
@@ -1026,7 +483,12 @@ class UserGroupProgramViewer extends ConsumerWidget {
                   padding: const EdgeInsets.all(20),
                   children: [
                     for (final entry in grouped.entries) ...[
-                      _buildAdminGroupSection(entry.key, entry.value, event),
+                      _buildAdminGroupSection(
+                        entry.key,
+                        entry.value,
+                        event,
+                        trackLengthKm: trackLengthKm,
+                      ),
                       const SizedBox(height: 20),
                     ],
                     if (performanceGroupIds.isNotEmpty) ...[
@@ -1048,20 +510,30 @@ class UserGroupProgramViewer extends ConsumerWidget {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: AppColors.secondary.withValues(alpha: 0.12),
+                                    color: _accentColor(
+                                      light: AppColors.secondary,
+                                      dark: AppColors.secondaryLight,
+                                    ).withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
                                     groupName,
                                     style: AppTypography.labelMedium.copyWith(
-                                      color: AppColors.secondary,
+                                      color: _accentColor(
+                                        light: AppColors.secondary,
+                                        dark: AppColors.secondaryLight,
+                                      ),
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ),
                                 const SizedBox(height: 12),
                                 ...memberPrograms.map(
-                                  (mp) => _buildMemberProgramCardInAllSheet(mp, event),
+                                  (mp) => _buildMemberProgramCardInAllSheet(
+                                    mp,
+                                    event,
+                                    trackLengthKm: trackLengthKm,
+                                  ),
                                 ),
                                 const SizedBox(height: 20),
                               ],
@@ -1086,247 +558,60 @@ class UserGroupProgramViewer extends ConsumerWidget {
     );
   }
 
-  Widget _buildMemberProgramCardInAllSheet(EventMemberProgramEntity mp, EventEntity event) {
-    final trainingColor = _parseColor(mp.trainingTypeColor ?? '#6366F1');
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.neutral200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 14,
-                backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                child: Text(
-                  (mp.userName ?? '').isNotEmpty ? (mp.userName!)[0].toUpperCase() : '?',
-                  style: AppTypography.labelMedium.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  mp.userName ?? 'Üye',
-                  style: AppTypography.titleSmall.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          if (mp.coachNotes?.trim().isNotEmpty == true) ...[
-            Text(
-              mp.coachNotes!,
-              style: AppTypography.bodyMedium.copyWith(height: 1.4),
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (mp.workoutDefinition != null && !mp.workoutDefinition!.isEmpty) ...[
-            Text(
-              'Program',
-              style: AppTypography.labelSmall.copyWith(
-                color: ThemeBrightnessHolder.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ..._buildStructuredWorkoutSummary(
-              mp.workoutDefinition!,
-              null,
-              offsetMin: mp.thresholdOffsetMinSeconds,
-              offsetMax: mp.thresholdOffsetMaxSeconds,
-              isAdminView: true,
-              trackLengthKm: event.laneConfig?.trackLengthKm,
-            ),
-          ] else
-            Text(
-              mp.programContent,
-              style: AppTypography.bodyMedium.copyWith(height: 1.35),
-            ),
-          if (mp.trainingTypeName != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: trainingColor.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: trainingColor.withValues(alpha: 0.2)),
-              ),
-              child: Text(
-                mp.trainingTypeName!,
-                style: AppTypography.labelMedium.copyWith(
-                  color: trainingColor,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
+  Widget _buildMemberProgramCardInAllSheet(
+    EventMemberProgramEntity mp,
+    EventEntity event, {
+    double? trackLengthKm,
+  }) {
+    final groupLabel = mp.groupName?.trim();
+    final userLabel = mp.userName ?? 'Üye';
+    final displayGroup = groupLabel != null && groupLabel.isNotEmpty
+        ? '$userLabel · $groupLabel'
+        : userLabel;
+    final row = eventMemberProgramToMonthlyRow(
+      mp,
+      displayGroupName: displayGroup,
+    );
+    return _buildEntryCard(
+      row: row,
+      event: event,
+      trackLengthKm: trackLengthKm,
     );
   }
 
   Widget _buildAdminGroupSection(
     String groupName,
     List<EventGroupProgramEntity> programs,
-    EventEntity event,
-  ) {
+    EventEntity event, {
+    double? trackLengthKm,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (final program in programs)
-          _buildAdminProgramCard(program, event),
+          _buildAdminProgramCard(
+            program,
+            event,
+            trackLengthKm: trackLengthKm,
+          ),
       ],
     );
   }
 
-  Widget _buildAdminProgramCard(EventGroupProgramEntity program, EventEntity event) {
-    final trainingColor = _parseColor(program.trainingTypeColor ?? '#6366F1');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: trainingColor.withValues(alpha: 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Admin görünümünde de grup adı kart üstünde görünsün.
-          if (program.groupName != null && program.groupName!.trim().isNotEmpty)
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-              decoration: const BoxDecoration(color: AppColors.neutral200),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: trainingColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      program.groupName!.trim(),
-                      style: AppTypography.labelMedium.copyWith(
-                        color: trainingColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (program.coachNotes?.trim().isNotEmpty == true) ...[
-                  Text(
-                    program.coachNotes!,
-                    style: AppTypography.bodyLarge.copyWith(
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                ],
-                if (program.workoutDefinition != null && !program.workoutDefinition!.isEmpty) ...[
-                  Text(
-                    'Program',
-                    style: AppTypography.labelSmall.copyWith(
-                      color: ThemeBrightnessHolder.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  ..._buildStructuredWorkoutSummary(
-                    program.workoutDefinition!,
-                    null,
-                    offsetMin: program.thresholdOffsetMinSeconds,
-                    offsetMax: program.thresholdOffsetMaxSeconds,
-                    isAdminView: true,
-                  ),
-                ] else
-                  Text(
-                    program.programContent,
-                    style: AppTypography.bodyLarge.copyWith(
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
-                    ),
-                  ),
-                if (program.trainingTypeName != null) ...[
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: trainingColor.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: trainingColor.withValues(alpha: 0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.fitness_center, size: 18, color: trainingColor),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                program.trainingTypeName!,
-                                style: AppTypography.titleSmall.copyWith(
-                                  color: trainingColor,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (program.trainingTypeDescription != null &&
-                            program.trainingTypeDescription!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            program.trainingTypeDescription!,
-                            style: AppTypography.bodySmall.copyWith(
-                              color: ThemeBrightnessHolder.onSurfaceVariant,
-                              height: 1.45,
-                            ),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
+  Widget _buildAdminProgramCard(
+    EventGroupProgramEntity program,
+    EventEntity event, {
+    double? trackLengthKm,
+  }) {
+    final row = eventGroupProgramToMonthlyRow(program);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _buildEntryCard(
+        row: row,
+        event: event,
+        trackLengthKm: trackLengthKm,
       ),
     );
   }
+
 }

@@ -18,11 +18,17 @@ import '../../../../core/theme/theme_brightness_holder.dart';
 class AdminMonthlyProgramEntryCard extends ConsumerStatefulWidget {
   final Map<String, dynamic> row;
   final bool enableLanePicker;
+  final bool enableDeviceSync;
+  final bool showPlanDate;
+  final double? lane1Km;
 
   const AdminMonthlyProgramEntryCard({
     super.key,
     required this.row,
     this.enableLanePicker = false,
+    this.enableDeviceSync = true,
+    this.showPlanDate = true,
+    this.lane1Km,
   });
 
   @override
@@ -34,6 +40,37 @@ class _AdminMonthlyProgramEntryCardState
     extends ConsumerState<AdminMonthlyProgramEntryCard> {
   int? _viewLane;
   bool _isSyncing = false;
+
+  Color _accentColor({required Color light, required Color dark}) =>
+      ThemeBrightnessHolder.isDark ? dark : light;
+
+  Color get _secondaryAccent =>
+      _accentColor(light: AppColors.secondary, dark: AppColors.secondaryLight);
+
+  Color get _tertiaryAccent =>
+      _accentColor(light: AppColors.tertiary, dark: AppColors.tertiaryLight);
+
+  Color _iconBackground(Color color) =>
+      color.withValues(alpha: ThemeBrightnessHolder.isDark ? 0.22 : 0.12);
+
+  ({IconData icon, Color color}) _segmentIcon(WorkoutSegmentType type) {
+    switch (type) {
+      case WorkoutSegmentType.warmup:
+        return (
+          icon: Icons.local_fire_department,
+          color: _accentColor(light: AppColors.error, dark: AppColors.errorLight),
+        );
+      case WorkoutSegmentType.cooldown:
+        return (icon: Icons.ac_unit, color: ThemeBrightnessHolder.primary);
+      case WorkoutSegmentType.recovery:
+        return (
+          icon: Icons.favorite,
+          color: _accentColor(light: AppColors.success, dark: AppColors.successLight),
+        );
+      case WorkoutSegmentType.main:
+        return (icon: Icons.directions_run, color: ThemeBrightnessHolder.primary);
+    }
+  }
 
   @override
   void initState() {
@@ -130,7 +167,11 @@ class _AdminMonthlyProgramEntryCardState
   }
 
   String? _lapTimeLine(WorkoutSegmentEntity s, int viewLane) {
-    final range = TrackLaneCalculator.lapTimeRangeForSegment(s, viewLane);
+    final range = TrackLaneCalculator.lapTimeRangeForSegment(
+      s,
+      viewLane,
+      lane1Km: widget.lane1Km ?? TrackLaneCalculator.defaultLane1Km,
+    );
     if (range == null) return null;
     final (minSec, maxSec) = range;
     if (minSec == maxSec) {
@@ -148,6 +189,7 @@ class _AdminMonthlyProgramEntryCardState
       def,
       referenceLane: ref,
       viewLane: view,
+      lane1Km: widget.lane1Km ?? TrackLaneCalculator.defaultLane1Km,
     );
   }
 
@@ -196,8 +238,8 @@ class _AdminMonthlyProgramEntryCardState
                         leading: Icon(
                           Icons.track_changes,
                           color: lane == _viewLane
-                              ? AppColors.tertiary
-                              : AppColors.neutral500,
+                              ? _tertiaryAccent
+                              : ThemeBrightnessHolder.onSurfaceVariant,
                         ),
                         title: Text('Kulvar $lane'),
                         trailing: lane == ref
@@ -305,7 +347,8 @@ class _AdminMonthlyProgramEntryCardState
     final referenceLane = _referenceLane;
     final showLane = referenceLane != null;
     final syncService = ref.watch(monthlyProgramDeviceSyncServiceProvider);
-    final canSyncDevices = widget.enableLanePicker &&
+    final canSyncDevices = widget.enableDeviceSync &&
+        widget.enableLanePicker &&
         hasStructuredWorkout &&
         monthlyRowHasStructuredWorkout(row) &&
         row['id'] != null;
@@ -321,12 +364,12 @@ class _AdminMonthlyProgramEntryCardState
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (planDate != null)
+              if (widget.showPlanDate && planDate != null)
                 Container(
                   width: 52,
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.15),
+                    color: _iconBackground(_secondaryAccent),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Column(
@@ -335,7 +378,7 @@ class _AdminMonthlyProgramEntryCardState
                         '${planDate.day}',
                         style: AppTypography.titleMedium.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.secondary,
+                          color: _secondaryAccent,
                         ),
                       ),
                       Text(
@@ -348,7 +391,7 @@ class _AdminMonthlyProgramEntryCardState
                     ],
                   ),
                 ),
-              if (planDate != null) const SizedBox(width: 12),
+              if (widget.showPlanDate && planDate != null) const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,7 +410,7 @@ class _AdminMonthlyProgramEntryCardState
                       runSpacing: 4,
                       children: [
                         if (trainingTypeName.isNotEmpty)
-                          _chip(trainingTypeName, AppColors.secondary),
+                          _chip(trainingTypeName, _secondaryAccent),
                       ],
                     ),
                   ],
@@ -434,8 +477,8 @@ class _AdminMonthlyProgramEntryCardState
                       : 'Cihazlara senkronize et',
                 ),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.tertiary,
-                  side: BorderSide(color: AppColors.tertiary.withValues(alpha: 0.45)),
+                  foregroundColor: _tertiaryAccent,
+                  side: BorderSide(color: _tertiaryAccent.withValues(alpha: 0.45)),
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
                 ),
               ),
@@ -475,27 +518,27 @@ class _AdminMonthlyProgramEntryCardState
     final badge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.tertiary.withValues(alpha: 0.12),
+        color: _iconBackground(_tertiaryAccent),
         borderRadius: BorderRadius.circular(10),
         border: changed
-            ? Border.all(color: AppColors.tertiary.withValues(alpha: 0.45))
+            ? Border.all(color: _tertiaryAccent.withValues(alpha: 0.45))
             : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.track_changes, size: 16, color: AppColors.tertiary),
+          Icon(Icons.track_changes, size: 16, color: _tertiaryAccent),
           const SizedBox(width: 4),
           Text(
             'Kulvar ${_viewLane ?? lane}',
             style: AppTypography.labelSmall.copyWith(
-              color: AppColors.tertiary,
+              color: _tertiaryAccent,
               fontWeight: FontWeight.w700,
             ),
           ),
           if (interactive) ...[
             const SizedBox(width: 2),
-            Icon(Icons.expand_more, size: 16, color: AppColors.tertiary),
+            Icon(Icons.expand_more, size: 16, color: _tertiaryAccent),
           ],
         ],
       ),
@@ -516,7 +559,7 @@ class _AdminMonthlyProgramEntryCardState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: _iconBackground(color),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -543,6 +586,7 @@ class _AdminMonthlyProgramEntryCardState
     if (step.isSegment && step.segment != null) {
       final s = step.segment!;
       final details = _segmentDetailLines(s);
+      final segmentIcon = _segmentIcon(s.segmentType);
 
       return Padding(
         padding: pad,
@@ -553,13 +597,13 @@ class _AdminMonthlyProgramEntryCardState
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
+                color: _iconBackground(segmentIcon.color),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
-                Icons.directions_run,
+                segmentIcon.icon,
                 size: 18,
-                color: AppColors.primary,
+                color: segmentIcon.color,
               ),
             ),
             const SizedBox(width: 10),
@@ -571,6 +615,7 @@ class _AdminMonthlyProgramEntryCardState
                     s.segmentType.displayName,
                     style: AppTypography.titleSmall.copyWith(
                       fontWeight: FontWeight.w700,
+                      color: ThemeBrightnessHolder.onSurface,
                     ),
                   ),
                   if (details.isNotEmpty)
@@ -615,13 +660,13 @@ class _AdminMonthlyProgramEntryCardState
           children: [
             Row(
               children: [
-                Icon(Icons.repeat, size: 18, color: AppColors.tertiary),
+                Icon(Icons.repeat, size: 18, color: _tertiaryAccent),
                 const SizedBox(width: 6),
                 Text(
                   '${step.repeatCount}x tekrar',
                   style: AppTypography.titleSmall.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: AppColors.tertiary,
+                    color: _tertiaryAccent,
                   ),
                 ),
               ],
