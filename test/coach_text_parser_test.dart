@@ -419,6 +419,64 @@ R 400m 7 pace''';
       expect(seg['distance_meters'], isNull);
       expect(seg['pace_seconds_per_km_min'], isNotNull);
     });
+
+    test('user interval workout with inline warmup cooldown and pace suffixes', () {
+      const input =
+          '3k ısınma 6:30/6:00p + 6x1k (5:00p) R200 + R400 3:30-3:00dk + 800m 4:40p R1:30 +600m 4:35p R1:00 +400m 4:30p R0:30 +1k soğuma 6:00/6:30p';
+      final r = parseCoachText(input);
+      expect(r.ok, isTrue, reason: r.error);
+
+      final steps = r.workoutDefinition!['steps'] as List;
+      expect(steps.length, 7);
+
+      final warmup = (steps[0] as Map)['segment'] as Map;
+      expect(warmup['segment_type'], 'warmup');
+      expect(warmup['distance_meters'], 3000);
+      expect(warmup['pace_seconds_per_km_min'], 360);
+      expect(warmup['pace_seconds_per_km_max'], 390);
+
+      final mainRepeat = steps[1] as Map;
+      expect(mainRepeat['repeat_count'], 6);
+      final mainInner = mainRepeat['steps'] as List;
+      final main = (mainInner[0] as Map)['segment'] as Map;
+      expect(main['distance_meters'], 1000);
+      expect(main['pace_seconds_per_km_min'], 300);
+      final mainRec = (mainInner[1] as Map)['segment'] as Map;
+      expect(mainRec['distance_meters'], 200);
+
+      final floatRec = (steps[2] as Map)['segment'] as Map;
+      expect(floatRec['segment_type'], 'recovery');
+      expect(floatRec['distance_meters'], 400);
+      expect(floatRec['duration_seconds_min'], 180);
+      expect(floatRec['duration_seconds_max'], 210);
+
+      final eightHundred = steps[3] as Map;
+      final eightMain = ((eightHundred['steps'] as List)[0] as Map)['segment'] as Map;
+      expect(eightMain['distance_meters'], 800);
+      expect(eightMain['pace_seconds_per_km_min'], 280);
+      final eightRec = ((eightHundred['steps'] as List)[1] as Map)['segment'] as Map;
+      expect(eightRec['duration_seconds'], 90);
+
+      final sixHundred = steps[4] as Map;
+      final sixMain = ((sixHundred['steps'] as List)[0] as Map)['segment'] as Map;
+      expect(sixMain['distance_meters'], 600);
+      expect(sixMain['pace_seconds_per_km_min'], 275);
+      final sixRec = ((sixHundred['steps'] as List)[1] as Map)['segment'] as Map;
+      expect(sixRec['duration_seconds'], 60);
+
+      final fourHundred = steps[5] as Map;
+      final fourMain = ((fourHundred['steps'] as List)[0] as Map)['segment'] as Map;
+      expect(fourMain['distance_meters'], 400);
+      expect(fourMain['pace_seconds_per_km_min'], 270);
+      final fourRec = ((fourHundred['steps'] as List)[1] as Map)['segment'] as Map;
+      expect(fourRec['duration_seconds'], 30);
+
+      final cooldown = (steps[6] as Map)['segment'] as Map;
+      expect(cooldown['segment_type'], 'cooldown');
+      expect(cooldown['distance_meters'], 1000);
+      expect(cooldown['pace_seconds_per_km_min'], 360);
+      expect(cooldown['pace_seconds_per_km_max'], 390);
+    });
   });
 }
 

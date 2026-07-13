@@ -322,7 +322,9 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                     title: 'Onay Bekleyenler',
                     count: filteredPendingUsers.length,
                     totalCount: searchQuery.isNotEmpty ? pendingData.length : null,
-                    iconColor: AppColors.warning,
+                    iconColor: ThemeBrightnessHolder.isDark
+                        ? AppColors.warningLight
+                        : AppColors.warning,
                     isExpanded: _isPendingUsersExpanded,
                   ));
                   if (_isPendingUsersExpanded) {
@@ -341,7 +343,9 @@ class _GroupsPageState extends ConsumerState<GroupsPage>
                     title: 'Aktif Üyeler',
                     count: filteredUsers.length,
                     totalCount: searchQuery.isNotEmpty ? users.length : null,
-                    iconColor: AppColors.success,
+                    iconColor: ThemeBrightnessHolder.isDark
+                        ? AppColors.successLight
+                        : AppColors.success,
                   ));
                   items.addAll(filteredUsers.map((u) => _UserListItem.user(u, false)));
                 }
@@ -1065,10 +1069,25 @@ class _UserListItem {
     void Function(String userId) onRejectUser,
   ) {
     final approvalState = ref.watch(userApprovalProvider);
+    final warningAccent = ThemeBrightnessHolder.isDark
+        ? AppColors.warningLight
+        : AppColors.warning;
+    final rejectColor =
+        ThemeBrightnessHolder.isDark ? AppColors.errorLight : AppColors.error;
+    final approveColor =
+        ThemeBrightnessHolder.isDark ? AppColors.successLight : AppColors.success;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: AppColors.warningContainer,
+      color: ThemeBrightnessHolder.isDark
+          ? warningAccent.withValues(alpha: 0.1)
+          : AppColors.warningContainer,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: warningAccent.withValues(alpha: ThemeBrightnessHolder.isDark ? 0.35 : 0.2),
+        ),
+      ),
       child: ListTile(
         leading: UserAvatar(
           size: 44,
@@ -1077,7 +1096,10 @@ class _UserListItem {
         ),
         title: Text(
           user.fullName,
-          style: AppTypography.titleSmall,
+          style: AppTypography.titleSmall.copyWith(
+            color: ThemeBrightnessHolder.onSurface,
+            fontWeight: FontWeight.w600,
+          ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -1091,13 +1113,13 @@ class _UserListItem {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: Icon(Icons.cancel, color: AppColors.error),
+                    icon: Icon(Icons.cancel, color: rejectColor),
                     tooltip: 'Reddet',
                     visualDensity: VisualDensity.compact,
                     onPressed: () => onRejectUser(user.id),
                   ),
                   IconButton(
-                    icon: Icon(Icons.check_circle, color: AppColors.success),
+                    icon: Icon(Icons.check_circle, color: approveColor),
                     tooltip: 'Onayla',
                     visualDensity: VisualDensity.compact,
                     onPressed: () => onApproveUser(user.id),

@@ -49,9 +49,17 @@ class CoachRepTarget {
 class _RecoverySpec {
   final int? distanceM;
   final int? durationSec;
+  final int? durationSecMin;
+  final int? durationSecMax;
   final CoachPaceSpec? pace;
 
-  const _RecoverySpec({this.distanceM, this.durationSec, this.pace});
+  const _RecoverySpec({
+    this.distanceM,
+    this.durationSec,
+    this.durationSecMin,
+    this.durationSecMax,
+    this.pace,
+  });
 }
 
 typedef CoachParseResult = ({
@@ -159,6 +167,7 @@ String _performanceTargetFromRepTarget(CoachRepTarget? target) {
 Map<String, dynamic> _repTargetToSegmentFields(
   CoachRepTarget? target, {
   int? distanceMeters,
+  bool derivePaceFromSplit = true,
 }) {
   if (target == null) return {};
   final out = <String, dynamic>{};
@@ -166,7 +175,10 @@ Map<String, dynamic> _repTargetToSegmentFields(
   if (target.splitSecMin != null) out['duration_seconds_min'] = target.splitSecMin;
   if (target.splitSecMax != null) out['duration_seconds_max'] = target.splitSecMax;
   out.addAll(_paceToSegmentFields(target.pace));
-  if (target.pace == null && distanceMeters != null && distanceMeters > 0) {
+  if (derivePaceFromSplit &&
+      target.pace == null &&
+      distanceMeters != null &&
+      distanceMeters > 0) {
     final km = distanceMeters / 1000;
     if (target.splitSecMin != null && target.splitSecMax != null) {
       final minPace = (target.splitSecMax! / km).round();
@@ -219,7 +231,11 @@ CoachRepTarget? parseRepTarget(String? parenRaw, int distM) {
   return _parseBareTarget(raw, distM);
 }
 
-CoachRepTarget? _parseBareTarget(String raw, int distM) {
+CoachRepTarget? _parseBareTarget(
+  String raw,
+  int distM, {
+  bool preferPaceWhenBare = false,
+}) {
   final trimmed = raw.trim();
   if (trimmed.isEmpty) return null;
   if (RegExp(r'^vdot$', caseSensitive: false).hasMatch(trimmed)) {
@@ -307,6 +323,9 @@ CoachRepTarget? _parseBareTarget(String raw, int distM) {
       if (RegExp(r'dk\s*$', caseSensitive: false).hasMatch(trimmed)) {
         return CoachRepTarget(splitSec: sec);
       }
+      if (preferPaceWhenBare && sec >= 150 && sec <= 600) {
+        return CoachRepTarget(pace: CoachPaceSingle(sec));
+      }
       return _parseBareTimeTarget(sec, distM);
     }
   }
@@ -318,7 +337,12 @@ CoachRepTarget? _parseBareTarget(String raw, int distM) {
 
   final cleaned = _normalizePaceRaw(trimmed);
   final single = parsePaceSeconds(cleaned);
-  if (single != null) return _parseBareTimeTarget(single, distM);
+  if (single != null) {
+    if (preferPaceWhenBare && single >= 150 && single <= 600) {
+      return CoachRepTarget(pace: CoachPaceSingle(single));
+    }
+    return _parseBareTimeTarget(single, distM);
+  }
 
   final paceOnly = parsePaceSpec(trimmed);
   if (paceOnly != null) return CoachRepTarget(pace: paceOnly);
@@ -332,6 +356,8 @@ _RecoverySpec? _parseRecoveryClause(String raw) {
 
   int? distanceM;
   int? durationSec;
+  int? durationSecMin;
+  int? durationSecMax;
   CoachPaceSpec? pace;
 
   final distWithUnit = RegExp(
@@ -371,6 +397,22 @@ _RecoverySpec? _parseRecoveryClause(String raw) {
   }
 
   if (remaining.isNotEmpty) {
+    final timeRangeDk = RegExp(
+      r'^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*dk\s*$',
+      caseSensitive: false,
+    ).firstMatch(remaining);
+    if (timeRangeDk != null) {
+      final a = parsePaceSeconds(timeRangeDk.group(1)!);
+      final b = parsePaceSeconds(timeRangeDk.group(2)!);
+      if (a != null && b != null) {
+        durationSecMin = a < b ? a : b;
+        durationSecMax = a < b ? b : a;
+        remaining = '';
+      }
+    }
+  }
+
+  if (remaining.isNotEmpty) {
     final timeOnly = RegExp(
       r'^(\d{1,2}):(\d{2})(?:\s+pace|\s+p|p)?\s*$',
       caseSensitive: false,
@@ -404,8 +446,20 @@ _RecoverySpec? _parseRecoveryClause(String raw) {
     pace = parsePaceSpec(remaining);
   }
 
-  if (distanceM == null && durationSec == null && pace == null) return null;
-  return _RecoverySpec(distanceM: distanceM, durationSec: durationSec, pace: pace);
+  if (distanceM == null &&
+      durationSec == null &&
+      durationSecMin == null &&
+      durationSecMax == null &&
+      pace == null) {
+    return null;
+  }
+  return _RecoverySpec(
+    distanceM: distanceM,
+    durationSec: durationSec,
+    durationSecMin: durationSecMin,
+    durationSecMax: durationSecMax,
+    pace: pace,
+  );
 }
 
 ({String work, _RecoverySpec? recovery}) _splitOnRecovery(String block) {
@@ -421,6 +475,8 @@ bool _hasRecovery(_RecoverySpec? spec) {
   if (spec == null) return false;
   return (spec.distanceM != null && spec.distanceM! > 0) ||
       (spec.durationSec != null && spec.durationSec! > 0) ||
+      spec.durationSecMin != null ||
+      spec.durationSecMax != null ||
       spec.pace != null;
 }
 
@@ -450,8 +506,9 @@ Map<String, dynamic> buildDurationSegment(
 Map<String, dynamic> buildDistanceSegment(
   CoachSegmentKind kind,
   int distanceMeters,
-  CoachRepTarget? target,
-) {
+  CoachRepTarget? target, {
+  bool derivePaceFromSplit = true,
+}) {
   final kindStr = switch (kind) {
     CoachSegmentKind.warmup => 'warmup',
     CoachSegmentKind.main => 'main',
@@ -465,22 +522,52 @@ Map<String, dynamic> buildDistanceSegment(
       'target_type': 'distance',
       'target': _performanceTargetFromRepTarget(target),
       'distance_meters': distanceMeters,
-      ..._repTargetToSegmentFields(target, distanceMeters: distanceMeters),
+      ..._repTargetToSegmentFields(
+        target,
+        distanceMeters: distanceMeters,
+        derivePaceFromSplit: derivePaceFromSplit,
+      ),
     },
   };
 }
 
 Map<String, dynamic> _buildRecoveryStep(_RecoverySpec spec) {
   final pace = spec.pace;
-  if (spec.durationSec != null && spec.durationSec! > 0) {
-    return buildDurationSegment(CoachSegmentKind.recovery, spec.durationSec!, pace);
-  }
   if (spec.distanceM != null && spec.distanceM! > 0) {
+    CoachRepTarget? target;
+    if (spec.durationSecMin != null && spec.durationSecMax != null) {
+      target = CoachRepTarget(
+        splitSecMin: spec.durationSecMin,
+        splitSecMax: spec.durationSecMax,
+        pace: pace,
+      );
+    } else if (spec.durationSec != null && spec.durationSec! > 0) {
+      target = CoachRepTarget(splitSec: spec.durationSec, pace: pace);
+    } else if (pace != null) {
+      target = CoachRepTarget(pace: pace);
+    }
     return buildDistanceSegment(
       CoachSegmentKind.recovery,
       spec.distanceM!,
-      pace != null ? CoachRepTarget(pace: pace) : null,
+      target,
+      derivePaceFromSplit: false,
     );
+  }
+  if (spec.durationSec != null && spec.durationSec! > 0) {
+    return buildDurationSegment(CoachSegmentKind.recovery, spec.durationSec!, pace);
+  }
+  if (spec.durationSecMin != null && spec.durationSecMax != null) {
+    return {
+      'type': 'segment',
+      'segment': {
+        'segment_type': 'recovery',
+        'target_type': 'duration',
+        'target': pace != null ? 'pace' : 'time',
+        'duration_seconds_min': spec.durationSecMin,
+        'duration_seconds_max': spec.durationSecMax,
+        ..._paceToSegmentFields(pace),
+      },
+    };
   }
   if (pace != null) {
     return buildDurationSegment(CoachSegmentKind.recovery, 0, pace);
@@ -634,7 +721,9 @@ _IntervalBlock? _parseDistanceRepBlock(String block) {
 
   final distM = _parseDistanceMeters(double.parse(m.group(1)!), m.group(2)!);
   final targetRaw = m.group(3)?.trim();
-  final target = targetRaw != null ? _parseBareTarget(targetRaw, distM) : null;
+  final target = targetRaw != null
+      ? _parseBareTarget(targetRaw, distM, preferPaceWhenBare: true)
+      : null;
 
   return _IntervalBlock(
     repeat: 1,
@@ -707,7 +796,9 @@ _DistanceBlock? _parseDistanceBlock(String block) {
   if (m == null) return null;
   final distM = _parseDistanceMeters(double.parse(m.group(1)!), m.group(2)!);
   final tail = m.group(3)?.trim();
-  final target = tail != null ? _parseBareTarget(tail, distM) : null;
+  final target = tail != null
+      ? _parseBareTarget(tail, distM, preferPaceWhenBare: true)
+      : null;
   return _DistanceBlock(distanceM: distM, target: target);
 }
 
@@ -801,8 +892,10 @@ List<Map<String, dynamic>> _blockToSteps(
 
 ({CoachSegmentKind? kind, String body}) _splitExplicitSegmentLabel(String part) {
   final trimmed = part.trim();
-  const warmupLabel = r'(ısınma|isinma|warmup|warm-up|warm\s+up|warm\s+ısınma|warm|wu)';
-  const cooldownLabel = r'(soğuma|soguma|cooldown|cool-down|cool\s+down|cool|cd)';
+  const warmupLabel =
+      r'(?:ısınma|isinma|warmup|warm-up|warm\s+up|warm\s+ısınma|warm|wu)';
+  const cooldownLabel =
+      r'(?:soğuma|soguma|cooldown|cool-down|cool\s+down|cool|cd)';
 
   final prefixPatterns = <(CoachSegmentKind, RegExp)>[
     (
@@ -817,7 +910,27 @@ List<Map<String, dynamic>> _blockToSteps(
   for (final (kind, pattern) in prefixPatterns) {
     final match = pattern.firstMatch(trimmed);
     if (match != null) {
-      return (kind: kind, body: match.group(2)!.trim());
+      return (kind: kind, body: match.group(1)!.trim());
+    }
+  }
+
+  final inlinePatterns = <(CoachSegmentKind, RegExp)>[
+    (
+      CoachSegmentKind.warmup,
+      RegExp('^(.+?)\\s+$warmupLabel\\s+(.+)\$', caseSensitive: false, unicode: true),
+    ),
+    (
+      CoachSegmentKind.cooldown,
+      RegExp('^(.+?)\\s+$cooldownLabel\\s+(.+)\$', caseSensitive: false, unicode: true),
+    ),
+  ];
+  for (final (kind, pattern) in inlinePatterns) {
+    final match = pattern.firstMatch(trimmed);
+    if (match != null) {
+      return (
+        kind: kind,
+        body: '${match.group(1)!.trim()} ${match.group(2)!.trim()}',
+      );
     }
   }
 

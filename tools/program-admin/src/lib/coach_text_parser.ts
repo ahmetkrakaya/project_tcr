@@ -3,7 +3,7 @@
  * Dart: lib/features/events/utils/coach_text_parser.dart
  */
 
-import { normalizeCoachInput, DURATION_UNIT_PATTERN } from "./coach_text_normalizer";
+import { normalizeCoachInput, DURATION_UNIT_PATTERN } from "./coach_text_normalizer.ts";
 
 export type SegmentKind = "warmup" | "main" | "recovery" | "cooldown";
 
@@ -44,6 +44,8 @@ export type ParseResult = ParseSuccess | ParseRest | ParseFailure;
 type RecoverySpec = {
   distanceM?: number;
   durationSec?: number;
+  durationSecMin?: number;
+  durationSecMax?: number;
   pace?: PaceSpec | null;
 };
 
@@ -135,6 +137,7 @@ function performanceTargetFromRepTarget(target: RepTarget | null): string {
 function repTargetToSegmentFields(
   target: RepTarget | null,
   distanceMeters?: number,
+  derivePaceFromSplit = true,
 ): Record<string, unknown> {
   if (!target) return {};
   const out: Record<string, unknown> = {};
@@ -142,7 +145,12 @@ function repTargetToSegmentFields(
   if (target.splitSecMin != null) out.duration_seconds_min = target.splitSecMin;
   if (target.splitSecMax != null) out.duration_seconds_max = target.splitSecMax;
   Object.assign(out, paceToSegmentFields(target.pace ?? null));
-  if (target.pace == null && distanceMeters != null && distanceMeters > 0) {
+  if (
+    derivePaceFromSplit &&
+    target.pace == null &&
+    distanceMeters != null &&
+    distanceMeters > 0
+  ) {
     const km = distanceMeters / 1000;
     if (target.splitSecMin != null && target.splitSecMax != null) {
       const minPace = Math.round(target.splitSecMax / km);
@@ -200,7 +208,11 @@ function parseRepTarget(parenRaw: string | undefined, distM: number): RepTarget 
 }
 
 /** Parantezsiz veya parantezli hedef ifadesi */
-function parseBareTarget(raw: string, distM: number): RepTarget | null {
+function parseBareTarget(
+  raw: string,
+  distM: number,
+  preferPaceWhenBare = false,
+): RepTarget | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   if (/^vdot$/i.test(trimmed)) return { pace: { mode: "vdot" } };
@@ -261,6 +273,9 @@ function parseBareTarget(raw: string, distM: number): RepTarget | null {
     const sec = parsePaceSeconds(splitSingle[1]);
     if (sec != null) {
       if (/dk\s*$/i.test(trimmed)) return { splitSec: sec };
+      if (preferPaceWhenBare && sec >= 150 && sec <= 600) {
+        return { pace: { mode: "single", secPerKm: sec } };
+      }
       return parseBareTimeTarget(sec, distM);
     }
   }
@@ -272,7 +287,12 @@ function parseBareTarget(raw: string, distM: number): RepTarget | null {
 
   const cleaned = normalizePaceRaw(trimmed);
   const single = parsePaceSeconds(cleaned);
-  if (single != null) return parseBareTimeTarget(single, distM);
+  if (single != null) {
+    if (preferPaceWhenBare && single >= 150 && single <= 600) {
+      return { pace: { mode: "single", secPerKm: single } };
+    }
+    return parseBareTimeTarget(single, distM);
+  }
 
   const paceOnly = parsePaceSpec(trimmed);
   if (paceOnly != null) return { pace: paceOnly };
@@ -322,6 +342,21 @@ function parseRecoveryClause(raw: string): RecoverySpec | null {
   }
 
   if (remaining) {
+    const timeRangeDk = remaining.match(
+      /^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*dk\s*$/i,
+    );
+    if (timeRangeDk) {
+      const a = parsePaceSeconds(timeRangeDk[1]);
+      const b = parsePaceSeconds(timeRangeDk[2]);
+      if (a != null && b != null) {
+        spec.durationSecMin = Math.min(a, b);
+        spec.durationSecMax = Math.max(a, b);
+        remaining = "";
+      }
+    }
+  }
+
+  if (remaining) {
     const timeOnly = remaining.match(
       /^(\d{1,2}):(\d{2})(?:\s+pace|\s+p|p)?\s*$/i,
     );
@@ -359,6 +394,8 @@ function parseRecoveryClause(raw: string): RecoverySpec | null {
   if (
     spec.distanceM == null &&
     spec.durationSec == null &&
+    spec.durationSecMin == null &&
+    spec.durationSecMax == null &&
     spec.pace == null
   ) {
     return null;
@@ -379,6 +416,8 @@ function hasRecovery(spec: RecoverySpec | null): boolean {
   return (
     (spec.distanceM != null && spec.distanceM > 0) ||
     (spec.durationSec != null && spec.durationSec > 0) ||
+    spec.durationSecMin != null ||
+    spec.durationSecMax != null ||
     spec.pace != null
   );
 }
@@ -404,6 +443,7 @@ export function buildDistanceSegment(
   kind: SegmentKind,
   distanceMeters: number,
   target: RepTarget | null,
+  derivePaceFromSplit = true,
 ): Record<string, unknown> {
   return {
     type: "segment",
@@ -412,22 +452,43 @@ export function buildDistanceSegment(
       target_type: "distance",
       target: performanceTargetFromRepTarget(target),
       distance_meters: distanceMeters,
-      ...repTargetToSegmentFields(target, distanceMeters),
+      ...repTargetToSegmentFields(target, distanceMeters, derivePaceFromSplit),
     },
   };
 }
 
 function buildRecoveryStep(spec: RecoverySpec): Record<string, unknown> {
   const pace = spec.pace ?? null;
+  if (spec.distanceM != null && spec.distanceM > 0) {
+    let target: RepTarget | null = null;
+    if (spec.durationSecMin != null && spec.durationSecMax != null) {
+      target = {
+        splitSecMin: spec.durationSecMin,
+        splitSecMax: spec.durationSecMax,
+        pace,
+      };
+    } else if (spec.durationSec != null && spec.durationSec > 0) {
+      target = { splitSec: spec.durationSec, pace };
+    } else if (pace) {
+      target = { pace };
+    }
+    return buildDistanceSegment("recovery", spec.distanceM, target, false);
+  }
   if (spec.durationSec != null && spec.durationSec > 0) {
     return buildDurationSegment("recovery", spec.durationSec, pace);
   }
-  if (spec.distanceM != null && spec.distanceM > 0) {
-    return buildDistanceSegment(
-      "recovery",
-      spec.distanceM,
-      pace ? { pace } : null,
-    );
+  if (spec.durationSecMin != null && spec.durationSecMax != null) {
+    return {
+      type: "segment",
+      segment: {
+        segment_type: "recovery",
+        target_type: "duration",
+        target: pace ? "pace" : "time",
+        duration_seconds_min: spec.durationSecMin,
+        duration_seconds_max: spec.durationSecMax,
+        ...paceToSegmentFields(pace),
+      },
+    };
   }
   if (pace) {
     return buildDurationSegment("recovery", 0, pace);
@@ -543,7 +604,9 @@ function parseDistanceRepBlock(block: string): ParsedBlock | null {
 
   const distM = parseDistanceMeters(Number(m[1]), m[2]);
   const targetRaw = m[3]?.trim();
-  const target = targetRaw ? parseBareTarget(targetRaw, distM) : null;
+  const target = targetRaw
+    ? parseBareTarget(targetRaw, distM, true)
+    : null;
 
   return {
     type: "interval",
@@ -609,7 +672,7 @@ function parseDistanceBlock(block: string): ParsedBlock | null {
   if (!m) return null;
   const distM = parseDistanceMeters(Number(m[1]), m[2]);
   const tail = m[3]?.trim();
-  const target = tail ? parseBareTarget(tail, distM) : null;
+  const target = tail ? parseBareTarget(tail, distM, true) : null;
   return { type: "distance", distanceM: distM, target };
 }
 
@@ -688,8 +751,8 @@ function blockToSteps(
 }
 
 const WARMUP_LABEL =
-  "(ısınma|isinma|warmup|warm-up|warm\\s+up|warm\\s+ısınma|warm|wu)";
-const COOLDOWN_LABEL = "(soğuma|soguma|cooldown|cool-down|cool\\s+down|cool|cd)";
+  "(?:ısınma|isinma|warmup|warm-up|warm\\s+up|warm\\s+ısınma|warm|wu)";
+const COOLDOWN_LABEL = "(?:soğuma|soguma|cooldown|cool-down|cool\\s+down|cool|cd)";
 
 function splitExplicitSegmentLabel(part: string): {
   kind: SegmentKind | null;
@@ -708,8 +771,25 @@ function splitExplicitSegmentLabel(part: string): {
   ];
   for (const { kind, re } of prefixPatterns) {
     const match = trimmed.match(re);
-    if (match?.[2]) {
-      return { kind, body: match[2].trim() };
+    if (match?.[1]) {
+      return { kind, body: match[1].trim() };
+    }
+  }
+
+  const inlinePatterns: Array<{ kind: SegmentKind; re: RegExp }> = [
+    {
+      kind: "warmup",
+      re: new RegExp(`^(.+?)\\s+${WARMUP_LABEL}\\s+(.+)$`, "iu"),
+    },
+    {
+      kind: "cooldown",
+      re: new RegExp(`^(.+?)\\s+${COOLDOWN_LABEL}\\s+(.+)$`, "iu"),
+    },
+  ];
+  for (const { kind, re } of inlinePatterns) {
+    const match = trimmed.match(re);
+    if (match?.[1] && match?.[2]) {
+      return { kind, body: `${match[1].trim()} ${match[2].trim()}` };
     }
   }
 
