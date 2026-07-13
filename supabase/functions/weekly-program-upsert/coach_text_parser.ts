@@ -342,6 +342,17 @@ function parseRecoveryClause(raw: string): RecoverySpec | null {
   }
 
   if (remaining) {
+    const timeDkMatch = remaining.match(/^(\d{1,2}:\d{2})\s*dk\s*$/i);
+    if (timeDkMatch) {
+      const sec = parsePaceSeconds(timeDkMatch[1]);
+      if (sec != null) {
+        spec.durationSec = sec;
+        remaining = "";
+      }
+    }
+  }
+
+  if (remaining) {
     const timeRangeDk = remaining.match(
       /^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*dk\s*$/i,
     );

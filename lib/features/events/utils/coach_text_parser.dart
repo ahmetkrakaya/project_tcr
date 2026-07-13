@@ -397,6 +397,20 @@ _RecoverySpec? _parseRecoveryClause(String raw) {
   }
 
   if (remaining.isNotEmpty) {
+    final timeDkMatch = RegExp(
+      r'^(\d{1,2}:\d{2})\s*dk\s*$',
+      caseSensitive: false,
+    ).firstMatch(remaining);
+    if (timeDkMatch != null) {
+      final sec = parsePaceSeconds(timeDkMatch.group(1)!);
+      if (sec != null) {
+        durationSec = sec;
+        remaining = '';
+      }
+    }
+  }
+
+  if (remaining.isNotEmpty) {
     final timeRangeDk = RegExp(
       r'^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*dk\s*$',
       caseSensitive: false,

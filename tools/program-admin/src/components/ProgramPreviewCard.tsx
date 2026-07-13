@@ -66,6 +66,13 @@ function segmentDetails(
   if (adjusted.distance_meters && adjusted.distance_meters > 0) {
     out.push(formatDistance(adjusted.distance_meters));
   }
+  if (
+    adjusted.target_type !== "duration" &&
+    adjusted.duration_seconds &&
+    adjusted.duration_seconds > 0
+  ) {
+    out.push(formatDuration(adjusted.duration_seconds));
+  }
   if (adjusted.duration_seconds_min && adjusted.duration_seconds_max) {
     out.push(
       `${formatDuration(adjusted.duration_seconds_min)}-${formatDuration(adjusted.duration_seconds_max)}`,

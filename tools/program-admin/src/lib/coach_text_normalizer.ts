@@ -98,6 +98,8 @@ function insertBoundarySpaces(text: string): string {
   t = t.replace(/(dk|km|m|k|\d{1,2}:\d{2})(R)\b/gi, "$1 $2");
   t = t.replace(/(\d{1,2}:\d{2})(vdot)\b/gi, "$1 $2");
   t = t.replace(/\bR(\d)/gi, "R $1");
+  t = t.replace(/(\d+m)(\d+(?:\.\d+)?dk\b)/gi, "$1 $2");
+  t = t.replace(/(\d+m)(\d{1,2}:\d{2}dk\b)/gi, "$1 $2");
 
   return t;
 }

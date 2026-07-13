@@ -165,6 +165,14 @@ String _insertBoundarySpaces(String text) {
     RegExp(r'\bR(\d)', caseSensitive: false),
     (m) => 'R ${m.group(1)}',
   );
+  t = t.replaceAllMapped(
+    RegExp(r'(\d+m)(\d+(?:\.\d+)?dk\b)', caseSensitive: false),
+    (m) => '${m.group(1)} ${m.group(2)}',
+  );
+  t = t.replaceAllMapped(
+    RegExp(r'(\d+m)(\d{1,2}:\d{2}dk\b)', caseSensitive: false),
+    (m) => '${m.group(1)} ${m.group(2)}',
+  );
 
   return t;
 }

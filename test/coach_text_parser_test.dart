@@ -420,6 +420,22 @@ R 400m 7 pace''';
       expect(seg['pace_seconds_per_km_min'], isNotNull);
     });
 
+    test('recovery distance with glued dk and time dk formats', () {
+      const inputs = [
+        '3x3km 5:15/5:10p R200m 3dk',
+        '3x3km 5:15/5:10p R200m3dk',
+        '3x3km 5:15/5:10p R200m 3:00dk',
+      ];
+      for (final input in inputs) {
+        final r = parseCoachText(input);
+        expect(r.ok, isTrue, reason: '${input}: ${r.error}');
+        final recovery = (((r.workoutDefinition!['steps'] as List).first as Map)['steps'] as List)[1] as Map;
+        final seg = recovery['segment'] as Map;
+        expect(seg['distance_meters'], 200, reason: input);
+        expect(seg['duration_seconds'], 180, reason: input);
+      }
+    });
+
     test('user interval workout with inline warmup cooldown and pace suffixes', () {
       const input =
           '3k ısınma 6:30/6:00p + 6x1k (5:00p) R200 + R400 3:30-3:00dk + 800m 4:40p R1:30 +600m 4:35p R1:00 +400m 4:30p R0:30 +1k soğuma 6:00/6:30p';
