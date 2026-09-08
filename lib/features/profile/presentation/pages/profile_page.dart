@@ -343,10 +343,6 @@ class ProfilePage extends ConsumerWidget {
   }
   
   String _formatPoints(int points) {
-    if (points >= 1000) {
-      final thousands = points ~/ 1000;
-      return '${thousands}K';
-    }
     return points.toString();
   }
 

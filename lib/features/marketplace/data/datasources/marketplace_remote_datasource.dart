@@ -3,7 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/enums/gender.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../models/listing_model.dart';
+import '../models/market_report_model.dart';
 import '../models/order_model.dart';
+import '../models/production_batch_model.dart';
 import '../models/stock_alert_model.dart';
 
 /// Marketplace Remote Data Source
@@ -64,6 +66,53 @@ abstract class MarketplaceRemoteDataSource {
 
   /// Tüm siparişleri getir (admin için)
   Future<List<OrderModel>> getAllOrders({OrderStatus? status});
+
+  /// Manuel (elden) satış kaydı oluştur
+  Future<OrderModel> createManualSale(OrderModel sale);
+
+  /// Satış detaylarını güncelle (tarihler, ödeme, fiyat, alıcı)
+  Future<OrderModel> updateSale(String orderId, OrderModel sale);
+
+  /// Siparişi/satışı sil (admin)
+  Future<void> deleteOrder(String orderId);
+
+  /// Ürünün üretim partilerini getir
+  Future<List<ProductionBatch>> getProductionBatches(String listingId);
+
+  /// Üretim partisi oluştur veya güncelle (batchId null ise yeni kayıt)
+  Future<void> saveProductionBatch({
+    String? batchId,
+    required String listingId,
+    required double unitCost,
+    required DateTime producedAt,
+    String? note,
+    required List<ProductionBatchItem> items,
+  });
+
+  /// Üretim partisini sil (stok delta geri alınır)
+  Future<void> deleteProductionBatch(String batchId);
+
+  /// Ürünün beden listesini ve stok cinsiyet modunu güncelle
+  Future<void> updateListingSizesAndGenderMode({
+    required String listingId,
+    required String? size,
+    required ListingGenderMode stockGenderMode,
+  });
+
+  /// Ürünün ağırlıklı ortalama birim maliyeti (parti yoksa null)
+  Future<double?> getListingAvgUnitCost(String listingId);
+
+  /// Genel market raporu
+  Future<List<MarketOverviewRow>> getMarketOverview({
+    DateTime? from,
+    DateTime? to,
+  });
+
+  /// Tek ürün için üretim/satış/kar özeti
+  Future<ProductReportSummary> getProductReport(String listingId);
+
+  /// Ürünün satış geçmişi (Excel satırları)
+  Future<List<ProductSalesRow>> getProductSalesRows(String listingId);
 
   /// Stok miktarını güncelle
   Future<void> updateStockQuantity(String listingId, int? stockQuantity);
@@ -494,8 +543,10 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
       }
 
       // İlan güncelle (seller_id hariç — boş string UUID hatasını önler)
+      // stock_quantity üretim partileriyle yönetilir; düzenlemede ezilmesin
       final updateData = Map<String, dynamic>.from(listing.toJson())
-        ..remove('seller_id');
+        ..remove('seller_id')
+        ..remove('stock_quantity');
       await _supabase
           .from('marketplace_listings')
           .update(updateData)
@@ -748,52 +799,7 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           ''')
           .single();
 
-      final Map<String, dynamic> orderJsonResponse = response;
-      final buyerJson = orderJsonResponse['buyer'] as Map<String, dynamic>?;
-      final sellerJson = orderJsonResponse['seller'] as Map<String, dynamic>?;
-      final updatedByJson = orderJsonResponse['updated_by_user'] as Map<String, dynamic>?;
-
-      return OrderModel(
-        id: orderJsonResponse['id'] as String,
-        listingId: orderJsonResponse['listing_id'] as String,
-        buyerId: orderJsonResponse['buyer_id'] as String,
-        buyerName: buyerJson != null
-            ? '${buyerJson['first_name'] ?? ''} ${buyerJson['last_name'] ?? ''}'.trim()
-            : null,
-        buyerAvatarUrl: buyerJson?['avatar_url'] as String?,
-        sellerId: orderJsonResponse['seller_id'] as String?,
-        sellerName: sellerJson != null
-            ? '${sellerJson['first_name'] ?? ''} ${sellerJson['last_name'] ?? ''}'.trim()
-            : null,
-        sellerAvatarUrl: sellerJson?['avatar_url'] as String?,
-        quantity: orderJsonResponse['quantity'] as int? ?? 1,
-        totalPrice: (orderJsonResponse['total_price'] as num).toDouble(),
-        currency: orderJsonResponse['currency'] as String? ?? 'TRY',
-        status: OrderStatus.fromString(orderJsonResponse['status'] as String),
-        buyerNote: orderJsonResponse['buyer_note'] as String?,
-        sellerNote: orderJsonResponse['seller_note'] as String?,
-        confirmedAt: orderJsonResponse['confirmed_at'] != null
-            ? DateTime.parse(orderJsonResponse['confirmed_at'] as String)
-            : null,
-        cancelledAt: orderJsonResponse['cancelled_at'] != null
-            ? DateTime.parse(orderJsonResponse['cancelled_at'] as String)
-            : null,
-        cancelledBy: orderJsonResponse['cancelled_by'] as String?,
-        cancellationReason: orderJsonResponse['cancellation_reason'] as String?,
-        completedAt: orderJsonResponse['completed_at'] != null
-            ? DateTime.parse(orderJsonResponse['completed_at'] as String)
-            : null,
-        createdAt: DateTime.parse(orderJsonResponse['created_at'] as String),
-        updatedAt: orderJsonResponse['updated_at'] != null
-            ? DateTime.parse(orderJsonResponse['updated_at'] as String)
-            : null,
-          updatedBy: orderJsonResponse['updated_by'] as String?,
-          updatedByName: updatedByJson != null
-              ? '${updatedByJson['first_name'] ?? ''} ${updatedByJson['last_name'] ?? ''}'.trim()
-              : null,
-          updatedByAvatarUrl: updatedByJson?['avatar_url'] as String?,
-          selectedSize: orderJsonResponse['selected_size'] as String?,
-      );
+      return OrderModel.fromJoinedJson(response);
     } on PostgrestException catch (e) {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
@@ -815,52 +821,7 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           .eq('id', orderId)
           .single();
 
-      final Map<String, dynamic> orderJson = response;
-      final buyerJson = orderJson['buyer'] as Map<String, dynamic>?;
-      final sellerJson = orderJson['seller'] as Map<String, dynamic>?;
-      final updatedByJson = orderJson['updated_by_user'] as Map<String, dynamic>?;
-
-      return OrderModel(
-        id: orderJson['id'] as String,
-        listingId: orderJson['listing_id'] as String,
-        buyerId: orderJson['buyer_id'] as String,
-        buyerName: buyerJson != null
-            ? '${buyerJson['first_name'] ?? ''} ${buyerJson['last_name'] ?? ''}'.trim()
-            : null,
-        buyerAvatarUrl: buyerJson?['avatar_url'] as String?,
-        sellerId: orderJson['seller_id'] as String?,
-        sellerName: sellerJson != null
-            ? '${sellerJson['first_name'] ?? ''} ${sellerJson['last_name'] ?? ''}'.trim()
-            : null,
-        sellerAvatarUrl: sellerJson?['avatar_url'] as String?,
-        quantity: orderJson['quantity'] as int? ?? 1,
-        totalPrice: (orderJson['total_price'] as num).toDouble(),
-        currency: orderJson['currency'] as String? ?? 'TRY',
-        status: OrderStatus.fromString(orderJson['status'] as String),
-        buyerNote: orderJson['buyer_note'] as String?,
-        sellerNote: orderJson['seller_note'] as String?,
-        confirmedAt: orderJson['confirmed_at'] != null
-            ? DateTime.parse(orderJson['confirmed_at'] as String)
-            : null,
-        cancelledAt: orderJson['cancelled_at'] != null
-            ? DateTime.parse(orderJson['cancelled_at'] as String)
-            : null,
-        cancelledBy: orderJson['cancelled_by'] as String?,
-        cancellationReason: orderJson['cancellation_reason'] as String?,
-        completedAt: orderJson['completed_at'] != null
-            ? DateTime.parse(orderJson['completed_at'] as String)
-            : null,
-        createdAt: DateTime.parse(orderJson['created_at'] as String),
-        updatedAt: orderJson['updated_at'] != null
-            ? DateTime.parse(orderJson['updated_at'] as String)
-            : null,
-        updatedBy: orderJson['updated_by'] as String?,
-        updatedByName: updatedByJson != null
-            ? '${updatedByJson['first_name'] ?? ''} ${updatedByJson['last_name'] ?? ''}'.trim()
-            : null,
-        updatedByAvatarUrl: updatedByJson?['avatar_url'] as String?,
-        selectedSize: orderJson['selected_size'] as String?,
-      );
+      return OrderModel.fromJoinedJson(response);
     } on PostgrestException catch (e) {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
@@ -887,54 +848,9 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           .order('created_at', ascending: false);
 
       final List<dynamic> data = response as List<dynamic>;
-      return data.map((json) {
-        final orderJson = json as Map<String, dynamic>;
-        final buyerJson = orderJson['buyer'] as Map<String, dynamic>?;
-        final sellerJson = orderJson['seller'] as Map<String, dynamic>?;
-        final updatedByJson = orderJson['updated_by_user'] as Map<String, dynamic>?;
-
-        return OrderModel(
-          id: orderJson['id'] as String,
-          listingId: orderJson['listing_id'] as String,
-          buyerId: orderJson['buyer_id'] as String,
-          buyerName: buyerJson != null
-              ? '${buyerJson['first_name'] ?? ''} ${buyerJson['last_name'] ?? ''}'.trim()
-              : null,
-          buyerAvatarUrl: buyerJson?['avatar_url'] as String?,
-          sellerId: orderJson['seller_id'] as String?,
-          sellerName: sellerJson != null
-              ? '${sellerJson['first_name'] ?? ''} ${sellerJson['last_name'] ?? ''}'.trim()
-              : null,
-          sellerAvatarUrl: sellerJson?['avatar_url'] as String?,
-          quantity: orderJson['quantity'] as int? ?? 1,
-          totalPrice: (orderJson['total_price'] as num).toDouble(),
-          currency: orderJson['currency'] as String? ?? 'TRY',
-          status: OrderStatus.fromString(orderJson['status'] as String),
-          buyerNote: orderJson['buyer_note'] as String?,
-          sellerNote: orderJson['seller_note'] as String?,
-          confirmedAt: orderJson['confirmed_at'] != null
-              ? DateTime.parse(orderJson['confirmed_at'] as String)
-              : null,
-          cancelledAt: orderJson['cancelled_at'] != null
-              ? DateTime.parse(orderJson['cancelled_at'] as String)
-              : null,
-          cancelledBy: orderJson['cancelled_by'] as String?,
-          cancellationReason: orderJson['cancellation_reason'] as String?,
-          completedAt: orderJson['completed_at'] != null
-              ? DateTime.parse(orderJson['completed_at'] as String)
-              : null,
-          createdAt: DateTime.parse(orderJson['created_at'] as String),
-          updatedAt: orderJson['updated_at'] != null
-              ? DateTime.parse(orderJson['updated_at'] as String)
-              : null,
-          updatedBy: orderJson['updated_by'] as String?,
-          updatedByName: updatedByJson != null
-              ? '${updatedByJson['first_name'] ?? ''} ${updatedByJson['last_name'] ?? ''}'.trim()
-              : null,
-          updatedByAvatarUrl: updatedByJson?['avatar_url'] as String?,
-          selectedSize: orderJson['selected_size'] as String?,
-        );
-      }).toList();
+      return data
+          .map((json) => OrderModel.fromJoinedJson(json as Map<String, dynamic>))
+          .toList();
     } on PostgrestException catch (e) {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
@@ -961,54 +877,9 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           .order('created_at', ascending: false);
 
       final List<dynamic> data = response as List<dynamic>;
-      return data.map((json) {
-        final orderJson = json as Map<String, dynamic>;
-        final buyerJson = orderJson['buyer'] as Map<String, dynamic>?;
-        final sellerJson = orderJson['seller'] as Map<String, dynamic>?;
-        final updatedByJson = orderJson['updated_by_user'] as Map<String, dynamic>?;
-
-        return OrderModel(
-          id: orderJson['id'] as String,
-          listingId: orderJson['listing_id'] as String,
-          buyerId: orderJson['buyer_id'] as String,
-          buyerName: buyerJson != null
-              ? '${buyerJson['first_name'] ?? ''} ${buyerJson['last_name'] ?? ''}'.trim()
-              : null,
-          buyerAvatarUrl: buyerJson?['avatar_url'] as String?,
-          sellerId: orderJson['seller_id'] as String?,
-          sellerName: sellerJson != null
-              ? '${sellerJson['first_name'] ?? ''} ${sellerJson['last_name'] ?? ''}'.trim()
-              : null,
-          sellerAvatarUrl: sellerJson?['avatar_url'] as String?,
-          quantity: orderJson['quantity'] as int? ?? 1,
-          totalPrice: (orderJson['total_price'] as num).toDouble(),
-          currency: orderJson['currency'] as String? ?? 'TRY',
-          status: OrderStatus.fromString(orderJson['status'] as String),
-          buyerNote: orderJson['buyer_note'] as String?,
-          sellerNote: orderJson['seller_note'] as String?,
-          confirmedAt: orderJson['confirmed_at'] != null
-              ? DateTime.parse(orderJson['confirmed_at'] as String)
-              : null,
-          cancelledAt: orderJson['cancelled_at'] != null
-              ? DateTime.parse(orderJson['cancelled_at'] as String)
-              : null,
-          cancelledBy: orderJson['cancelled_by'] as String?,
-          cancellationReason: orderJson['cancellation_reason'] as String?,
-          completedAt: orderJson['completed_at'] != null
-              ? DateTime.parse(orderJson['completed_at'] as String)
-              : null,
-          createdAt: DateTime.parse(orderJson['created_at'] as String),
-          updatedAt: orderJson['updated_at'] != null
-              ? DateTime.parse(orderJson['updated_at'] as String)
-              : null,
-          updatedBy: orderJson['updated_by'] as String?,
-          updatedByName: updatedByJson != null
-              ? '${updatedByJson['first_name'] ?? ''} ${updatedByJson['last_name'] ?? ''}'.trim()
-              : null,
-          updatedByAvatarUrl: updatedByJson?['avatar_url'] as String?,
-          selectedSize: orderJson['selected_size'] as String?,
-        );
-      }).toList();
+      return data
+          .map((json) => OrderModel.fromJoinedJson(json as Map<String, dynamic>))
+          .toList();
     } on PostgrestException catch (e) {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
@@ -1061,52 +932,7 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
           ''')
           .single();
 
-      final Map<String, dynamic> orderJson = response;
-      final buyerJson = orderJson['buyer'] as Map<String, dynamic>?;
-      final sellerJson = orderJson['seller'] as Map<String, dynamic>?;
-      final updatedByJson = orderJson['updated_by_user'] as Map<String, dynamic>?;
-
-      return OrderModel(
-        id: orderJson['id'] as String,
-        listingId: orderJson['listing_id'] as String,
-        buyerId: orderJson['buyer_id'] as String,
-        buyerName: buyerJson != null
-            ? '${buyerJson['first_name'] ?? ''} ${buyerJson['last_name'] ?? ''}'.trim()
-            : null,
-        buyerAvatarUrl: buyerJson?['avatar_url'] as String?,
-        sellerId: orderJson['seller_id'] as String?,
-        sellerName: sellerJson != null
-            ? '${sellerJson['first_name'] ?? ''} ${sellerJson['last_name'] ?? ''}'.trim()
-            : null,
-        sellerAvatarUrl: sellerJson?['avatar_url'] as String?,
-        quantity: orderJson['quantity'] as int? ?? 1,
-        totalPrice: (orderJson['total_price'] as num).toDouble(),
-        currency: orderJson['currency'] as String? ?? 'TRY',
-        status: OrderStatus.fromString(orderJson['status'] as String),
-        buyerNote: orderJson['buyer_note'] as String?,
-        sellerNote: orderJson['seller_note'] as String?,
-        confirmedAt: orderJson['confirmed_at'] != null
-            ? DateTime.parse(orderJson['confirmed_at'] as String)
-            : null,
-        cancelledAt: orderJson['cancelled_at'] != null
-            ? DateTime.parse(orderJson['cancelled_at'] as String)
-            : null,
-        cancelledBy: orderJson['cancelled_by'] as String?,
-        cancellationReason: orderJson['cancellation_reason'] as String?,
-        completedAt: orderJson['completed_at'] != null
-            ? DateTime.parse(orderJson['completed_at'] as String)
-            : null,
-        createdAt: DateTime.parse(orderJson['created_at'] as String),
-        updatedAt: orderJson['updated_at'] != null
-            ? DateTime.parse(orderJson['updated_at'] as String)
-            : null,
-        updatedBy: orderJson['updated_by'] as String?,
-        updatedByName: updatedByJson != null
-            ? '${updatedByJson['first_name'] ?? ''} ${updatedByJson['last_name'] ?? ''}'.trim()
-            : null,
-        updatedByAvatarUrl: updatedByJson?['avatar_url'] as String?,
-        selectedSize: orderJson['selected_size'] as String?,
-      );
+      return OrderModel.fromJoinedJson(response);
     } on PostgrestException catch (e) {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
@@ -1133,59 +959,382 @@ class MarketplaceRemoteDataSourceImpl implements MarketplaceRemoteDataSource {
       final response = await query.order('created_at', ascending: false);
 
       final List<dynamic> data = response as List<dynamic>;
-      return data.map((json) {
-        final orderJson = json as Map<String, dynamic>;
-        final buyerJson = orderJson['buyer'] as Map<String, dynamic>?;
-        final sellerJson = orderJson['seller'] as Map<String, dynamic>?;
-        final updatedByJson = orderJson['updated_by_user'] as Map<String, dynamic>?;
-
-        return OrderModel(
-          id: orderJson['id'] as String,
-          listingId: orderJson['listing_id'] as String,
-          buyerId: orderJson['buyer_id'] as String,
-          buyerName: buyerJson != null
-              ? '${buyerJson['first_name'] ?? ''} ${buyerJson['last_name'] ?? ''}'.trim()
-              : null,
-          buyerAvatarUrl: buyerJson?['avatar_url'] as String?,
-          sellerId: orderJson['seller_id'] as String?,
-          sellerName: sellerJson != null
-              ? '${sellerJson['first_name'] ?? ''} ${sellerJson['last_name'] ?? ''}'.trim()
-              : null,
-          sellerAvatarUrl: sellerJson?['avatar_url'] as String?,
-          quantity: orderJson['quantity'] as int? ?? 1,
-          totalPrice: (orderJson['total_price'] as num).toDouble(),
-          currency: orderJson['currency'] as String? ?? 'TRY',
-          status: OrderStatus.fromString(orderJson['status'] as String),
-          buyerNote: orderJson['buyer_note'] as String?,
-          sellerNote: orderJson['seller_note'] as String?,
-          confirmedAt: orderJson['confirmed_at'] != null
-              ? DateTime.parse(orderJson['confirmed_at'] as String)
-              : null,
-          cancelledAt: orderJson['cancelled_at'] != null
-              ? DateTime.parse(orderJson['cancelled_at'] as String)
-              : null,
-          cancelledBy: orderJson['cancelled_by'] as String?,
-          cancellationReason: orderJson['cancellation_reason'] as String?,
-          completedAt: orderJson['completed_at'] != null
-              ? DateTime.parse(orderJson['completed_at'] as String)
-              : null,
-          createdAt: DateTime.parse(orderJson['created_at'] as String),
-          updatedAt: orderJson['updated_at'] != null
-              ? DateTime.parse(orderJson['updated_at'] as String)
-              : null,
-          updatedBy: orderJson['updated_by'] as String?,
-          updatedByName: updatedByJson != null
-              ? '${updatedByJson['first_name'] ?? ''} ${updatedByJson['last_name'] ?? ''}'.trim()
-              : null,
-          updatedByAvatarUrl: updatedByJson?['avatar_url'] as String?,
-          selectedSize: orderJson['selected_size'] as String?,
-        );
-      }).toList();
+      return data
+          .map((json) => OrderModel.fromJoinedJson(json as Map<String, dynamic>))
+          .toList();
     } on PostgrestException catch (e) {
       throw ServerException(message: e.message, code: e.code);
     } catch (e) {
       throw ServerException(message: 'Siparişler alınamadı: $e');
     }
+  }
+
+  static const String _orderJoinSelect = '''
+            *,
+            buyer:users!marketplace_orders_buyer_id_fkey(first_name, last_name, avatar_url),
+            seller:users!marketplace_orders_seller_id_fkey(first_name, last_name, avatar_url),
+            updated_by_user:users!marketplace_orders_updated_by_fkey(first_name, last_name, avatar_url)
+          ''';
+
+  @override
+  Future<OrderModel> createManualSale(OrderModel sale) async {
+    try {
+      if (_currentUserId == null) {
+        throw ServerException(
+            message: 'Kullanıcı giriş yapmamış', code: 'UNAUTHORIZED');
+      }
+
+      final payload = sale.toSalePayload();
+      payload['is_manual'] = true;
+      payload['updated_by'] = _currentUserId;
+      // Maliyet raporlarda canlı ortalamadan gelir; snapshot yazılmaz.
+      payload.remove('unit_cost');
+
+      if (sale.status == OrderStatus.completed) {
+        payload['completed_at'] =
+            (sale.paymentDate ?? sale.effectiveOrderDate).toIso8601String();
+      } else if (sale.status == OrderStatus.confirmed) {
+        payload['confirmed_at'] = sale.effectiveOrderDate.toIso8601String();
+      }
+
+      final response = await _supabase
+          .from('marketplace_orders')
+          .insert(payload)
+          .select(_orderJoinSelect)
+          .single();
+
+      return OrderModel.fromJoinedJson(response);
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Satış kaydedilemedi: $e');
+    }
+  }
+
+  @override
+  Future<OrderModel> updateSale(String orderId, OrderModel sale) async {
+    try {
+      if (_currentUserId == null) {
+        throw ServerException(
+            message: 'Kullanıcı giriş yapmamış', code: 'UNAUTHORIZED');
+      }
+
+      final payload = sale.toSalePayload();
+      payload['updated_by'] = _currentUserId;
+      payload.remove('listing_id');
+      // Maliyet raporlarda canlı ortalamadan gelir; snapshot yazılmaz.
+      payload.remove('unit_cost');
+
+      final response = await _supabase
+          .from('marketplace_orders')
+          .update(payload)
+          .eq('id', orderId)
+          .select(_orderJoinSelect)
+          .single();
+
+      return OrderModel.fromJoinedJson(response);
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Satış güncellenemedi: $e');
+    }
+  }
+
+  @override
+  Future<void> deleteOrder(String orderId) async {
+    try {
+      await _supabase.from('marketplace_orders').delete().eq('id', orderId);
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Satış silinemedi: $e');
+    }
+  }
+
+  @override
+  Future<List<ProductionBatch>> getProductionBatches(String listingId) async {
+    try {
+      final response = await _supabase
+          .from('production_batches')
+          .select('''
+            *,
+            production_batch_items(id, size, gender, quantity)
+          ''')
+          .eq('listing_id', listingId)
+          .order('produced_at', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data
+          .map((json) => ProductionBatch.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Üretim partileri alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<void> saveProductionBatch({
+    String? batchId,
+    required String listingId,
+    required double unitCost,
+    required DateTime producedAt,
+    String? note,
+    required List<ProductionBatchItem> items,
+  }) async {
+    try {
+      if (_currentUserId == null) {
+        throw ServerException(
+            message: 'Kullanıcı giriş yapmamış', code: 'UNAUTHORIZED');
+      }
+      if (items.isEmpty) {
+        throw ServerException(message: 'En az bir beden/adet satırı gerekli');
+      }
+
+      final producedDate =
+          DateTime(producedAt.year, producedAt.month, producedAt.day)
+              .toIso8601String()
+              .split('T')
+              .first;
+
+      // Düzenlemede stok deltası için eski adetleri al
+      final oldQuantities = <String, int>{};
+      if (batchId != null) {
+        final oldRows = await _supabase
+            .from('production_batch_items')
+            .select('size, gender, quantity')
+            .eq('batch_id', batchId);
+        for (final row in oldRows as List) {
+          final map = row as Map<String, dynamic>;
+          final key =
+              '${map['size']}::${map['gender'] as String? ?? 'unisex'}';
+          oldQuantities[key] =
+              (oldQuantities[key] ?? 0) + (map['quantity'] as int? ?? 0);
+        }
+      }
+
+      String effectiveBatchId;
+      if (batchId == null) {
+        final inserted = await _supabase
+            .from('production_batches')
+            .insert({
+              'listing_id': listingId,
+              'unit_cost': unitCost,
+              'produced_at': producedDate,
+              'note': note,
+              'created_by': _currentUserId,
+            })
+            .select('id')
+            .single();
+        effectiveBatchId = inserted['id'] as String;
+      } else {
+        await _supabase.from('production_batches').update({
+          'unit_cost': unitCost,
+          'produced_at': producedDate,
+          'note': note,
+        }).eq('id', batchId);
+        effectiveBatchId = batchId;
+
+        await _supabase
+            .from('production_batch_items')
+            .delete()
+            .eq('batch_id', effectiveBatchId);
+      }
+
+      await _supabase.from('production_batch_items').insert(
+            items
+                .map((item) => {
+                      'batch_id': effectiveBatchId,
+                      ...item.toJson(),
+                    })
+                .toList(),
+          );
+
+      // Stok delta: yeni - eski
+      final newQuantities = <String, int>{};
+      for (final item in items) {
+        final key = '${item.size}::${item.gender.value}';
+        newQuantities[key] = (newQuantities[key] ?? 0) + item.quantity;
+      }
+
+      final allKeys = {...oldQuantities.keys, ...newQuantities.keys};
+      for (final key in allKeys) {
+        final delta = (newQuantities[key] ?? 0) - (oldQuantities[key] ?? 0);
+        if (delta == 0) continue;
+        final parts = key.split('::');
+        await _applyProductionStockDelta(
+          listingId: listingId,
+          size: parts[0],
+          gender: parts.length > 1 ? parts[1] : 'unisex',
+          delta: delta,
+        );
+      }
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      if (e is ServerException) rethrow;
+      throw ServerException(message: 'Üretim partisi kaydedilemedi: $e');
+    }
+  }
+
+  @override
+  Future<void> deleteProductionBatch(String batchId) async {
+    try {
+      final batch = await _supabase
+          .from('production_batches')
+          .select('listing_id')
+          .eq('id', batchId)
+          .maybeSingle();
+      if (batch == null) return;
+
+      final listingId = batch['listing_id'] as String;
+      final itemRows = await _supabase
+          .from('production_batch_items')
+          .select('size, gender, quantity')
+          .eq('batch_id', batchId);
+
+      await _supabase.from('production_batches').delete().eq('id', batchId);
+
+      for (final row in itemRows as List) {
+        final map = row as Map<String, dynamic>;
+        final qty = map['quantity'] as int? ?? 0;
+        if (qty == 0) continue;
+        await _applyProductionStockDelta(
+          listingId: listingId,
+          size: map['size'] as String,
+          gender: map['gender'] as String? ?? 'unisex',
+          delta: -qty,
+        );
+      }
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      if (e is ServerException) rethrow;
+      throw ServerException(message: 'Üretim partisi silinemedi: $e');
+    }
+  }
+
+  Future<void> _applyProductionStockDelta({
+    required String listingId,
+    required String size,
+    required String gender,
+    required int delta,
+  }) async {
+    await _supabase.rpc(
+      'apply_production_stock_delta',
+      params: {
+        'p_listing_id': listingId,
+        'p_size': size,
+        'p_gender': gender,
+        'p_delta': delta,
+      },
+    );
+  }
+
+  @override
+  Future<void> updateListingSizesAndGenderMode({
+    required String listingId,
+    required String? size,
+    required ListingGenderMode stockGenderMode,
+  }) async {
+    try {
+      if (_currentUserId == null) {
+        throw ServerException(
+            message: 'Kullanıcı giriş yapmamış', code: 'UNAUTHORIZED');
+      }
+
+      await _supabase.from('marketplace_listings').update({
+        'size': size,
+        'stock_gender_mode': stockGenderMode.value,
+      }).eq('id', listingId);
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(
+        message: 'Beden/cinsiyet ayarları güncellenemedi: $e',
+      );
+    }
+  }
+
+  @override
+  Future<double?> getListingAvgUnitCost(String listingId) async {
+    try {
+      final response = await _supabase.rpc(
+        'get_listing_avg_unit_cost',
+        params: {'p_listing_id': listingId},
+      );
+      return (response as num?)?.toDouble();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<List<MarketOverviewRow>> getMarketOverview({
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    try {
+      final response = await _supabase.rpc(
+        'get_market_overview',
+        params: {
+          'p_from': from != null ? _dateOnly(from) : null,
+          'p_to': to != null ? _dateOnly(to) : null,
+        },
+      );
+
+      final List<dynamic> data = response as List<dynamic>? ?? [];
+      return data
+          .map((json) =>
+              MarketOverviewRow.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Market raporu alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<ProductReportSummary> getProductReport(String listingId) async {
+    try {
+      final response = await _supabase.rpc(
+        'get_market_product_report',
+        params: {'p_listing_id': listingId},
+      );
+
+      return ProductReportSummary.fromJson(response as Map<String, dynamic>);
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Ürün raporu alınamadı: $e');
+    }
+  }
+
+  @override
+  Future<List<ProductSalesRow>> getProductSalesRows(String listingId) async {
+    try {
+      final response = await _supabase.rpc(
+        'get_market_product_sales',
+        params: {'p_listing_id': listingId},
+      );
+
+      final List<dynamic> data = response as List<dynamic>? ?? [];
+      return data
+          .map((json) => ProductSalesRow.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Satış geçmişi alınamadı: $e');
+    }
+  }
+
+  String _dateOnly(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 
   @override

@@ -23,12 +23,13 @@ LIMIT 20;
 -- 4) trigger function manually
 SELECT public.create_next_recurring_events();
 
--- 5) verify latest recurring series tails (Istanbul date)
+-- 5) verify latest recurring series tails (duvar saati = UTC bileşenleri)
 SELECT
   COALESCE(parent_event_id, id) AS series_root_id,
   id,
   title,
-  start_time AT TIME ZONE 'Europe/Istanbul' AS start_time_ist,
+  public.event_start_wall_time(start_time) AS start_wall,
+  (public.event_start_wall_time(start_time))::date AS start_wall_date,
   recurrence_rule
 FROM public.events
 WHERE is_recurring = true

@@ -94,7 +94,10 @@ class _RecurringSeriesCard extends ConsumerStatefulWidget {
 
 class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
   bool _isStopping = false;
+  bool _isResuming = false;
   bool _isDeleting = false;
+
+  bool get _isBusy => _isStopping || _isResuming || _isDeleting;
 
   Future<void> _stopRecurrence() async {
     final confirmed = await showDialog<bool>(
@@ -103,6 +106,7 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
         title: const Text('Tekrarlamayı durdur'),
         content: Text(
           '"${widget.series.title}" etkinliği artık otomatik olarak tekrarlanmayacak. '
+          'Durdurulduğu sürece yeni etkinlik oluşturulmaz. '
           'Mevcut oluşturulmuş etkinlikler silinmez.',
         ),
         actions: [
@@ -138,6 +142,65 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
       }
     } finally {
       if (mounted) setState(() => _isStopping = false);
+    }
+  }
+
+  Future<void> _resumeRecurrence() async {
+    final rule = widget.series.recurrenceRule?.trim();
+    if (rule == null || rule.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yeniden başlatmak için tekrar kuralı bulunamadı')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tekrarlamayı yeniden başlat'),
+        content: Text(
+          '"${widget.series.title}" serisi yeniden aktif olacak. '
+          'Durdurulduğu süre için geçmiş etkinlik oluşturulmaz; '
+          'takvime göre bir sonraki günden devam eder.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('İptal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yeniden başlat'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isResuming = true);
+    try {
+      final ds = ref.read(eventDataSourceProvider);
+      await ds.resumeRecurringEventSeries(
+        latestEventId: widget.series.latestEventId,
+        recurrenceRule: rule,
+        recurrenceEndDate: widget.series.recurrenceEndDate,
+      );
+      ref.invalidate(recurringEventSeriesProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tekrarlama yeniden başlatıldı')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('İşlem başarısız: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isResuming = false);
     }
   }
 
@@ -320,7 +383,7 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
               children: [
                 if (series.isActive)
                   IconButton(
-                    onPressed: _isStopping || _isDeleting ? null : _stopRecurrence,
+                    onPressed: _isBusy ? null : _stopRecurrence,
                     tooltip: 'Tekrarlamayı durdur',
                     icon: _isStopping
                         ? const SizedBox(
@@ -329,9 +392,21 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Icon(Icons.stop_circle_outlined, color: cs.onSurfaceVariant),
+                  )
+                else
+                  IconButton(
+                    onPressed: _isBusy ? null : _resumeRecurrence,
+                    tooltip: 'Tekrarlamayı yeniden başlat',
+                    icon: _isResuming
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(Icons.play_circle_outline, color: AppColors.success),
                   ),
                 IconButton(
-                  onPressed: _isStopping || _isDeleting
+                  onPressed: _isBusy
                       ? null
                       : () {
                           context.pushNamed(
@@ -347,7 +422,7 @@ class _RecurringSeriesCardState extends ConsumerState<_RecurringSeriesCard> {
                   icon: Icon(Icons.edit_outlined, color: cs.onSurfaceVariant),
                 ),
                 IconButton(
-                  onPressed: _isStopping || _isDeleting ? null : _deleteSeries,
+                  onPressed: _isBusy ? null : _deleteSeries,
                   tooltip: 'Seriyi kaldır',
                   icon: _isDeleting
                       ? const SizedBox(

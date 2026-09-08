@@ -70,6 +70,10 @@ import '../../features/marketplace/presentation/pages/favorites_page.dart';
 import '../../features/marketplace/presentation/pages/orders_management_page.dart';
 import '../../features/marketplace/presentation/pages/stock_alerts_admin_page.dart';
 import '../../features/marketplace/presentation/pages/my_orders_page.dart';
+import '../../features/marketplace/presentation/pages/market_reports_page.dart';
+import '../../features/marketplace/presentation/pages/product_report_page.dart';
+import '../../features/marketplace/presentation/pages/manual_sale_page.dart';
+import '../../features/marketplace/presentation/pages/production_batches_page.dart';
 import '../../features/tools/presentation/pages/pace_calculator_page.dart';
 import '../../features/integrations/presentation/pages/integrations_page.dart';
 import '../../features/integrations/presentation/pages/strava_activity_list_page.dart';
@@ -706,6 +710,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin/reports-dashboard',
         name: RouteNames.adminReportsDashboard,
         builder: (context, state) => const AdminReportsDashboardPage(),
+      ),
+      // Market yönetim ekranları: shell dışında tutulmalı, aksi halde shell
+      // dışındaki admin ekranlarından push edildiklerinde root navigator'da
+      // ikinci bir ShellRouteMatch oluşup page key çakışması olur.
+      GoRoute(
+        path: '/admin/market-reports',
+        name: RouteNames.marketReports,
+        builder: (context, state) => const MarketReportsPage(),
+      ),
+      GoRoute(
+        path: '/admin/market-reports/:listingId',
+        name: RouteNames.marketProductReport,
+        builder: (context, state) {
+          final listingId = state.pathParameters['listingId']!;
+          return ProductReportPage(listingId: listingId);
+        },
+      ),
+      GoRoute(
+        path: '/admin/market-sale',
+        name: RouteNames.manualSale,
+        builder: (context, state) => ManualSalePage(
+          listingId: state.uri.queryParameters['listingId'],
+          orderId: state.uri.queryParameters['orderId'],
+        ),
+      ),
+      GoRoute(
+        path: '/admin/market-production/:listingId',
+        name: RouteNames.productionBatches,
+        builder: (context, state) {
+          final listingId = state.pathParameters['listingId']!;
+          return ProductionBatchesPage(listingId: listingId);
+        },
       ),
       GoRoute(
         path: '/admin/user-engagement-reports',

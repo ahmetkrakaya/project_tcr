@@ -42,6 +42,13 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
   void initState() {
     super.initState();
     _pageController.addListener(_onPageChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      invalidateMarketplaceCachesForWidget(
+        ref,
+        listingId: widget.listingId,
+        refreshListingsGrid: false,
+      );
+    });
   }
 
   @override
@@ -213,23 +220,25 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                         ),
                         if (isListingOutOfStock(listing))
                           Positioned.fill(
-                            child: Container(
-                              color: Colors.black.withValues(alpha: 0.18),
-                              alignment: Alignment.center,
+                            child: IgnorePointer(
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: cs.surface.withValues(alpha: 0.92),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  'Stokta Yok',
-                                  style: AppTypography.titleSmall.copyWith(
-                                    color: cs.onSurface,
-                                    fontWeight: FontWeight.w700,
+                                color: Colors.black.withValues(alpha: 0.18),
+                                alignment: Alignment.center,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: cs.surface.withValues(alpha: 0.92),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    'Stokta Yok',
+                                    style: AppTypography.titleSmall.copyWith(
+                                      color: cs.onSurface,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -322,10 +331,23 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                               RouteNames.listingEdit,
                               pathParameters: {'listingId': listing.id},
                             );
-                          case _ListingMenuAction.stock:
-                            _showStockManagementDialog(context, listing);
                           case _ListingMenuAction.discount:
                             _showDiscountDialog(context, listing);
+                          case _ListingMenuAction.addSale:
+                            context.pushNamed(
+                              RouteNames.manualSale,
+                              queryParameters: {'listingId': listing.id},
+                            );
+                          case _ListingMenuAction.production:
+                            context.pushNamed(
+                              RouteNames.productionBatches,
+                              pathParameters: {'listingId': listing.id},
+                            );
+                          case _ListingMenuAction.report:
+                            context.pushNamed(
+                              RouteNames.marketProductReport,
+                              pathParameters: {'listingId': listing.id},
+                            );
                           case _ListingMenuAction.share:
                             _shareListing(context, listing);
                         }
@@ -342,16 +364,6 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                           ),
                         ),
                         PopupMenuItem(
-                          value: _ListingMenuAction.stock,
-                          child: Row(
-                            children: [
-                              Icon(Icons.inventory_2_outlined),
-                              SizedBox(width: 12),
-                              Text('Stok Yönetimi'),
-                            ],
-                          ),
-                        ),
-                        PopupMenuItem(
                           value: _ListingMenuAction.discount,
                           child: Row(
                             children: [
@@ -361,6 +373,38 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                             ],
                           ),
                         ),
+                        PopupMenuDivider(),
+                        PopupMenuItem(
+                          value: _ListingMenuAction.addSale,
+                          child: Row(
+                            children: [
+                              Icon(Icons.point_of_sale),
+                              SizedBox(width: 12),
+                              Text('Satış Ekle'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: _ListingMenuAction.production,
+                          child: Row(
+                            children: [
+                              Icon(Icons.factory_outlined),
+                              SizedBox(width: 12),
+                              Text('Üretim ve Maliyet'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: _ListingMenuAction.report,
+                          child: Row(
+                            children: [
+                              Icon(Icons.insights_outlined),
+                              SizedBox(width: 12),
+                              Text('Ürün Raporu'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuDivider(),
                         PopupMenuItem(
                           value: _ListingMenuAction.share,
                           child: Row(
@@ -984,8 +1028,10 @@ class _ListingDetailPageState extends ConsumerState<ListingDetailPage> {
                         backgroundColor: AppColors.success,
                       ),
                     );
-                    // Refresh listing
-                    ref.invalidate(listingByIdProvider(listing.id));
+                    invalidateMarketplaceCachesForWidget(
+                      ref,
+                      listingId: listing.id,
+                    );
                   },
                   loading: () {},
                   error: (error, _) {
@@ -2264,9 +2310,10 @@ class _StockBySizeDialogState extends ConsumerState<_StockBySizeDialog> {
                             backgroundColor: AppColors.success,
                           ),
                         );
-                        // Refresh listing
-                        ref.invalidate(
-                            listingByIdProvider(widget.listing.id));
+                        invalidateMarketplaceCachesForWidget(
+                          ref,
+                          listingId: widget.listing.id,
+                        );
                       } catch (e) {
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -2666,9 +2713,10 @@ class _StockBySizeModeDialogState
                             backgroundColor: AppColors.success,
                           ),
                         );
-                        // Refresh listing
-                        ref.invalidate(
-                            listingByIdProvider(widget.listing.id));
+                        invalidateMarketplaceCachesForWidget(
+                          ref,
+                          listingId: widget.listing.id,
+                        );
                       } catch (e) {
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -3063,8 +3111,10 @@ class _QuickDiscountDialogState extends ConsumerState<_QuickDiscountDialog> {
     final result = ref.read(updateListingDiscountProvider);
     result.when(
       data: (_) {
-        ref.invalidate(listingByIdProvider(widget.listing.id));
-        ref.read(listingsProvider.notifier).refresh();
+        invalidateMarketplaceCachesForWidget(
+          ref,
+          listingId: widget.listing.id,
+        );
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3283,7 +3333,9 @@ class _DiscountDateTile extends StatelessWidget {
 
 enum _ListingMenuAction {
   edit,
-  stock,
   discount,
+  addSale,
+  production,
+  report,
   share,
 }

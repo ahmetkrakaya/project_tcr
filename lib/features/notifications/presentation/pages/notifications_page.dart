@@ -452,6 +452,9 @@ class _NotificationTile extends StatelessWidget {
       case 'order_created':
       case 'order_status_changed':
         return Icons.receipt_long_outlined;
+      case 'birthday_reminder':
+      case 'birthday_wish':
+        return Icons.cake_outlined;
       default:
         return Icons.notifications_outlined;
     }

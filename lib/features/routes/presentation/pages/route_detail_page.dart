@@ -892,10 +892,14 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
             ),
             child: IconButton(
               icon: Icon(
-                _isFlyoverActive ? Icons.stop : Icons.play_arrow,
+                _isFlyoverActive ? Icons.pause : Icons.play_arrow,
                 color: _isFlyoverActive ? cs.onPrimary : cs.primary,
               ),
-              tooltip: _isFlyoverActive ? 'Flyover Durdur' : 'Flyover Başlat',
+              tooltip: _isFlyoverActive
+                  ? 'Duraklat'
+                  : ((_mapKey.currentState?.isPaused ?? false)
+                      ? 'Devam ettir'
+                      : 'Rotayı oynat'),
               onPressed: _toggleFlyover,
             ),
           ),
@@ -938,6 +942,11 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
             onFlyoverComplete: () {
               setState(() => _isFlyoverActive = false);
             },
+            onFlyoverPaused: () {
+              if (_isFlyoverActive) {
+                setState(() => _isFlyoverActive = false);
+              }
+            },
           ),
           // Elevation chart artık RouteMapView içinde gösteriliyor
         ],
@@ -946,13 +955,12 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
   }
 
   void _toggleFlyover() {
-    setState(() {
-      _isFlyoverActive = !_isFlyoverActive;
-      if (!_isFlyoverActive) {
-        // Durdurmak için state'i güncelle
-        _mapKey.currentState?.stopFlyover();
-      }
-    });
+    if (_isFlyoverActive) {
+      _mapKey.currentState?.stopFlyover();
+      setState(() => _isFlyoverActive = false);
+    } else {
+      setState(() => _isFlyoverActive = true);
+    }
   }
 
   Widget _buildMapStyleButton(IconData icon, String tooltip, bool isSelected, VoidCallback onTap) {

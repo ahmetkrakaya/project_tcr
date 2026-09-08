@@ -158,10 +158,12 @@ class _AdminMonthlyProgramEntryCardState
     if (split != null) details.add(split);
     final pace = _paceLine(s);
     if (pace != null) details.add(pace);
-    final viewLane = _viewLane ?? _referenceLane;
-    if (viewLane != null) {
-      final lapTime = _lapTimeLine(s, viewLane);
-      if (lapTime != null) details.add(lapTime);
+    if (widget.enableLanePicker) {
+      final viewLane = _viewLane ?? _referenceLane;
+      if (viewLane != null) {
+        final lapTime = _lapTimeLine(s, viewLane);
+        if (lapTime != null) details.add(lapTime);
+      }
     }
     return details;
   }
@@ -181,7 +183,7 @@ class _AdminMonthlyProgramEntryCardState
   }
 
   WorkoutDefinitionEntity? _displayDefinition(WorkoutDefinitionEntity? def) {
-    if (def == null) return null;
+    if (def == null || !widget.enableLanePicker) return def;
     final ref = _referenceLane;
     final view = _viewLane;
     if (ref == null || view == null) return def;
@@ -345,7 +347,7 @@ class _AdminMonthlyProgramEntryCardState
     final showProgramContent =
         programContent.isNotEmpty && !hasStructuredWorkout;
     final referenceLane = _referenceLane;
-    final showLane = referenceLane != null;
+    final showLane = widget.enableLanePicker && referenceLane != null;
     final syncService = ref.watch(monthlyProgramDeviceSyncServiceProvider);
     final canSyncDevices = widget.enableDeviceSync &&
         widget.enableLanePicker &&

@@ -257,11 +257,15 @@ class UserGroupProgramViewer extends ConsumerWidget {
   Color _accentColor({required Color light, required Color dark}) =>
       ThemeBrightnessHolder.isDark ? dark : light;
 
+  bool _hasTrackLaneConfig(EventEntity event) {
+    final laneConfig = event.laneConfig;
+    return laneConfig != null && !laneConfig.isEmpty;
+  }
+
   bool _shouldOfferLanePicker(EventEntity event, EventGroupProgramEntity program) {
     final def = program.workoutDefinition;
     if (def == null || def.isEmpty) return false;
-    if (event.laneConfig != null) return true;
-    return event.eventType == EventType.training;
+    return _hasTrackLaneConfig(event);
   }
 
   int? _referenceTrackLane(
@@ -271,8 +275,8 @@ class UserGroupProgramViewer extends ConsumerWidget {
   ) {
     if (!_shouldOfferLanePicker(event, program)) return null;
 
-    final laneConfig = event.laneConfig;
-    if (laneConfig != null && userVdot != null && userVdot > 0) {
+    final laneConfig = event.laneConfig!;
+    if (userVdot != null && userVdot > 0) {
       final paceRange = VdotCalculator.getPaceRangeFromOffsets(
         userVdot,
         program.thresholdOffsetMinSeconds,
@@ -282,16 +286,19 @@ class UserGroupProgramViewer extends ConsumerWidget {
         final matched = laneConfig.laneNumberForPace(paceRange.$1);
         if (matched != null) return matched;
       }
-      if (laneConfig.lanes.isNotEmpty) {
-        return laneConfig.lanes.first.laneNumber;
-      }
     }
-
-    return TrackLaneCalculator.minLane;
+    if (laneConfig.lanes.isNotEmpty) {
+      return laneConfig.lanes.first.laneNumber;
+    }
+    return null;
   }
 
-  double? _lane1Km(EventEntity event, double? trackLengthKm) =>
-      event.laneConfig?.trackLengthKm ?? trackLengthKm;
+  double? _lane1Km(EventEntity event, double? trackLengthKm) {
+    if (!_hasTrackLaneConfig(event)) return null;
+    final km = event.laneConfig!.trackLengthKm;
+    if (km != null && km > 0) return km;
+    return TrackLaneCalculator.defaultLane1Km;
+  }
 
   Widget _buildEntryCard({
     required Map<String, dynamic> row,

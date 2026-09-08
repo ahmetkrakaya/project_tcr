@@ -25,6 +25,18 @@ bool isListingInStock(ListingModel listing) {
 
 bool isListingOutOfStock(ListingModel listing) => !isListingInStock(listing);
 
+/// Stokta olmayanları en sona alır; grup içinde created_at yeni→eski korunur.
+List<ListingModel> sortListingsInStockFirst(List<ListingModel> listings) {
+  final sorted = List<ListingModel>.from(listings);
+  sorted.sort((a, b) {
+    final aOut = isListingOutOfStock(a);
+    final bOut = isListingOutOfStock(b);
+    if (aOut != bOut) return aOut ? 1 : -1;
+    return b.createdAt.compareTo(a.createdAt);
+  });
+  return sorted;
+}
+
 const listingLowStockVisibilityThreshold = 5;
 
 bool shouldShowListingLowStockWarning(int stock) {

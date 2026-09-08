@@ -290,6 +290,10 @@ class RouteNames {
   static const String ordersManagement = 'orders-management';
   static const String stockAlertsAdmin = 'stock-alerts-admin';
   static const String myOrders = 'my-orders';
+  static const String marketReports = 'market-reports';
+  static const String marketProductReport = 'market-product-report';
+  static const String manualSale = 'manual-sale';
+  static const String productionBatches = 'production-batches';
 
   // Club Races (TCR Yarış Takvimi)
   static const String clubRaces = 'club-races';

@@ -38,7 +38,6 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
   final _brandController = TextEditingController();
   final _sizeController = TextEditingController();
   final _externalUrlController = TextEditingController();
-  final _stockQuantityController = TextEditingController();
   final _discountPercentController = TextEditingController();
 
   bool _discountEnabled = false;
@@ -51,7 +50,6 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
   final _priceFocus = FocusNode();
   final _brandFocus = FocusNode();
   final _sizeFocus = FocusNode();
-  final _stockFocus = FocusNode();
 
   ListingType _selectedType = ListingType.tcrProduct;
   ListingCategory _selectedCategory = ListingCategory.other;
@@ -61,101 +59,24 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
   bool _isSubmitting = false;
   ListingGenderMode _stockGenderMode = ListingGenderMode.unisex;
 
-  // Beden bazlı stok yönetimi
-  List<String> _sizes = [];
-  final Map<String, TextEditingController> _stockBySizeControllers = {};
-  final Map<String, Map<ListingGender, TextEditingController>>
-      _stockBySizeGenderControllers = {};
-
   @override
   void initState() {
     super.initState();
     if (widget.listingId != null) {
       _loadListingData();
     }
-    // Focus listeners for keyboard close button
     _priceFocus.addListener(_onFocusChange);
-    _stockFocus.addListener(_onFocusChange);
-    // Size controller listener for beden bazlı stok
-    _sizeController.addListener(_onSizeChanged);
   }
 
   void _onFocusChange() {
     setState(() {});
   }
 
-  void _onSizeChanged() {
-    final sizeText = _sizeController.text.trim();
-    if (sizeText.isEmpty) {
-      // Beden yoksa, beden bazlı stok controller'ları temizle
-      if (_sizes.isNotEmpty) {
-        for (final controller in _stockBySizeControllers.values) {
-          controller.dispose();
-        }
-        _stockBySizeControllers.clear();
-        for (final genderMap in _stockBySizeGenderControllers.values) {
-          for (final controller in genderMap.values) {
-            controller.dispose();
-          }
-        }
-        _stockBySizeGenderControllers.clear();
-        _sizes.clear();
-        setState(() {});
-      }
-      return;
-    }
-
-    // Bedenleri parse et (virgülle ayrılmış)
-    final newSizes = sizeText.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-    
-    // Eğer bedenler değiştiyse controller'ları güncelle
-    if (newSizes.join(',') != _sizes.join(',')) {
-      // Mevcut değerleri kaydet
-      final savedUnisex = <String, String>{};
-      final savedMale = <String, String>{};
-      final savedFemale = <String, String>{};
-      for (final size in _sizes) {
-        savedUnisex[size] = _stockBySizeControllers[size]?.text ?? '';
-        savedMale[size] = _stockBySizeGenderControllers[size]?[ListingGender.male]?.text ?? '';
-        savedFemale[size] = _stockBySizeGenderControllers[size]?[ListingGender.female]?.text ?? '';
-      }
-
-      // Artık kullanılmayan bedenlerin controller'larını dispose et
-      for (final size in _sizes) {
-        if (!newSizes.contains(size)) {
-          _stockBySizeControllers[size]?.dispose();
-          _stockBySizeControllers.remove(size);
-          _stockBySizeGenderControllers[size]?.values.forEach((c) => c.dispose());
-          _stockBySizeGenderControllers.remove(size);
-        }
-      }
-
-      // Yeni bedenlere controller oluştur, eskiler varsa değerlerini koru
-      _sizes = newSizes;
-      for (final size in _sizes) {
-        if (!_stockBySizeControllers.containsKey(size)) {
-          _stockBySizeControllers[size] = TextEditingController(
-            text: savedUnisex[size] ?? '',
-          );
-        }
-        if (!_stockBySizeGenderControllers.containsKey(size)) {
-          _stockBySizeGenderControllers[size] = {
-            ListingGender.male: TextEditingController(
-              text: savedMale[size] ?? '',
-            ),
-            ListingGender.female: TextEditingController(
-              text: savedFemale[size] ?? '',
-            ),
-          };
-        }
-      }
-      setState(() {});
-    }
-  }
-
   Future<void> _loadListingData() async {
     if (widget.listingId == null) return;
 
+    // Cache'ten eski veri gelmesin
+    ref.invalidate(listingByIdProvider(widget.listingId!));
     final listing = await ref.read(listingByIdProvider(widget.listingId!).future);
     if (!mounted) return;
 
@@ -166,7 +87,6 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
       _brandController.text = listing.brand ?? '';
       _sizeController.text = listing.size ?? '';
       _externalUrlController.text = listing.externalUrl ?? '';
-      _stockQuantityController.text = listing.stockQuantity?.toString() ?? '';
       _selectedType = listing.listingType;
       _selectedCategory = listing.category;
       _imageUrls = List<String>.from(listing.imageUrls);
@@ -178,35 +98,6 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
       _discountStartsAt = listing.discountStartsAt?.toLocal();
       _discountEndsAt = listing.discountEndsAt?.toLocal();
     });
-
-    // Beden bazlı stok alanlarını populate et
-    _onSizeChanged();
-
-    if (listing.stockGenderMode == ListingGenderMode.gendered &&
-        listing.stockBySizeAndGender != null &&
-        listing.stockBySizeAndGender!.isNotEmpty) {
-      listing.stockBySizeAndGender!.forEach((size, genderMap) {
-        final controllers = _stockBySizeGenderControllers[size];
-        if (controllers != null) {
-          final maleQty = genderMap[ListingGender.male];
-          final femaleQty = genderMap[ListingGender.female];
-          if (maleQty != null) {
-            controllers[ListingGender.male]?.text = maleQty.toString();
-          }
-          if (femaleQty != null) {
-            controllers[ListingGender.female]?.text = femaleQty.toString();
-          }
-        }
-      });
-    } else if (listing.stockBySize != null &&
-        listing.stockBySize!.isNotEmpty) {
-      listing.stockBySize!.forEach((size, qty) {
-        final controller = _stockBySizeControllers[size];
-        if (controller != null) {
-          controller.text = qty.toString();
-        }
-      });
-    }
   }
 
   @override
@@ -215,30 +106,15 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
     _descriptionController.dispose();
     _priceController.dispose();
     _brandController.dispose();
-    _sizeController.removeListener(_onSizeChanged);
     _sizeController.dispose();
     _externalUrlController.dispose();
-    _stockQuantityController.dispose();
     _discountPercentController.dispose();
     _priceFocus.removeListener(_onFocusChange);
-    _stockFocus.removeListener(_onFocusChange);
     _titleFocus.dispose();
     _descriptionFocus.dispose();
     _priceFocus.dispose();
     _brandFocus.dispose();
     _sizeFocus.dispose();
-    _stockFocus.dispose();
-    // Beden bazlı stok controller'larını temizle
-    for (final controller in _stockBySizeControllers.values) {
-      controller.dispose();
-    }
-    _stockBySizeControllers.clear();
-    for (final genderMap in _stockBySizeGenderControllers.values) {
-      for (final controller in genderMap.values) {
-        controller.dispose();
-      }
-    }
-    _stockBySizeGenderControllers.clear();
     super.dispose();
   }
 
@@ -395,8 +271,8 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                 ),
                 const SizedBox(height: 24),
                 _buildFormSection(
-                  title: 'Beden & Stok',
-                  subtitle: 'Beden girerseniz her beden için ayrı stok tanımlayın',
+                  title: 'Beden',
+                  subtitle: 'Stok adetleri Üretim ve Maliyet ekranından girilir',
                   child: _buildStockSection(),
                 ),
               ],
@@ -406,9 +282,8 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
           Builder(
             builder: (context) {
               final priceHasFocus = _priceFocus.hasFocus;
-              final stockHasFocus = _stockFocus.hasFocus;
               final keyboardBottom = MediaQuery.of(context).viewInsets.bottom;
-              final shouldShow = priceHasFocus || stockHasFocus;
+              final shouldShow = priceHasFocus;
               
               if (shouldShow) {
                 final cs = Theme.of(context).colorScheme;
@@ -425,9 +300,6 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
                       onTap: () {
                         if (_priceFocus.hasFocus) {
                           _priceFocus.unfocus();
-                        }
-                        if (_stockFocus.hasFocus) {
-                          _stockFocus.unfocus();
                         }
                       },
                       child: Container(
@@ -794,132 +666,15 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
           controller: _sizeController,
           focusNode: _sizeFocus,
           hint: 'Beden / numara (ör. S, M, L)',
-          textInputAction: TextInputAction.next,
-          onSubmitted: (_) {
-            if (_sizes.isEmpty) {
-              _stockFocus.requestFocus();
-            }
-          },
+          textInputAction: TextInputAction.done,
         ),
-        if (_sizes.isEmpty &&
-            _stockGenderMode == ListingGenderMode.unisex) ...[
-          const SizedBox(height: 16),
-          AppTextField(
-            controller: _stockQuantityController,
-            focusNode: _stockFocus,
-            hint: 'Genel stok (boş = sınırsız)',
-            keyboardType: TextInputType.number,
-            textInputAction: TextInputAction.done,
+        const SizedBox(height: 12),
+        Text(
+          'Adet ve maliyet girişi için ürün kaydından sonra Üretim ve Maliyet ekranını kullanın.',
+          style: AppTypography.bodySmall.copyWith(
+            color: ThemeBrightnessHolder.onSurfaceVariant,
           ),
-        ],
-        if (_sizes.isNotEmpty &&
-            _stockGenderMode == ListingGenderMode.unisex) ...[
-          const SizedBox(height: 20),
-          const Divider(height: 1),
-          const SizedBox(height: 16),
-          Text(
-            'Beden bazlı stok',
-            style: AppTypography.labelMedium.copyWith(
-              color: ThemeBrightnessHolder.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ..._sizes.asMap().entries.map((entry) {
-            final index = entry.key;
-            final size = entry.value;
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: index == _sizes.length - 1 ? 0 : 12,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 44,
-                    height: 48,
-                    child: Center(
-                      child: Text(
-                        size,
-                        style: AppTypography.titleSmall.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: AppTextField(
-                      controller: _stockBySizeControllers[size]!,
-                      hint: 'Stok adedi',
-                      keyboardType: TextInputType.number,
-                      textInputAction: index == _sizes.length - 1
-                          ? TextInputAction.done
-                          : TextInputAction.next,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-        if (_sizes.isNotEmpty &&
-            _stockGenderMode == ListingGenderMode.gendered) ...[
-          const SizedBox(height: 20),
-          const Divider(height: 1),
-          const SizedBox(height: 16),
-          Text(
-            'Beden + cinsiyet stoku',
-            style: AppTypography.labelMedium.copyWith(
-              color: ThemeBrightnessHolder.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ..._sizes.asMap().entries.map((entry) {
-            final index = entry.key;
-            final size = entry.value;
-            final controllers = _stockBySizeGenderControllers[size]!;
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: index == _sizes.length - 1 ? 0 : 16,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    size,
-                    style: AppTypography.titleSmall.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppTextField(
-                          controller: controllers[ListingGender.male]!,
-                          hint: 'Erkek',
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.next,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: AppTextField(
-                          controller: controllers[ListingGender.female]!,
-                          hint: 'Kadın',
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.next,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
+        ),
       ],
     );
   }
@@ -1327,66 +1082,6 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
       // Price is required, validation already done in form
       final price = double.parse(_priceController.text);
       
-      // Stok yönetimi
-      int? stockQuantity;
-      Map<String, int>? stockBySize;
-      Map<String, Map<ListingGender, int>>? stockBySizeAndGender;
-      
-      if (_sizes.isNotEmpty &&
-          _stockGenderMode == ListingGenderMode.gendered) {
-        // Beden + cinsiyet bazlı stok
-        stockBySizeAndGender = {};
-        for (final size in _sizes) {
-          final genderControllers = _stockBySizeGenderControllers[size];
-          if (genderControllers == null) continue;
-
-          final maleText = genderControllers[ListingGender.male]!.text.trim();
-          final femaleText = genderControllers[ListingGender.female]!.text.trim();
-
-          final byGender = <ListingGender, int>{};
-          if (maleText.isNotEmpty) {
-            final qty = int.tryParse(maleText);
-            if (qty != null && qty >= 0) {
-              byGender[ListingGender.male] = qty;
-            }
-          }
-          if (femaleText.isNotEmpty) {
-            final qty = int.tryParse(femaleText);
-            if (qty != null && qty >= 0) {
-              byGender[ListingGender.female] = qty;
-            }
-          }
-
-          if (byGender.isNotEmpty) {
-            stockBySizeAndGender[size] = byGender;
-          }
-        }
-
-        if (stockBySizeAndGender.isEmpty) {
-          stockBySizeAndGender = null;
-        }
-      } else if (_sizes.isNotEmpty) {
-        // Beden bazlı stok (unisex)
-        stockBySize = {};
-        for (final size in _sizes) {
-          final controller = _stockBySizeControllers[size];
-          if (controller != null && controller.text.trim().isNotEmpty) {
-            final quantity = int.tryParse(controller.text.trim());
-            if (quantity != null && quantity >= 0) {
-              stockBySize[size] = quantity;
-            }
-          }
-        }
-        if (stockBySize.isEmpty) {
-          stockBySize = null;
-        }
-      } else {
-        // Genel stok (sadece unisex)
-        stockQuantity = _stockQuantityController.text.isEmpty
-            ? null
-            : int.tryParse(_stockQuantityController.text);
-      }
-
       if (widget.listingId != null) {
         // Görseller değiştiyse (yeni yükleme ya da kaldırma) güncelle, yoksa dokunma
         final imagesChanged = _imageUrls.length != _originalImageUrls.length ||
@@ -1408,11 +1103,8 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
               externalUrl: _externalUrlController.text.isEmpty
                   ? null
                   : _externalUrlController.text,
-              stockQuantity: stockQuantity,
-              stockBySize: stockBySize,
               imageUrls: imagesChanged ? _imageUrls : null,
               stockGenderMode: _stockGenderMode,
-              stockBySizeAndGender: stockBySizeAndGender,
               discountPercent: discountFields.percent,
               discountStartsAt: discountFields.startsAt,
               discountEndsAt: discountFields.endsAt,
@@ -1433,11 +1125,9 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
               externalUrl: _externalUrlController.text.isEmpty
                   ? null
                   : _externalUrlController.text,
-              stockQuantity: stockQuantity,
-              stockBySize: stockBySize,
               imageUrls: _imageUrls,
               stockGenderMode: _stockGenderMode,
-              stockBySizeAndGender: stockBySizeAndGender,
+              stockQuantity: 0,
               discountPercent: discountFields.percent,
               discountStartsAt: discountFields.startsAt,
               discountEndsAt: discountFields.endsAt,
@@ -1449,12 +1139,11 @@ class _CreateListingPageState extends ConsumerState<CreateListingPage> {
         result.when(
           data: (listing) async {
             if (listing != null) {
-              // Liste önbelleğini yenile
-              await ref.read(listingsProvider.notifier).refresh();
-
-              // Detay ve kullanıcı ilanları önbelleklerini geçersiz kıl
-              ref.invalidate(listingByIdProvider(listing.id));
-              ref.invalidate(userListingsProvider);
+              invalidateMarketplaceCachesForWidget(
+                ref,
+                listingId: listing.id,
+                refreshListingsGrid: true,
+              );
 
               if (!mounted) return;
 

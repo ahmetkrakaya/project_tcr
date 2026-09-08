@@ -1,7 +1,7 @@
 name: project_tcr
 description: "TCR (Twenty City Runners) - Koşu Kulübü Mobil Uygulaması"
 publish_to: 'none'
-version: 1.2026.29+42
+version: 1.2026.35+48
 
 environment:
   sdk: ^3.9.0
@@ -102,6 +102,7 @@ dependencies:
   # Home screen quick actions (iOS / Android)
   quick_actions: ^1.1.0
   image: ^4.8.0
+  archive: ^4.0.9
 
 dev_dependencies:
   flutter_test:

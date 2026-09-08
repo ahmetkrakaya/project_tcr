@@ -10,10 +10,14 @@ class TrackLaneCalculator {
   static const int minLane = 1;
   static const int maxLane = 8;
 
+  static double _safeLane1Km(double lane1Km) =>
+      lane1Km > 0 ? lane1Km : defaultLane1Km;
+
   static double lapLengthKm(int lane, {double lane1Km = defaultLane1Km}) {
-    if (lane <= 1) return lane1Km;
+    final base = _safeLane1Km(lane1Km);
+    if (lane <= 1) return base;
     const extraMetersPerLane = 2 * 3.14159265359 * laneWidthM;
-    return lane1Km + (lane - 1) * (extraMetersPerLane / 1000);
+    return base + (lane - 1) * (extraMetersPerLane / 1000);
   }
 
   static double laneRatio(
@@ -175,8 +179,11 @@ class TrackLaneCalculator {
     double lane1Km = defaultLane1Km,
   }) {
     final refKm = lapLengthKm(referenceLane, lane1Km: lane1Km);
+    if (refKm <= 0 || !refKm.isFinite) return distanceMeters / 1000;
     final lapCount = distanceMeters / (refKm * 1000);
-    return lapCount * lapLengthKm(viewLane, lane1Km: lane1Km);
+    if (!lapCount.isFinite) return distanceMeters / 1000;
+    final viewKm = lapCount * lapLengthKm(viewLane, lane1Km: lane1Km);
+    return viewKm.isFinite ? viewKm : distanceMeters / 1000;
   }
 
   /// Tek tur süresi (sn); pace aralığı varsa (hızlı, yavaş) döner.

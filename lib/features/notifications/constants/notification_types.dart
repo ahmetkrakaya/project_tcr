@@ -20,6 +20,7 @@ class NotificationTypes {
   static const String orderStatusChanged = 'order_status_changed';
   static const String newMemberPending = 'new_member_pending';
   static const String birthdayReminder = 'birthday_reminder';
+  static const String birthdayWish = 'birthday_wish';
   static const String adminManual = 'admin_manual';
   static const String engagementExcuseRequest = 'engagement_excuse_request';
   static const String weeklyProgramCreated = 'weekly_program_created';
@@ -41,6 +42,7 @@ class NotificationTypes {
     orderStatusChanged,
     newMemberPending,
     birthdayReminder,
+    birthdayWish,
     adminManual,
     engagementExcuseRequest,
     weeklyProgramCreated,
@@ -80,6 +82,8 @@ class NotificationTypes {
         return 'Yeni üye başvurusu';
       case birthdayReminder:
         return 'Doğum günü hatırlatma';
+      case birthdayWish:
+        return 'Doğum günü kutlaması';
       case adminManual:
         return 'Yönetici bildirimi';
       case engagementExcuseRequest:
@@ -131,7 +135,10 @@ class NotificationCategories {
           NotificationTypes.listingDiscount,
         ];
       case birthday:
-        return [NotificationTypes.birthdayReminder];
+        return [
+          NotificationTypes.birthdayReminder,
+          NotificationTypes.birthdayWish,
+        ];
       default:
         return [];
     }

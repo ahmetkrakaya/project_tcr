@@ -86,6 +86,26 @@ void main() {
       expect(range.$2, (360 * 0.4).round());
     });
 
+    test('handles zero lane1Km without producing infinity', () {
+      const segment = WorkoutSegmentEntity(
+        segmentType: WorkoutSegmentType.main,
+        targetType: WorkoutTargetType.distance,
+        target: WorkoutTarget.pace,
+        distanceMeters: 500,
+        paceSecondsPerKmMin: 222,
+        paceSecondsPerKmMax: 222,
+      );
+
+      final prepared = TrackLaneCalculator.prepareSegmentForTrackView(
+        segment,
+        referenceLane: 1,
+        viewLane: 3,
+        lane1Km: 0,
+      );
+
+      expect(prepared.durationSeconds, isNotNull);
+      expect(prepared.durationSeconds!, greaterThan(0));
+    });
     test('does not scale long duration-only segments', () {
       const segment = WorkoutSegmentEntity(
         segmentType: WorkoutSegmentType.main,

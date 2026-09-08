@@ -42,6 +42,13 @@ abstract class EventRemoteDataSource {
   /// Admin: serinin otomatik tekrarını durdur
   Future<void> stopRecurringEventSeries(String latestEventId);
 
+  /// Admin: durdurulmuş seriyi yeniden başlat
+  Future<void> resumeRecurringEventSeries({
+    required String latestEventId,
+    String? recurrenceRule,
+    DateTime? recurrenceEndDate,
+  });
+
   /// Admin: tekrarlayan seriyi kaldır (etkinlik kayıtları kalır)
   Future<void> deleteRecurringEventSeries(String rootEventId);
 
@@ -782,6 +789,8 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
   @override
   Future<List<RecurringEventSeriesModel>> getRecurringEventSeriesList() async {
     try {
+      // Aktif + durdurulmuş seriler: parent bağlı çocuklar, aktif tekrarlar
+      // ve durdurulmuş ama kuralı saklanmış kayıtlar.
       final response = await _supabase
           .from('events')
           .select(
@@ -790,7 +799,11 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
             'creator:users!events_created_by_fkey(first_name, last_name), '
             'routes!events_route_id_fkey(name, total_distance)',
           )
-          .or('parent_event_id.not.is.null,is_recurring.eq.true')
+          .or(
+            'parent_event_id.not.is.null,'
+            'is_recurring.eq.true,'
+            'recurrence_rule.not.is.null',
+          )
           .order('start_time', ascending: false);
 
       final events = (response as List)
@@ -800,7 +813,8 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
             final isRecurring = e['is_recurring'] as bool? ?? false;
             final rule = e['recurrence_rule'] as String?;
             return parentId != null ||
-                (isRecurring && rule != null && rule.isNotEmpty);
+                isRecurring ||
+                (rule != null && rule.isNotEmpty);
           })
           .toList();
 
@@ -835,25 +849,35 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
         String? createdByName;
         for (final member in members) {
           final memberRule = member['recurrence_rule'] as String?;
-          if (memberRule != null && memberRule.isNotEmpty) {
+          // members DESC: ilk dolu kural en güncel kayıttan gelsin
+          if (rule == null && memberRule != null && memberRule.isNotEmpty) {
             rule = memberRule;
           }
           final memberEnd = member['recurrence_end_date'] as String?;
-          if (memberEnd != null && memberEnd.isNotEmpty) {
+          if (endDate == null && memberEnd != null && memberEnd.isNotEmpty) {
             endDate = DateTime.parse(memberEnd);
           }
           final memberDescription = member['description'] as String?;
-          if (memberDescription != null && memberDescription.trim().isNotEmpty) {
+          if (description == null &&
+              memberDescription != null &&
+              memberDescription.trim().isNotEmpty) {
             description = memberDescription.trim();
           }
           final memberCreator = _creatorNameFromEventJson(member);
-          if (memberCreator != 'Bilinmiyor') {
+          if (createdByName == null && memberCreator != 'Bilinmiyor') {
             createdByName = memberCreator;
           }
         }
 
+        // Durdurulmuş seride latest is_recurring=false olsa da kural varsa listede kalsın
         final isRecurring = latest['is_recurring'] as bool? ?? false;
         final isActive = isRecurring && rule != null && rule.isNotEmpty;
+
+        // Silinmiş (kaldırılmış) seriler: ne aktif ne kural ne parent bağı
+        if (!isActive && (rule == null || rule.isEmpty)) {
+          final hasParentLink = members.any((m) => m['parent_event_id'] != null);
+          if (!hasParentLink) continue;
+        }
 
         results.add(
           RecurringEventSeriesModel(
@@ -890,6 +914,34 @@ class EventRemoteDataSourceImpl implements EventRemoteDataSource {
   @override
   Future<void> stopRecurringEventSeries(String latestEventId) async {
     await updateRecurringSeriesFromEvent(latestEventId, {'is_recurring': false});
+  }
+
+  @override
+  Future<void> resumeRecurringEventSeries({
+    required String latestEventId,
+    String? recurrenceRule,
+    DateTime? recurrenceEndDate,
+  }) async {
+    try {
+      await _supabase.rpc(
+        'resume_recurring_event_series',
+        params: {
+          'p_latest_event_id': latestEventId,
+          'p_recurrence_rule': recurrenceRule,
+          'p_recurrence_end_date': recurrenceEndDate == null
+              ? null
+              : DateTime(
+                  recurrenceEndDate.year,
+                  recurrenceEndDate.month,
+                  recurrenceEndDate.day,
+                ).toIso8601String().split('T').first,
+        },
+      );
+    } on PostgrestException catch (e) {
+      throw ServerException(message: e.message, code: e.code);
+    } catch (e) {
+      throw ServerException(message: 'Tekrarlayan seri yeniden başlatılamadı: $e');
+    }
   }
 
   @override

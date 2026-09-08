@@ -4,8 +4,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/enums/gender.dart';
 import '../../data/datasources/marketplace_remote_datasource.dart';
 import '../../data/models/listing_model.dart';
+import '../../data/models/market_report_model.dart';
 import '../../data/models/order_model.dart';
+import '../../data/models/production_batch_model.dart';
 import '../../data/models/stock_alert_model.dart';
+import '../../utils/listing_price_utils.dart';
 
 /// Supabase client provider
 final _supabaseProvider = Provider<SupabaseClient>((ref) {
@@ -16,6 +19,78 @@ final _supabaseProvider = Provider<SupabaseClient>((ref) {
 final marketplaceDataSourceProvider = Provider<MarketplaceRemoteDataSource>((ref) {
   return MarketplaceRemoteDataSourceImpl(ref.watch(_supabaseProvider));
 });
+
+/// Satış / üretim / ilan mutasyonları sonrası ve edit ekranı açılışında çağır.
+/// Tüm market FutureProvider cache'lerini temizler; listings grid'i refresh eder.
+void invalidateMarketplaceCaches(
+  Ref ref, {
+  String? listingId,
+  String? orderId,
+  bool refreshListingsGrid = true,
+}) {
+  if (listingId != null) {
+    ref.invalidate(listingByIdProvider(listingId));
+    ref.invalidate(stockBySizeProvider(listingId));
+    ref.invalidate(productionBatchesProvider(listingId));
+    ref.invalidate(listingAvgUnitCostProvider(listingId));
+    ref.invalidate(productReportProvider(listingId));
+    ref.invalidate(productSalesRowsProvider(listingId));
+    ref.invalidate(userStockAlertsForListingProvider(listingId));
+  }
+  if (orderId != null) {
+    ref.invalidate(orderByIdProvider(orderId));
+  }
+
+  ref.invalidate(adminListingsProvider);
+  ref.invalidate(marketOverviewProvider);
+  ref.invalidate(allOrdersProvider);
+  ref.invalidate(buyerOrdersProvider);
+  ref.invalidate(sellerOrdersProvider);
+  ref.invalidate(myOrdersProvider);
+  ref.invalidate(pendingStockAlertGroupsProvider);
+  ref.invalidate(favoriteListingsProvider);
+  ref.invalidate(userListingsProvider);
+
+  if (refreshListingsGrid) {
+    // invalidate listingsProvider boş state bırakır; refresh mevcut filtreyi korur
+    ref.read(listingsProvider.notifier).refresh();
+  }
+}
+
+/// WidgetRef için aynı invalidation (sayfa açılışları).
+void invalidateMarketplaceCachesForWidget(
+  WidgetRef ref, {
+  String? listingId,
+  String? orderId,
+  bool refreshListingsGrid = true,
+}) {
+  if (listingId != null) {
+    ref.invalidate(listingByIdProvider(listingId));
+    ref.invalidate(stockBySizeProvider(listingId));
+    ref.invalidate(productionBatchesProvider(listingId));
+    ref.invalidate(listingAvgUnitCostProvider(listingId));
+    ref.invalidate(productReportProvider(listingId));
+    ref.invalidate(productSalesRowsProvider(listingId));
+    ref.invalidate(userStockAlertsForListingProvider(listingId));
+  }
+  if (orderId != null) {
+    ref.invalidate(orderByIdProvider(orderId));
+  }
+
+  ref.invalidate(adminListingsProvider);
+  ref.invalidate(marketOverviewProvider);
+  ref.invalidate(allOrdersProvider);
+  ref.invalidate(buyerOrdersProvider);
+  ref.invalidate(sellerOrdersProvider);
+  ref.invalidate(myOrdersProvider);
+  ref.invalidate(pendingStockAlertGroupsProvider);
+  ref.invalidate(favoriteListingsProvider);
+  ref.invalidate(userListingsProvider);
+
+  if (refreshListingsGrid) {
+    ref.read(listingsProvider.notifier).refresh();
+  }
+}
 
 /// Listings State
 class ListingsState {
@@ -82,7 +157,7 @@ class ListingsNotifier extends StateNotifier<ListingsState> {
       );
 
       state = state.copyWith(
-        listings: listings,
+        listings: sortListingsInStockFirst(listings),
         isLoading: false,
         hasMore: listings.length >= 20,
         offset: listings.length,
@@ -110,7 +185,7 @@ class ListingsNotifier extends StateNotifier<ListingsState> {
       );
 
       state = state.copyWith(
-        listings: [...state.listings, ...listings],
+        listings: sortListingsInStockFirst([...state.listings, ...listings]),
         isLoading: false,
         hasMore: listings.length >= 20,
         offset: state.offset + listings.length,
@@ -200,9 +275,11 @@ final favoriteListingsProvider = StateNotifierProvider<FavoriteListingsNotifier,
 
 /// Create Listing Notifier
 class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
+  final Ref _ref;
   final MarketplaceRemoteDataSource _dataSource;
 
-  CreateListingNotifier(this._dataSource) : super(const AsyncValue.data(null));
+  CreateListingNotifier(this._ref, this._dataSource)
+      : super(const AsyncValue.data(null));
 
   Future<void> createListing({
     required ListingType listingType,
@@ -241,10 +318,8 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
         size: size,
         externalUrl: externalUrl,
         status: ListingStatus.active,
-        stockQuantity: stockQuantity,
-        stockBySize: stockBySize,
+        stockQuantity: 0,
         stockGenderMode: stockGenderMode,
-        stockBySizeAndGender: stockBySizeAndGender,
         discountPercent: discountPercent,
         discountStartsAt: discountStartsAt,
         discountEndsAt: discountEndsAt,
@@ -253,21 +328,8 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
       );
 
       final created = await _dataSource.createListing(listing, imageUrls);
-      
-      // Cinsiyet + beden bazlı stok varsa önce onu kaydet
-      if (stockBySizeAndGender != null && stockBySizeAndGender.isNotEmpty) {
-        await _dataSource.updateStockBySizeAndGender(created.id, stockBySizeAndGender);
-        // Güncellenmiş listing'i tekrar getir
-        final updated = await _dataSource.getListingById(created.id);
-        state = AsyncValue.data(updated);
-      } else if (stockBySize != null && stockBySize.isNotEmpty) {
-        // Eski API: sadece beden bazlı (unisex) stok
-        await _dataSource.updateStockBySize(created.id, stockBySize);
-        final updated = await _dataSource.getListingById(created.id);
-        state = AsyncValue.data(updated);
-      } else {
-        state = AsyncValue.data(created);
-      }
+      invalidateMarketplaceCaches(_ref, listingId: created.id);
+      state = AsyncValue.data(created);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -311,10 +373,7 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
         size: size,
         externalUrl: externalUrl,
         status: ListingStatus.active,
-        stockQuantity: stockQuantity,
-        stockBySize: stockBySize,
         stockGenderMode: stockGenderMode,
-        stockBySizeAndGender: stockBySizeAndGender,
         discountPercent: discountPercent,
         discountStartsAt: discountStartsAt,
         discountEndsAt: discountEndsAt,
@@ -323,20 +382,8 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
       );
 
       final updated = await _dataSource.updateListing(listing, imageUrls);
-      
-      // Cinsiyet + beden bazlı stok varsa önce onu kaydet
-      if (stockBySizeAndGender != null) {
-        await _dataSource.updateStockBySizeAndGender(listingId, stockBySizeAndGender);
-        // Güncellenmiş listing'i tekrar getir
-        final finalUpdated = await _dataSource.getListingById(listingId);
-        state = AsyncValue.data(finalUpdated);
-      } else if (stockBySize != null) {
-        await _dataSource.updateStockBySize(listingId, stockBySize);
-        final finalUpdated = await _dataSource.getListingById(listingId);
-        state = AsyncValue.data(finalUpdated);
-      } else {
-        state = AsyncValue.data(updated);
-      }
+      invalidateMarketplaceCaches(_ref, listingId: listingId);
+      state = AsyncValue.data(updated);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -350,7 +397,7 @@ class CreateListingNotifier extends StateNotifier<AsyncValue<ListingModel?>> {
 /// Create Listing Provider
 final createListingProvider = StateNotifierProvider<CreateListingNotifier, AsyncValue<ListingModel?>>((ref) {
   final dataSource = ref.watch(marketplaceDataSourceProvider);
-  return CreateListingNotifier(dataSource);
+  return CreateListingNotifier(ref, dataSource);
 });
 
 /// Toggle Favorite Notifier
@@ -429,9 +476,11 @@ final favoriteIdsProvider = StateNotifierProvider<FavoriteIdsNotifier, Set<Strin
 
 /// Create Order Notifier
 class CreateOrderNotifier extends StateNotifier<AsyncValue<OrderModel?>> {
+  final Ref _ref;
   final MarketplaceRemoteDataSource _dataSource;
 
-  CreateOrderNotifier(this._dataSource) : super(const AsyncValue.data(null));
+  CreateOrderNotifier(this._ref, this._dataSource)
+      : super(const AsyncValue.data(null));
 
   Future<void> createOrder({
     required String listingId,
@@ -461,6 +510,7 @@ class CreateOrderNotifier extends StateNotifier<AsyncValue<OrderModel?>> {
       );
 
       final created = await _dataSource.createOrder(order);
+      invalidateMarketplaceCaches(_ref, listingId: listingId, orderId: created.id);
       state = AsyncValue.data(created);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -475,7 +525,7 @@ class CreateOrderNotifier extends StateNotifier<AsyncValue<OrderModel?>> {
 /// Create Order Provider
 final createOrderProvider = StateNotifierProvider<CreateOrderNotifier, AsyncValue<OrderModel?>>((ref) {
   final dataSource = ref.watch(marketplaceDataSourceProvider);
-  return CreateOrderNotifier(dataSource);
+  return CreateOrderNotifier(ref, dataSource);
 });
 
 /// Buyer Orders Provider
@@ -508,9 +558,11 @@ final allOrdersProvider = FutureProvider.family<List<OrderModel>, OrderStatus?>(
 
 /// Update Order Status Notifier
 class UpdateOrderStatusNotifier extends StateNotifier<AsyncValue<OrderModel?>> {
+  final Ref _ref;
   final MarketplaceRemoteDataSource _dataSource;
 
-  UpdateOrderStatusNotifier(this._dataSource) : super(const AsyncValue.data(null));
+  UpdateOrderStatusNotifier(this._ref, this._dataSource)
+      : super(const AsyncValue.data(null));
 
   Future<void> updateOrderStatus(
     String orderId,
@@ -520,7 +572,13 @@ class UpdateOrderStatusNotifier extends StateNotifier<AsyncValue<OrderModel?>> {
     state = const AsyncValue.loading();
 
     try {
-      final updated = await _dataSource.updateOrderStatus(orderId, status, note: note);
+      final updated =
+          await _dataSource.updateOrderStatus(orderId, status, note: note);
+      invalidateMarketplaceCaches(
+        _ref,
+        listingId: updated.listingId,
+        orderId: orderId,
+      );
       state = AsyncValue.data(updated);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -535,20 +593,23 @@ class UpdateOrderStatusNotifier extends StateNotifier<AsyncValue<OrderModel?>> {
 /// Update Order Status Provider
 final updateOrderStatusProvider = StateNotifierProvider<UpdateOrderStatusNotifier, AsyncValue<OrderModel?>>((ref) {
   final dataSource = ref.watch(marketplaceDataSourceProvider);
-  return UpdateOrderStatusNotifier(dataSource);
+  return UpdateOrderStatusNotifier(ref, dataSource);
 });
 
 /// Update Stock Quantity Notifier
 class UpdateStockQuantityNotifier extends StateNotifier<AsyncValue<void>> {
+  final Ref _ref;
   final MarketplaceRemoteDataSource _dataSource;
 
-  UpdateStockQuantityNotifier(this._dataSource) : super(const AsyncValue.data(null));
+  UpdateStockQuantityNotifier(this._ref, this._dataSource)
+      : super(const AsyncValue.data(null));
 
   Future<void> updateStockQuantity(String listingId, int? stockQuantity) async {
     state = const AsyncValue.loading();
 
     try {
       await _dataSource.updateStockQuantity(listingId, stockQuantity);
+      invalidateMarketplaceCaches(_ref, listingId: listingId);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -563,14 +624,16 @@ class UpdateStockQuantityNotifier extends StateNotifier<AsyncValue<void>> {
 /// Update Stock Quantity Provider
 final updateStockQuantityProvider = StateNotifierProvider<UpdateStockQuantityNotifier, AsyncValue<void>>((ref) {
   final dataSource = ref.watch(marketplaceDataSourceProvider);
-  return UpdateStockQuantityNotifier(dataSource);
+  return UpdateStockQuantityNotifier(ref, dataSource);
 });
 
 /// Update Listing Discount Notifier
 class UpdateListingDiscountNotifier extends StateNotifier<AsyncValue<void>> {
+  final Ref _ref;
   final MarketplaceRemoteDataSource _dataSource;
 
-  UpdateListingDiscountNotifier(this._dataSource) : super(const AsyncValue.data(null));
+  UpdateListingDiscountNotifier(this._ref, this._dataSource)
+      : super(const AsyncValue.data(null));
 
   Future<void> updateDiscount({
     required String listingId,
@@ -587,6 +650,7 @@ class UpdateListingDiscountNotifier extends StateNotifier<AsyncValue<void>> {
         discountStartsAt: discountStartsAt,
         discountEndsAt: discountEndsAt,
       );
+      invalidateMarketplaceCaches(_ref, listingId: listingId);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -602,7 +666,7 @@ class UpdateListingDiscountNotifier extends StateNotifier<AsyncValue<void>> {
 final updateListingDiscountProvider =
     StateNotifierProvider<UpdateListingDiscountNotifier, AsyncValue<void>>((ref) {
   final dataSource = ref.watch(marketplaceDataSourceProvider);
-  return UpdateListingDiscountNotifier(dataSource);
+  return UpdateListingDiscountNotifier(ref, dataSource);
 });
 
 /// Get Stock By Size Provider
@@ -613,15 +677,18 @@ final stockBySizeProvider = FutureProvider.family<Map<String, int>, String>((ref
 
 /// Update Stock By Size Notifier
 class UpdateStockBySizeNotifier extends StateNotifier<AsyncValue<void>> {
+  final Ref _ref;
   final MarketplaceRemoteDataSource _dataSource;
 
-  UpdateStockBySizeNotifier(this._dataSource) : super(const AsyncValue.data(null));
+  UpdateStockBySizeNotifier(this._ref, this._dataSource)
+      : super(const AsyncValue.data(null));
 
   Future<void> updateStockBySize(String listingId, Map<String, int> stockBySize) async {
     state = const AsyncValue.loading();
 
     try {
       await _dataSource.updateStockBySize(listingId, stockBySize);
+      invalidateMarketplaceCaches(_ref, listingId: listingId);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -636,7 +703,7 @@ class UpdateStockBySizeNotifier extends StateNotifier<AsyncValue<void>> {
 /// Update Stock By Size Provider
 final updateStockBySizeProvider = StateNotifierProvider<UpdateStockBySizeNotifier, AsyncValue<void>>((ref) {
   final dataSource = ref.watch(marketplaceDataSourceProvider);
-  return UpdateStockBySizeNotifier(dataSource);
+  return UpdateStockBySizeNotifier(ref, dataSource);
 });
 
 String stockAlertScopeKey(
@@ -711,3 +778,203 @@ class ToggleStockAlertNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 }
+
+// ============================================================
+// Manuel satış, üretim maliyeti ve raporlama
+// ============================================================
+
+/// Rapor tarih aralığı filtresi. Null alanlar "sınırsız" anlamına gelir.
+class ReportDateRange {
+  final DateTime? from;
+  final DateTime? to;
+
+  const ReportDateRange({this.from, this.to});
+
+  static const ReportDateRange all = ReportDateRange();
+
+  @override
+  bool operator ==(Object other) =>
+      other is ReportDateRange && other.from == from && other.to == to;
+
+  @override
+  int get hashCode => Object.hash(from, to);
+}
+
+/// Admin ekranlarında ürün seçimi için tüm aktif ürünler
+final adminListingsProvider = FutureProvider<List<ListingModel>>((ref) async {
+  final dataSource = ref.watch(marketplaceDataSourceProvider);
+  return dataSource.getListings(limit: 200);
+});
+
+/// Tek sipariş (düzenleme ekranı için)
+final orderByIdProvider =
+    FutureProvider.family<OrderModel, String>((ref, orderId) async {
+  final dataSource = ref.watch(marketplaceDataSourceProvider);
+  return dataSource.getOrderById(orderId);
+});
+
+/// Ürünün üretim partileri
+final productionBatchesProvider =
+    FutureProvider.family<List<ProductionBatch>, String>((ref, listingId) async {
+  final dataSource = ref.watch(marketplaceDataSourceProvider);
+  return dataSource.getProductionBatches(listingId);
+});
+
+/// Ürünün ağırlıklı ortalama birim maliyeti
+final listingAvgUnitCostProvider =
+    FutureProvider.family<double?, String>((ref, listingId) async {
+  final dataSource = ref.watch(marketplaceDataSourceProvider);
+  return dataSource.getListingAvgUnitCost(listingId);
+});
+
+/// Genel market raporu (tarih aralığı filtreli)
+final marketOverviewProvider =
+    FutureProvider.family<List<MarketOverviewRow>, ReportDateRange>(
+        (ref, range) async {
+  final dataSource = ref.watch(marketplaceDataSourceProvider);
+  return dataSource.getMarketOverview(from: range.from, to: range.to);
+});
+
+/// Tek ürün özet raporu
+final productReportProvider =
+    FutureProvider.family<ProductReportSummary, String>((ref, listingId) async {
+  final dataSource = ref.watch(marketplaceDataSourceProvider);
+  return dataSource.getProductReport(listingId);
+});
+
+/// Ürün satış geçmişi satırları
+final productSalesRowsProvider =
+    FutureProvider.family<List<ProductSalesRow>, String>((ref, listingId) async {
+  final dataSource = ref.watch(marketplaceDataSourceProvider);
+  return dataSource.getProductSalesRows(listingId);
+});
+
+/// Manuel satış ve üretim partisi yazma işlemleri
+class ManualSaleNotifier extends StateNotifier<AsyncValue<void>> {
+  final Ref _ref;
+  final MarketplaceRemoteDataSource _dataSource;
+
+  ManualSaleNotifier(this._ref, this._dataSource)
+      : super(const AsyncValue.data(null));
+
+  Future<bool> createSale(OrderModel sale) async {
+    state = const AsyncValue.loading();
+    try {
+      final created = await _dataSource.createManualSale(sale);
+      invalidateMarketplaceCaches(
+        _ref,
+        listingId: sale.listingId,
+        orderId: created.id,
+      );
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  Future<bool> updateSale(String orderId, OrderModel sale) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.updateSale(orderId, sale);
+      invalidateMarketplaceCaches(
+        _ref,
+        listingId: sale.listingId,
+        orderId: orderId,
+      );
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  Future<bool> deleteSale(String orderId, String listingId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.deleteOrder(orderId);
+      invalidateMarketplaceCaches(
+        _ref,
+        listingId: listingId,
+        orderId: orderId,
+      );
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  Future<bool> updateListingSizesAndGenderMode({
+    required String listingId,
+    required String? size,
+    required ListingGenderMode stockGenderMode,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.updateListingSizesAndGenderMode(
+        listingId: listingId,
+        size: size,
+        stockGenderMode: stockGenderMode,
+      );
+      invalidateMarketplaceCaches(_ref, listingId: listingId);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  Future<bool> saveProductionBatch({
+    String? batchId,
+    required String listingId,
+    required double unitCost,
+    required DateTime producedAt,
+    String? note,
+    required List<ProductionBatchItem> items,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.saveProductionBatch(
+        batchId: batchId,
+        listingId: listingId,
+        unitCost: unitCost,
+        producedAt: producedAt,
+        note: note,
+        items: items,
+      );
+      invalidateMarketplaceCaches(_ref, listingId: listingId);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  Future<bool> deleteProductionBatch(String batchId, String listingId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _dataSource.deleteProductionBatch(batchId);
+      invalidateMarketplaceCaches(_ref, listingId: listingId);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  void reset() {
+    state = const AsyncValue.data(null);
+  }
+}
+
+final manualSaleProvider =
+    StateNotifierProvider<ManualSaleNotifier, AsyncValue<void>>((ref) {
+  return ManualSaleNotifier(ref, ref.watch(marketplaceDataSourceProvider));
+});

@@ -22,7 +22,11 @@ const _info = ReportInfo(
     ReportInfoTerm('VDOT', 'Koşu performans seviyesini gösteren tahmini değer.'),
     ReportInfoTerm('CTL/ATL/TSB', 'Fitness / yorgunluk / form dengesi.'),
     ReportInfoTerm('ACWR', 'Akut/Kronik yük oranı; sakatlık riski göstergesi.'),
-    ReportInfoTerm('Puan', 'Yarış katılımlarından toplanan toplam puan.'),
+    ReportInfoTerm(
+      'Puan',
+      'Etkinlik katılımları (yarış: km başına 1, antrenman: 1, diğer: 2) '
+      've market siparişlerinin yüzde 5’inden toplanan toplam puan.',
+    ),
   ],
   takeaways: [
     'Bireysel görüşme öncesi hızlı durum özeti için kullanın.',

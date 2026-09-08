@@ -703,6 +703,14 @@ class _ReportsTab extends StatelessWidget {
           iconColor: const Color(0xFF1B4332),
           onTap: () => context.pushNamed(RouteNames.adminPartnerRedemptions),
         ),
+        const SizedBox(height: 12),
+        _ReportCard(
+          icon: Icons.point_of_sale_outlined,
+          title: 'Market Raporları',
+          subtitle: 'Ürün satışları, maliyet ve kar-zarar tablosu',
+          iconColor: AppColors.success,
+          onTap: () => context.pushNamed(RouteNames.marketReports),
+        ),
       ],
     );
   }

@@ -76,7 +76,7 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
   List<ListingModel> _applyStockFilter(List<ListingModel> listings) {
     switch (_stockFilter) {
       case _StockFilter.all:
-        return listings;
+        return sortListingsInStockFirst(listings);
       case _StockFilter.inStock:
         return listings.where(isListingInStock).toList();
       case _StockFilter.outOfStock:
@@ -164,6 +164,10 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
                         context.pushNamed(RouteNames.stockAlertsAdmin);
                       case _MarketMenuAction.createListing:
                         context.pushNamed(RouteNames.listingCreate);
+                      case _MarketMenuAction.manualSale:
+                        context.pushNamed(RouteNames.manualSale);
+                      case _MarketMenuAction.reports:
+                        context.pushNamed(RouteNames.marketReports);
                     }
                   },
                   itemBuilder: (context) => [
@@ -174,6 +178,26 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage> {
                           Icon(Icons.add),
                           SizedBox(width: 12),
                           Text('Yeni İlan'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: _MarketMenuAction.manualSale,
+                      child: Row(
+                        children: [
+                          Icon(Icons.point_of_sale),
+                          SizedBox(width: 12),
+                          Text('Elden Satış Ekle'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: _MarketMenuAction.reports,
+                      child: Row(
+                        children: [
+                          Icon(Icons.insights_outlined),
+                          SizedBox(width: 12),
+                          Text('Satış Raporları'),
                         ],
                       ),
                     ),
@@ -467,15 +491,16 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
         ? (width / 280).floor().clamp(2, 6)
         : 2;
     final cardWidth = (width - padding - spacing * (crossAxisCount - 1)) / crossAxisCount;
-    final cardHeight = cardWidth / 0.62;
-    final childAspectRatio = cardWidth / cardHeight;
+    // Kare görsel + kompakt metin bloğu (başlık 2 satır + beden + fiyat)
+    const textBlockHeight = 92.0;
+    final cardHeight = cardWidth + textBlockHeight;
 
     return SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        childAspectRatio: childAspectRatio,
+        mainAxisExtent: cardHeight,
       ),
       delegate: SliverChildBuilderDelegate(
         (context, index) {
@@ -496,10 +521,10 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
   }
 
   Widget _buildListingCard(BuildContext context, ListingModel listing) {
-    final isTcrProduct = listing.listingType == ListingType.tcrProduct;
     final isOutOfStock = isListingOutOfStock(listing);
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final subtitle = _buildSubtitle(listing);
 
     return AppCard(
       padding: EdgeInsets.zero,
@@ -517,212 +542,165 @@ class _ListingsGridState extends ConsumerState<_ListingsGrid> {
           pathParameters: {'listingId': listing.id},
         );
       },
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Görsel yüksekliği: kartın ~%58'i; web'de büyük kartlarda daha yüksek üst sınır
-          final maxImageHeight = kIsWeb && constraints.maxHeight > 320 ? 240.0 : 160.0;
-          final imageHeight = (constraints.maxHeight * 0.58).clamp(100.0, maxImageHeight);
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Image
-              Stack(
-                children: [
-                  SizedBox(
-                    height: imageHeight,
-                    width: double.infinity,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHigh,
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(16),
-                        ),
-                      ),
-                      child: listing.primaryImageUrl != null
-                          ? ClipRRect(
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHigh,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
+                  ),
+                  child: listing.primaryImageUrl != null
+                      ? ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Opacity(
+                                opacity: isOutOfStock ? 0.45 : 1,
+                                child: Image.network(
+                                  listing.primaryImageUrl!,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder:
+                                      (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return const Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Center(
+                                    child: Icon(
+                                      Icons.image,
+                                      size: 48,
+                                      color: cs.outline,
+                                    ),
+                                  ),
+                                ),
                               ),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  Opacity(
-                                    opacity: isOutOfStock ? 0.45 : 1,
-                                    child: Image.network(
-                                      listing.primaryImageUrl!,
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                      height: imageHeight,
-                                      loadingBuilder:
-                                          (context, child, loadingProgress) {
-                                        if (loadingProgress == null) {
-                                          return child;
-                                        }
-                                        return const Center(
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        );
-                                      },
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              Center(
-                                        child: Icon(
-                                          Icons.image,
-                                          size: 48,
-                                          color: cs.outline,
-                                        ),
+                              if (isOutOfStock)
+                                Container(
+                                  color: Colors.black.withValues(alpha: 0.18),
+                                  alignment: Alignment.center,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: cs.surface.withValues(alpha: 0.92),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      'Stokta Yok',
+                                      style: AppTypography.labelSmall.copyWith(
+                                        color: cs.onSurface,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                   ),
-                                  if (isOutOfStock)
-                                    Container(
-                                      color: Colors.black.withValues(alpha: 0.18),
-                                      alignment: Alignment.center,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: cs.surface.withValues(alpha: 0.92),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          'Stokta Yok',
-                                          style: AppTypography.labelSmall
-                                              .copyWith(
-                                            color: cs.onSurface,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            )
-                          : Center(
-                              child: Icon(
-                                Icons.image,
-                                size: 48,
-                                color: cs.outline,
-                              ),
-                            ),
-                    ),
-                  ),
-                  if (isTcrProduct)
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: cs.primary.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.verified,
-                              size: 11,
-                              color: cs.onPrimary,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              'TCR',
-                              style: AppTypography.labelSmall.copyWith(
-                                color: cs.onPrimary,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  if (isListingDiscountActive(listing) && !isOutOfStock)
-                    Positioned(
-                      bottom: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.error,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '%${listing.discountPercent}',
-                          style: AppTypography.labelSmall.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
+                                ),
+                            ],
+                          ),
+                        )
+                      : Center(
+                          child: Icon(
+                            Icons.image,
+                            size: 48,
+                            color: cs.outline,
                           ),
                         ),
+                ),
+                if (isListingDiscountActive(listing) && !isOutOfStock)
+                  Positioned(
+                    bottom: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '%${listing.discountPercent}',
+                        style: AppTypography.labelSmall.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: _FavoriteButton(listingId: listing.id, listing: listing),
+                  ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: _FavoriteButton(listingId: listing.id, listing: listing),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  listing.title,
+                  style: AppTypography.titleSmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    height: 1.25,
+                    color: isOutOfStock
+                        ? cs.onSurfaceVariant
+                        : cs.onSurface,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: cs.onSurfaceVariant,
+                      fontSize: 11,
+                      height: 1.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
-              ),
-              // Info - kalan alanı doldurur, taşma olmaz
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          listing.title,
-                          style: AppTypography.titleSmall.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: isOutOfStock
-                                ? cs.onSurfaceVariant
-                                : cs.onSurface,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (_buildSubtitle(listing).isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          _buildSubtitle(listing),
-                          style: AppTypography.bodySmall.copyWith(
-                            color: cs.onSurfaceVariant,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                      const Spacer(),
-                      Opacity(
-                        opacity: isOutOfStock ? 0.55 : 1,
-                        child: ListingPriceDisplay(
-                          listing: listing,
-                          compact: true,
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 6),
+                Opacity(
+                  opacity: isOutOfStock ? 0.55 : 1,
+                  child: ListingPriceDisplay(
+                    listing: listing,
+                    compact: true,
+                    priceStyle: AppTypography.titleSmall.copyWith(
+                      color: cs.primary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      height: 1.2,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1271,4 +1249,6 @@ enum _MarketMenuAction {
   ordersManagement,
   stockAlerts,
   createListing,
+  manualSale,
+  reports,
 }
