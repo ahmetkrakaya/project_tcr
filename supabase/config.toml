@@ -58,3 +58,53 @@ redirect_uri = ""
 enabled = false
 port = 54327
 vector_port = 54328
+
+# Edge Functions: `supabase functions deploy <ad>` bu ayarları kullanır.
+# verify_jwt = false olanlar kendi yetki kontrolünü yapar veya dış servisten (Strava, Garmin) çağrılır.
+[functions.strava-webhook]
+verify_jwt = false
+
+[functions.strava-enrich]
+verify_jwt = true
+
+[functions.strava-backfill]
+verify_jwt = true
+
+[functions.strava-auth]
+verify_jwt = false
+
+[functions.strava-public-config]
+verify_jwt = false
+
+[functions.strava-watch-reminder]
+verify_jwt = true
+
+[functions.send-push-on-notification]
+verify_jwt = true
+
+[functions.garmin-auth]
+verify_jwt = false
+
+[functions.garmin-disconnect]
+verify_jwt = false
+
+[functions.garmin-push-workout]
+verify_jwt = false
+
+[functions.event-results-import]
+verify_jwt = false
+
+[functions.event-results-template]
+verify_jwt = false
+
+[functions.monthly-program-import]
+verify_jwt = false
+
+[functions.monthly-program-template]
+verify_jwt = false
+
+[functions.weekly-program-upsert]
+verify_jwt = false
+
+[functions.partner-redeem]
+verify_jwt = false
