@@ -377,7 +377,7 @@ _RecoverySpec? _parseRecoveryClause(String raw) {
     if (bareNum != null) {
       final afterNum = remaining.substring(bareNum.group(1)!.length);
       final looksLikeDuration = RegExp(
-        '^\\s*$durationUnitPattern\\b',
+        '^\\s*(?:$durationUnitPattern|$secondUnitPattern)\\b',
         caseSensitive: false,
       ).hasMatch(afterNum);
       if (!looksLikeDuration) {
@@ -387,13 +387,16 @@ _RecoverySpec? _parseRecoveryClause(String raw) {
     }
   }
 
-  final dkMatch = RegExp(
-    '^(\\d+(?:\\.\\d+)?)\\s*${durationUnitPattern}(?:\\s+|\$)',
+  final durMatch = RegExp(
+    '^(\\d+(?:\\.\\d+)?)\\s*($durationUnitPattern|$secondUnitPattern)\\b',
     caseSensitive: false,
   ).firstMatch(remaining);
-  if (dkMatch != null) {
-    durationSec = (double.parse(dkMatch.group(1)!) * 60).round();
-    remaining = remaining.substring(dkMatch.group(0)!.length).trim();
+  if (durMatch != null) {
+    durationSec = durationToSeconds(
+      double.parse(durMatch.group(1)!),
+      durMatch.group(2)!,
+    );
+    remaining = remaining.substring(durMatch.group(0)!.length).trim();
   }
 
   if (remaining.isNotEmpty) {
@@ -594,7 +597,7 @@ sealed class _ParsedBlock {}
 class _IntervalBlock extends _ParsedBlock {
   final int repeat;
   final int? distanceM;
-  final int? durationMinutes;
+  final double? durationMinutes;
   final CoachRepTarget? target;
   final _RecoverySpec? recovery;
   _IntervalBlock({
@@ -607,7 +610,7 @@ class _IntervalBlock extends _ParsedBlock {
 }
 
 class _DurationBlock extends _ParsedBlock {
-  final int minutes;
+  final double minutes;
   final CoachPaceSpec? pace;
   _DurationBlock({required this.minutes, this.pace});
 }
@@ -662,7 +665,7 @@ _IntervalBlock? _parseIntervalBlock(String block) {
   final work = split.work;
 
   final m = RegExp(
-    '^(\\d+)\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*(${durationUnitPattern}|m|k|km)?(?:\\s*(?:\\(([^)]+)\\)|(\\d{1,2}:\\d{2})p?))?(?:\\s+(.+))?\$',
+    '^(\\d+)\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*(${durationUnitPattern}|${secondUnitPattern}|m|k|km)?(?:\\s*(?:\\(([^)]+)\\)|(\\d{1,2}:\\d{2})p?))?(?:\\s+(.+))?\$',
     caseSensitive: false,
   ).firstMatch(work);
   if (m == null) return null;
@@ -671,9 +674,11 @@ _IntervalBlock? _parseIntervalBlock(String block) {
   final value = double.parse(m.group(2)!);
   final unit = m.group(3)?.toLowerCase();
   int? distanceM;
-  int? durationMinutes;
-  if (isDurationUnit(unit)) {
-    durationMinutes = value.round();
+  double? durationMinutes;
+  if (isSecondUnit(unit)) {
+    durationMinutes = value / 60;
+  } else if (isDurationUnit(unit)) {
+    durationMinutes = value;
   } else {
     distanceM = _distanceMetersFromValue(value, unit);
   }
@@ -765,13 +770,17 @@ _IntervalBlock? _parseDurationRepBlock(String block) {
   if (!_hasRecovery(split.recovery)) return null;
 
   final m = RegExp(
-    '^(\\d+(?:\\.\\d+)?)\\s*${durationUnitPattern}(?:\\s+(.+))?\$',
+    '^(\\d+(?:\\.\\d+)?)\\s*($durationUnitPattern|$secondUnitPattern)(?:\\s+(.+))?\$',
     caseSensitive: false,
   ).firstMatch(split.work);
   if (m == null) return null;
 
-  final minutes = double.parse(m.group(1)!).round();
-  final paceRaw = m.group(2)?.trim();
+  final minutes = durationToSeconds(
+        double.parse(m.group(1)!),
+        m.group(2)!,
+      ) /
+      60;
+  final paceRaw = m.group(3)?.trim();
   final pace = paceRaw != null ? parsePaceSpec(paceRaw) : null;
 
   return _IntervalBlock(
@@ -785,12 +794,16 @@ _IntervalBlock? _parseDurationRepBlock(String block) {
 
 _DurationBlock? _parseDurationBlock(String block) {
   final m = RegExp(
-    '^(\\d+(?:\\.\\d+)?)\\s*${durationUnitPattern}(?:\\s+(.+))?\$',
+    '^(\\d+(?:\\.\\d+)?)\\s*($durationUnitPattern|$secondUnitPattern)(?:\\s+(.+))?\$',
     caseSensitive: false,
   ).firstMatch(block.trim());
   if (m == null) return null;
-  final minutes = double.parse(m.group(1)!).round();
-  final paceRaw = m.group(2)?.trim();
+  final minutes = durationToSeconds(
+        double.parse(m.group(1)!),
+        m.group(2)!,
+      ) /
+      60;
+  final paceRaw = m.group(3)?.trim();
   return _DurationBlock(
     minutes: minutes,
     pace: paceRaw != null ? parsePaceSpec(paceRaw) : null,
@@ -877,7 +890,7 @@ List<Map<String, dynamic>> _blockToSteps(
     return [_buildRecoveryStep(block.recovery)];
   }
   if (block is _DurationBlock) {
-    return [buildDurationSegment(kind, block.minutes * 60, block.pace)];
+    return [buildDurationSegment(kind, (block.minutes * 60).round(), block.pace)];
   }
   if (block is _DistanceBlock) {
     return [buildDistanceSegment(kind, block.distanceM, block.target)];
@@ -887,7 +900,7 @@ List<Map<String, dynamic>> _blockToSteps(
       ? buildDistanceSegment(CoachSegmentKind.main, b.distanceM!, b.target)
       : buildDurationSegment(
           CoachSegmentKind.main,
-          (b.durationMinutes ?? 0) * 60,
+          ((b.durationMinutes ?? 0) * 60).round(),
           b.target?.pace,
         );
   final inner = <Map<String, dynamic>>[main];

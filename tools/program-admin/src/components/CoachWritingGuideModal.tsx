@@ -279,6 +279,7 @@ function WritingTab() {
         </p>
         <GuideCode>{`4x8dk vdot R 1dk
 5x400 (1:51) R200m
+5x100m 4:50 R30 sn
 6x5 dakika 3:00p R 1 dakika 3:00 p
 400m vdot R 1dk`}</GuideCode>
         <GuideCallout type="warn" title="Toparlanma zorunlu">
@@ -291,7 +292,7 @@ function WritingTab() {
       <GuideBlock title="Birim eşdeğerleri">
         <div className="guide-unit-list">
           <div>
-            <strong>Süre:</strong> dk, dakika, dak, min, saat, h, 1h30dk
+            <strong>Süre:</strong> dk, dakika, dak, min, saat, h, sn, saniye, s, sec, 1h30dk
           </div>
           <div>
             <strong>Mesafe:</strong> m, metre, km, k, kilometre

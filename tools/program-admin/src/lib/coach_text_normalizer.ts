@@ -55,6 +55,16 @@ function normalizeWordUnits(text: string): string {
   t = t.replace(/(\d+(?:\.\d+)?)(?:\s*)?dak\b/gi, "$1dk");
   t = t.replace(/(\d+(?:\.\d+)?)\s*dk\b/gi, "$1dk");
 
+  // Saniye dakikaya çevrilmez: 30 sn, 30saniye, 30 sec, 30s → 30sn
+  t = t.replace(
+    /(\d+(?:\.\d+)?)(?:\s*)?(?:saniye(?:ler)?|seconds?|secs?|sn|san|s)\b/gi,
+    "$1sn",
+  );
+  t = t.replace(
+    /(\d+(?:\.\d+)?)dk\s*(\d+(?:\.\d+)?)sn\b/gi,
+    (_m, min, sec) => `${Math.round(Number(min) * 60 + Number(sec))}sn`,
+  );
+
   t = t.replace(/(\d+(?:\.\d+)?)(?:\s*)?(?:metres?|meters?)\b/gi, "$1m");
   t = t.replace(
     /(\d+(?:\.\d+)?)(?:\s*)?(?:kilometres?|kilometers?)\b/gi,
@@ -93,12 +103,12 @@ function normalizePaceSuffixes(text: string): string {
 function insertBoundarySpaces(text: string): string {
   let t = text;
 
-  t = t.replace(/(dk|km|m|k)(\d{1,2}:\d{2})/gi, "$1 $2");
-  t = t.replace(/(dk|km|m|k)(vdot)\b/gi, "$1 $2");
-  t = t.replace(/(dk|km|m|k|\d{1,2}:\d{2})(R)\b/gi, "$1 $2");
+  t = t.replace(/(dk|sn|km|m|k)(\d{1,2}:\d{2})/gi, "$1 $2");
+  t = t.replace(/(dk|sn|km|m|k)(vdot)\b/gi, "$1 $2");
+  t = t.replace(/(dk|sn|km|m|k|\d{1,2}:\d{2})(R)\b/gi, "$1 $2");
   t = t.replace(/(\d{1,2}:\d{2})(vdot)\b/gi, "$1 $2");
   t = t.replace(/\bR(\d)/gi, "R $1");
-  t = t.replace(/(\d+m)(\d+(?:\.\d+)?dk\b)/gi, "$1 $2");
+  t = t.replace(/(\d+m)(\d+(?:\.\d+)?(?:dk|sn)\b)/gi, "$1 $2");
   t = t.replace(/(\d+m)(\d{1,2}:\d{2}dk\b)/gi, "$1 $2");
 
   return t;
@@ -138,5 +148,22 @@ export function normalizeCoachInput(raw: string): string {
   return t;
 }
 
-/** Parser regex'lerinde süre birimi yedek kalıbı */
+/** Parser regex'lerinde süre birimi yedek kalıbı (dakika). */
 export const DURATION_UNIT_PATTERN = "(?:dk|dakika|dak|min(?:ute)?s?)";
+
+/**
+ * Saniye birimi. Tek harf `s` dahil; dakika kalıplarından sonra denenmeli.
+ * 30 sn, 30 saniye, 30sn, 30s, 30 sec → 30 saniye.
+ */
+export const SECOND_UNIT_PATTERN = "(?:saniye(?:ler)?|seconds?|secs?|sn|san|s)";
+
+export function isSecondUnit(unit: string | null | undefined): boolean {
+  if (!unit) return false;
+  return new RegExp(`^${SECOND_UNIT_PATTERN}$`, "i").test(unit);
+}
+
+/** Dakika birimleri 60 ile, saniye birimleri olduğu gibi. */
+export function durationToSeconds(value: number, unit: string): number {
+  if (isSecondUnit(unit)) return Math.round(value);
+  return Math.round(value * 60);
+}

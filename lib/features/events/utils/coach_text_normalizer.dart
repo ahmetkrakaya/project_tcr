@@ -2,13 +2,27 @@
 // TS: tools/program-admin/src/lib/coach_text_normalizer.ts
 
 const kDurationUnitPattern = r'(?:dk|dakika|dak|min(?:ute)?s?)';
+const kSecondUnitPattern = r'(?:saniye(?:ler)?|seconds?|secs?|sn|san|s)';
 
 String get durationUnitPattern => kDurationUnitPattern;
+
+String get secondUnitPattern => kSecondUnitPattern;
 
 bool isDurationUnit(String? unit) {
   if (unit == null) return false;
   final u = unit.toLowerCase();
   return u == 'dk' || u == 'dakika' || u == 'dak' || u.startsWith('min');
+}
+
+bool isSecondUnit(String? unit) {
+  if (unit == null) return false;
+  return RegExp('^$kSecondUnitPattern\$', caseSensitive: false).hasMatch(unit);
+}
+
+/// Dakika birimleri 60 ile, saniye birimleri olduğu gibi.
+int durationToSeconds(double value, String unit) {
+  if (isSecondUnit(unit)) return value.round();
+  return (value * 60).round();
 }
 
 String _expandNpaceShorthand(String text) {
@@ -83,6 +97,20 @@ String _normalizeWordUnits(String text) {
     (m) => '${m.group(1)}dk',
   );
 
+  // Saniye dakikaya çevrilmez: 30 sn, 30saniye, 30 sec, 30s → 30sn
+  t = t.replaceAllMapped(
+    RegExp(
+      r'(\d+(?:\.\d+)?)(?:\s*)?(?:saniye(?:ler)?|seconds?|secs?|sn|san|s)\b',
+      caseSensitive: false,
+    ),
+    (m) => '${m.group(1)}sn',
+  );
+  t = t.replaceAllMapped(
+    RegExp(r'(\d+(?:\.\d+)?)dk\s*(\d+(?:\.\d+)?)sn\b', caseSensitive: false),
+    (m) =>
+        '${(double.parse(m.group(1)!) * 60 + double.parse(m.group(2)!)).round()}sn',
+  );
+
   t = t.replaceAllMapped(
     RegExp(r'(\d+(?:\.\d+)?)(?:\s*)?(?:metres?|meters?)\b', caseSensitive: false),
     (m) => '${m.group(1)}m',
@@ -146,15 +174,15 @@ String _insertBoundarySpaces(String text) {
   var t = text;
 
   t = t.replaceAllMapped(
-    RegExp(r'(dk|km|m|k)(\d{1,2}:\d{2})', caseSensitive: false),
+    RegExp(r'(dk|sn|km|m|k)(\d{1,2}:\d{2})', caseSensitive: false),
     (m) => '${m.group(1)} ${m.group(2)}',
   );
   t = t.replaceAllMapped(
-    RegExp(r'(dk|km|m|k)(vdot)\b', caseSensitive: false),
+    RegExp(r'(dk|sn|km|m|k)(vdot)\b', caseSensitive: false),
     (m) => '${m.group(1)} ${m.group(2)}',
   );
   t = t.replaceAllMapped(
-    RegExp(r'(dk|km|m|k|\d{1,2}:\d{2})(R)\b', caseSensitive: false),
+    RegExp(r'(dk|sn|km|m|k|\d{1,2}:\d{2})(R)\b', caseSensitive: false),
     (m) => '${m.group(1)} ${m.group(2)}',
   );
   t = t.replaceAllMapped(
@@ -166,7 +194,7 @@ String _insertBoundarySpaces(String text) {
     (m) => 'R ${m.group(1)}',
   );
   t = t.replaceAllMapped(
-    RegExp(r'(\d+m)(\d+(?:\.\d+)?dk\b)', caseSensitive: false),
+    RegExp(r'(\d+m)(\d+(?:\.\d+)?(?:dk|sn)\b)', caseSensitive: false),
     (m) => '${m.group(1)} ${m.group(2)}',
   );
   t = t.replaceAllMapped(

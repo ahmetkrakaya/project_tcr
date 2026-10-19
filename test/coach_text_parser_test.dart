@@ -408,6 +408,79 @@ R 400m 7 pace''';
       expect(recovery['distance_meters'], 400);
     });
 
+    test('recovery seconds are not parsed as meters', () {
+      const inputs = [
+        '5x100m 4:50 R30 sn',
+        '5x100m 4:50 R30sn',
+        '5x100m 4:50 R30 saniye',
+        '5x100m 4:50 R30s',
+        '5x100m 4:50 R30 sec',
+        '5x100m 4:50 R30 seconds',
+        '5x100m 4:50 R0.50 dk',
+        '5x100m 4:50 R0:30',
+      ];
+      for (final input in inputs) {
+        final r = parseCoachText(input);
+        expect(r.ok, isTrue, reason: '$input: ${r.error}');
+        final recovery =
+            (((r.workoutDefinition!['steps'] as List).first as Map)['steps'] as List)[1]
+                as Map;
+        final seg = recovery['segment'] as Map;
+        expect(seg['duration_seconds'], 30, reason: input);
+        expect(seg['distance_meters'], isNull, reason: input);
+        expect(seg['target_type'], 'duration', reason: input);
+      }
+    });
+
+    test('recovery keeps meters minutes and hours', () {
+      Map segOf(String input) {
+        final r = parseCoachText(input);
+        expect(r.ok, isTrue, reason: '$input: ${r.error}');
+        final recovery =
+            (((r.workoutDefinition!['steps'] as List).first as Map)['steps'] as List)[1]
+                as Map;
+        return recovery['segment'] as Map;
+      }
+
+      final meters = segOf('5x100m 4:50 R30 m');
+      expect(meters['distance_meters'], 30);
+      expect(meters['target_type'], 'distance');
+
+      final metre = segOf('5x100m 4:50 R30 metre');
+      expect(metre['distance_meters'], 30);
+
+      final bare = segOf('5x100m 4:50 R400');
+      expect(bare['distance_meters'], 400);
+
+      final minutes = segOf('5x100m 4:50 R30 dk');
+      expect(minutes['duration_seconds'], 1800);
+      expect(minutes['distance_meters'], isNull);
+
+      final dakika = segOf('5x100m 4:50 R30 dakika');
+      expect(dakika['duration_seconds'], 1800);
+
+      final hour = segOf('5x100m 4:50 R1 saat');
+      expect(hour['duration_seconds'], 3600);
+
+      final mixed = segOf('5x100m 4:50 R1dk 30sn');
+      expect(mixed['duration_seconds'], 90);
+    });
+
+    test('second units work on the effort itself', () {
+      final reps = parseCoachText('4x20sn R10 saniye');
+      expect(reps.ok, isTrue, reason: reps.error);
+      final inner = ((reps.workoutDefinition!['steps'] as List).first as Map)['steps'] as List;
+      expect(((inner[0] as Map)['segment'] as Map)['duration_seconds'], 20);
+      expect(((inner[1] as Map)['segment'] as Map)['duration_seconds'], 10);
+
+      final cooldown = parseCoachText('45 saniye soğuma');
+      expect(cooldown.ok, isTrue, reason: cooldown.error);
+      final seg = ((cooldown.workoutDefinition!['steps'] as List).first as Map)['segment'] as Map;
+      expect(seg['segment_type'], 'cooldown');
+      expect(seg['duration_seconds'], 45);
+      expect(seg['distance_meters'], isNull);
+    });
+
     test('recovery spaced duration is not parsed as meters', () {
       final r = parseCoachText(
         '2x4k(5:40 pace/5:30pace) R 2 dk 7:30pace/7:00pace',

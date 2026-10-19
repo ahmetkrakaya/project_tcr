@@ -3,7 +3,13 @@
  * Dart: lib/features/events/utils/coach_text_parser.dart
  */
 
-import { normalizeCoachInput, DURATION_UNIT_PATTERN } from "./coach_text_normalizer.ts";
+import {
+  normalizeCoachInput,
+  DURATION_UNIT_PATTERN,
+  SECOND_UNIT_PATTERN,
+  isSecondUnit,
+  durationToSeconds,
+} from "./coach_text_normalizer.ts";
 
 export type SegmentKind = "warmup" | "main" | "recovery" | "cooldown";
 
@@ -323,7 +329,7 @@ function parseRecoveryClause(raw: string): RecoverySpec | null {
     if (bareNum) {
       const afterNum = remaining.slice(bareNum[1]!.length);
       const looksLikeDuration = new RegExp(
-        `^\\s*${DURATION_UNIT_PATTERN}\\b`,
+        `^\\s*(?:${DURATION_UNIT_PATTERN}|${SECOND_UNIT_PATTERN})\\b`,
         "i",
       ).test(afterNum);
       if (!looksLikeDuration) {
@@ -333,12 +339,15 @@ function parseRecoveryClause(raw: string): RecoverySpec | null {
     }
   }
 
-  const dkMatch = remaining.match(
-    new RegExp(`^(\\d+(?:\\.\\d+)?)\\s*${DURATION_UNIT_PATTERN}(?:\\s+|$)`, "i"),
+  const durMatch = remaining.match(
+    new RegExp(
+      `^(\\d+(?:\\.\\d+)?)\\s*(${DURATION_UNIT_PATTERN}|${SECOND_UNIT_PATTERN})\\b`,
+      "i",
+    ),
   );
-  if (dkMatch) {
-    spec.durationSec = Math.round(Number(dkMatch[1]) * 60);
-    remaining = remaining.slice(dkMatch[0].length).trim();
+  if (durMatch) {
+    spec.durationSec = durationToSeconds(Number(durMatch[1]), durMatch[2]!);
+    remaining = remaining.slice(durMatch[0].length).trim();
   }
 
   if (remaining) {
@@ -554,7 +563,7 @@ function parseIntervalBlock(block: string): ParsedBlock | null {
 
   const m = work.match(
     new RegExp(
-      `^(\\d+)\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*(${DURATION_UNIT_PATTERN}|m|k|km)?(?:\\s*(?:\\(([^)]+)\\)|(\\d{1,2}:\\d{2})p?))?(?:\\s+(.+))?$`,
+      `^(\\d+)\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*(${DURATION_UNIT_PATTERN}|${SECOND_UNIT_PATTERN}|m|k|km)?(?:\\s*(?:\\(([^)]+)\\)|(\\d{1,2}:\\d{2})p?))?(?:\\s+(.+))?$`,
       "i",
     ),
   );
@@ -566,7 +575,9 @@ function parseIntervalBlock(block: string): ParsedBlock | null {
   let distanceM: number | null = null;
   let durationMinutes: number | null = null;
 
-  if (unit === "dk" || unit === "dakika" || unit === "dak" || unit === "min" || unit?.startsWith("min")) {
+  if (isSecondUnit(unit)) {
+    durationMinutes = value / 60;
+  } else if (unit === "dk" || unit === "dakika" || unit === "dak" || unit === "min" || unit?.startsWith("min")) {
     durationMinutes = value;
   } else {
     distanceM = distanceMetersFromValue(value, unit);
@@ -646,12 +657,15 @@ function parseDurationRepBlock(block: string): ParsedBlock | null {
   if (!hasRecovery(recovery)) return null;
 
   const m = work.match(
-    new RegExp(`^(\\d+(?:\\.\\d+)?)\\s*${DURATION_UNIT_PATTERN}(?:\\s+(.+))?$`, "i"),
+    new RegExp(
+      `^(\\d+(?:\\.\\d+)?)\\s*(${DURATION_UNIT_PATTERN}|${SECOND_UNIT_PATTERN})(?:\\s+(.+))?$`,
+      "i",
+    ),
   );
   if (!m) return null;
 
-  const minutes = Number(m[1]);
-  const paceRaw = m[2]?.trim();
+  const minutes = durationToSeconds(Number(m[1]), m[2]!) / 60;
+  const paceRaw = m[3]?.trim();
   const pace = paceRaw ? parsePaceSpec(paceRaw) : null;
 
   return {
@@ -666,11 +680,14 @@ function parseDurationRepBlock(block: string): ParsedBlock | null {
 
 function parseDurationBlock(block: string): ParsedBlock | null {
   const m = block.trim().match(
-    new RegExp(`^(\\d+(?:\\.\\d+)?)\\s*${DURATION_UNIT_PATTERN}(?:\\s+(.+))?$`, "i"),
+    new RegExp(
+      `^(\\d+(?:\\.\\d+)?)\\s*(${DURATION_UNIT_PATTERN}|${SECOND_UNIT_PATTERN})(?:\\s+(.+))?$`,
+      "i",
+    ),
   );
   if (!m) return null;
-  const minutes = Number(m[1]);
-  const paceRaw = m[2]?.trim();
+  const minutes = durationToSeconds(Number(m[1]), m[2]!) / 60;
+  const paceRaw = m[3]?.trim();
   const pace = paceRaw ? parsePaceSpec(paceRaw) : null;
   return { type: "duration", minutes, pace };
 }
@@ -735,7 +752,7 @@ function blockToSteps(
     return [buildRecoveryStep(block.recovery)];
   }
   if (block.type === "duration") {
-    return [buildDurationSegment(kind, block.minutes * 60, block.pace)];
+    return [buildDurationSegment(kind, Math.round(block.minutes * 60), block.pace)];
   }
   if (block.type === "distance") {
     return [buildDistanceSegment(kind, block.distanceM, block.target)];
@@ -746,7 +763,7 @@ function blockToSteps(
       ? buildDistanceSegment("main", block.distanceM, block.target)
       : buildDurationSegment(
           "main",
-          (block.durationMinutes ?? 0) * 60,
+          Math.round((block.durationMinutes ?? 0) * 60),
           block.target?.pace ?? null,
         );
 
